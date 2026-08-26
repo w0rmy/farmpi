@@ -1,0 +1,6 @@
+config.h
+*.bin
+*.elf
+*.map
+build/
+.pio/
