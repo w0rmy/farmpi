@@ -1,133 +1,25 @@
-# FarmPi ESP32 sensor ingest
+# Sensor ingest and synthetic-farm simulation
 
-## Purpose
+POST /api/ingest accepts one complete virtual-node sample over HTTPS. Authentication remains a single local alpha bearer token held only in /etc/farmpi/farmpi.env. FastAPI validates every value against app/measurements.py and assigns the UTC server timestamp; ESP32s do not need a real-time clock.
 
-This stage proves the device-to-database path using a real ESP32 over Wi-Fi while deliberately using synthetic sensor values. The aim is to validate the FarmPi data architecture without expanding the capstone into a physical-sensor engineering project.
+The required payload has sensor, simulated, and these instantaneous values: soil_moisture_pct (0–100), soil_temperature_c (-10–60°C), air_temperature_c (-30–60°C), relative_humidity_pct (0–100), soil_ph (0–14), soil_ec_ms_cm (0–20 mS/cm), light_lux (0–200,000), rainfall_mm (0–100 per sample interval), barometric_pressure_hpa (850–1100), wind_speed_kmh (0–250), wind_direction_deg (0–360), pasture_height_cm (0–300), and leaf_wetness_pct (0–100).
 
-The ESP32 behaves as though it were a real field sensor node:
+## One ESP32, 16 nodes
 
-```text
-ESP32
-  ↓ synthetic environmental reading
-Wi-Fi
-  ↓ HTTPS POST /api/ingest
-FastAPI validation and lightweight bearer-token authentication
-  ↓
-MariaDB readings
-  ↓
-deterministic farm-data functions
-  ↓
-minimal verified grounding context
-  ↓
-Qwen3 0.6B
-  ↓
-natural-language answer
-```
+The sketch owns Paddocks A–P, using sensor UIDs test-moisture-a through test-moisture-p. It posts exactly one node every 18,750 ms and completes each node's sample cycle in five minutes. Failed posts are diagnosed on serial output and retried during that node's next round; they do not stop later nodes.
 
-Only the source of the measurement is synthetic. The networking, server validation, database insertion, deterministic calculation, grounding, and LLM response path are the same path intended for later real sensor readings.
+The generator has shared weather and persistent per-paddock state. Rainfall events raise humidity, moisture, and leaf wetness; they reduce light and air temperature and bring pressure downward. Paddocks retain stable moisture, shade, temperature, pH, EC and growth differences. Pasture grows slowly and rarely drops sharply. The result is correlated synthetic test telemetry, not a prediction or agronomic model.
 
-## API
+The global clock is advanced only immediately before Paddock A begins a new 16-post round. This avoids the earlier conceptual error of advancing an entire day after every HTTP request.
 
-`POST /api/ingest`
+## TLS/SNI and timestamp lessons
 
-Example body:
+The ESP32 resolves farmpi.local by mDNS, connects to that resolved IP, and explicitly supplies farmpi.local as the TLS hostname. This SNI detail matters because Caddy selects its HTTPS site by hostname; connecting only by IP caused the prior handshake failure. setInsecure() still encrypts traffic but does not validate Caddy's private CA, a bounded alpha compromise.
 
-```json
-{
-  "sensor": "test-moisture-a",
-  "soil_moisture_pct": 17.82,
-  "air_temperature_c": 16.50,
-  "relative_humidity_pct": 72.00,
-  "soil_ph": 6.30,
-  "light_lux": 12345.00,
-  "simulated": true
-}
-```
+MariaDB DATETIME values are application-convention UTC. The repeatable seed is deliberately dated 2026-01-01 UTC, and removes the old 2026-08-26 local-looking seed timestamp, so accepted server-timestamped telemetry always becomes current.
 
-The `sensor` value must match an active `sensor_nodes.node_uid`. Every payload includes five instantaneous measurements: soil moisture (0–100%), air temperature (-30–60°C), relative humidity (0–100%), soil pH (0–14), and light (0–200,000 lux). FarmPi validates these limits and timestamps the reading on the server in UTC, so the prototype ESP32 does not need a real-time clock.
+Daylight hours are not ingested. They are derived from historical light_lux by deterministic application code.
 
-A successful submission returns HTTP `201 Created` with the stored reading id, sensor, paddock, value, simulation flag, and timestamp.
+## Validation
 
-## Timestamp convention
-
-FarmPi stores application-generated `readings.recorded_at` values as UTC in the MariaDB `DATETIME(6)` column. The value is timezone-naive in MariaDB, so the application convention is important: all new readings written through `/api/ingest` are UTC.
-
-An early alpha seed used `2026-08-26 18:00:00` as a fixed baseline timestamp. Because that seed looked like local New Zealand time while ingest values were stored as UTC, the seed could sort later than a newly ingested reading on the same date. This caused the deterministic "latest reading" query to keep selecting the seed value even though the ingest endpoint had accepted a newer measurement.
-
-The seed has been corrected to an intentionally old UTC baseline timestamp (`2026-01-01 00:00:00`) and the seed script removes the original `2026-08-26 18:00:00` rows on existing alpha installations. This preserves the intended rule: any subsequently ingested sensor reading supersedes the baseline seed.
-
-## Prototype authentication
-
-The endpoint uses one FarmPi-wide bearer token:
-
-```text
-Authorization: Bearer <token>
-```
-
-`scripts/setup-database` generates the token and stores it in `/etc/farmpi/farmpi.env` as `FARMPI_INGEST_TOKEN`. The token is deliberately lightweight authentication for the local alpha/test network. Per-device credentials, certificate provisioning, key rotation, and device PKI are outside the current capstone scope.
-
-Display the token on FarmPi with:
-
-```bash
-sudo grep '^FARMPI_INGEST_TOKEN=' /etc/farmpi/farmpi.env
-```
-
-## Simulation provenance
-
-The `readings` table includes a `simulated` boolean. Seed readings and synthetic ESP32 readings are stored with `simulated = TRUE`.
-
-The deterministic grounding layer carries that provenance forward. When a result uses a simulated latest reading, the facts supplied to Qwen explicitly state that the result includes simulated test data. This avoids presenting synthetic measurements as real farm observations.
-
-## Firmware
-
-The firmware lives in the same repository under:
-
-```text
-firmware/esp32-sensor/
-```
-
-This keeps the capstone as one monorepo while preserving a clear boundary between Raspberry Pi application code and embedded firmware.
-
-The test firmware:
-
-- joins Wi-Fi;
-- resolves `farmpi.local` using mDNS;
-- produces bounded random-walk values for soil moisture, air temperature, relative humidity, soil pH, and light;
-- uses a gentle synthetic light/temperature day cycle over 288 five-minute samples;
-- sends every five minutes by default;
-- marks the value as simulated;
-- retries after Wi-Fi or server failure;
-- prints status information over serial.
-
-The random walks are intentionally more realistic than unrelated random values on every sample. Their purpose is only to generate changing telemetry for the data path; they do not model agronomy.
-
-## Daylight-hours boundary
-
-`daylight_hours` is deliberately not an ingest field. It is an aggregate over a time period, not an instantaneous sensor observation. If it becomes useful later, FarmPi should derive it deterministically from historical `light_lux` readings using an explicit threshold and defined time window. That future calculation must remain in application code, never in the LLM.
-
-## TLS scope
-
-The ESP32 uses TLS but calls `WiFiClientSecure::setInsecure()`, so it does not validate Caddy's private-CA certificate. This is a deliberate prototype simplification. The user-facing browser path continues to use trusted HTTPS through Caddy's internal CA.
-
-The first ESP32 integration attempt successfully resolved `farmpi.local` through mDNS but then opened TLS using only the resolved IP address. Caddy serves the HTTPS site as `farmpi.local`, so the TLS handshake also needs that hostname as Server Name Indication (SNI). Disabling certificate validation with `setInsecure()` bypasses certificate verification, but it does not remove Caddy's need to know which hostname/site the client is requesting.
-
-The firmware now connects to the mDNS-resolved IP while explicitly supplying `farmpi.local` as the TLS hostname/SNI value. It also reports the underlying TLS error on the serial console if a handshake still fails. This preserves the current HTTPS architecture without introducing certificate provisioning on the ESP32.
-
-For this capstone stage, certificate provisioning on embedded nodes would add engineering work without materially improving demonstration of the two target elective areas.
-
-## Validation sequence
-
-After deploying the server changes and flashing the ESP32:
-
-1. Confirm the serial console reports HTTP `201 Created`.
-2. Confirm a new row appears in MariaDB with `simulated = 1`.
-3. Confirm the new row has a later UTC `recorded_at` value than the baseline seed.
-4. Ask FarmPi for a named paddock's current soil moisture, air temperature, relative humidity, soil pH, or light value.
-5. Ask `Which paddock is driest?` and verify the answer changes when the synthetic reading changes enough to alter the deterministic result.
-6. Confirm daylight-hours and agronomic-recommendation questions still return unavailable information rather than fabricated values.
-
-This demonstrates a complete chain from a physical networked device to a grounded AI response while keeping the farm functionality deliberately minimal.
-
-## Scope boundary
-
-Once this path is proven, FarmPi does not need additional farm-device sophistication for the capstone. The next major development focus should shift to the Flexible Learning component: user profiles, explanation depth, onboarding, guidance, presentation preferences, and evaluation with a nontechnical user.
+After flashing, expect HTTP 201 Created in serial output, then ask current, rain, height and EC questions. Confirm simulated provenance appears. Test an unavailable request such as irrigation advice to verify that FarmPi refuses to invent it.

@@ -6,6 +6,8 @@ import asyncio
 from contextlib import asynccontextmanager
 import logging
 import os
+import re
+import secrets
 import time
 from typing import Any, AsyncIterator
 
@@ -20,8 +22,9 @@ from .farm_data import (
     format_grounding_context,
     get_grounding_data,
 )
-from .guidance import INITIAL_SUGGESTIONS, WELCOME_TEXT, follow_up_suggestions
 from .question_router import route_question
+from .paddock_admin import RenameProposal, RenameRejected, confirm_rename, prepare_rename
+from .guidance import INITIAL_SUGGESTIONS, WELCOME_TEXT, follow_up_suggestions
 
 LLAMA_BASE_URL = os.getenv("FARMPI_LLAMA_URL", "http://127.0.0.1:8080")
 LLAMA_CHAT_URL = f"{LLAMA_BASE_URL}/v1/chat/completions"
@@ -44,9 +47,8 @@ app = FastAPI(title="FarmPi", version="0.5.0", lifespan=lifespan)
 SYSTEM_PROMPT = """You are FarmPi.
 Use only VERIFIED FACTS supplied by FarmPi.
 Never calculate or invent facts, causes, or recommendations.
-If VERIFIED FACTS describe FarmPi's capabilities, explain them helpfully as user guidance.
 If the answer is absent, say it is unavailable.
-Be concise, clear, and useful.
+Answer briefly.
 """
 
 
@@ -54,6 +56,7 @@ class AskRequest(BaseModel):
     """Request body for a grounded FarmPi question."""
 
     question: str = Field(min_length=1, max_length=1000)
+    confirmation_id: str | None = Field(default=None, min_length=16, max_length=128)
 
 
 class AskTimings(BaseModel):
@@ -72,8 +75,9 @@ class AskResponse(BaseModel):
     answer: str
     grounding: str = "mariadb-deterministic"
     intent: str
-    suggestions: list[str]
     timings: AskTimings
+    confirmation_id: str | None = None
+    suggestions: list[str] = []
 
 
 class GuidanceResponse(BaseModel):
@@ -81,6 +85,13 @@ class GuidanceResponse(BaseModel):
 
     welcome: str
     suggestions: list[str]
+
+
+# A confirmation is intentionally short-lived in process memory. It is not a
+# durable command queue and cannot mutate anything unless the same browser
+# explicitly returns its opaque token with a spoken/typed confirmation.
+_pending_renames: dict[str, tuple[RenameProposal, float]] = {}
+_CONFIRMATION_RE = re.compile(r"^\s*(?:yes|confirm|confirm rename|please confirm)\s*[!.]?\s*$", re.IGNORECASE)
 
 
 PAGE = r"""<!doctype html>
@@ -102,10 +113,9 @@ body {
 h1 { margin-bottom: 0.25rem; }
 p { line-height: 1.45; }
 .hint, #status, .footnote { color: #aaa; }
-.panel {
-    padding: 14px 16px;
-    background: #1b1b1b;
-    border: 1px solid #444;
+.warning {
+    padding: 10px 12px;
+    border: 1px solid #555;
     border-radius: 8px;
     margin: 16px 0;
 }
@@ -126,10 +136,6 @@ button {
     margin: 0 8px 8px 0;
     border-radius: 8px;
 }
-.suggestion {
-    font-size: 15px;
-    padding: 8px 10px;
-}
 label { display: inline-block; margin-top: 8px; }
 #answer {
     margin-top: 22px;
@@ -141,22 +147,15 @@ label { display: inline-block; margin-top: 8px; }
     white-space: pre-wrap;
 }
 #status { min-height: 1.5em; margin-top: 10px; }
-#suggestions { margin-top: 12px; }
 </style>
 </head>
 <body>
 <h1>FarmPi</h1>
-<p class="hint">A grounded local assistant for exploring the FarmPi test data.</p>
+<p class="hint">Ask the local farm-monitoring assistant a question.</p>
 
-<div class="panel">
-<strong>Prototype:</strong> current environmental readings come from MariaDB and include
-synthetic ESP32 telemetry. FarmPi keeps simulated data explicitly marked as simulated.
-</div>
-
-<div class="panel">
-<strong>Getting started</strong>
-<p id="welcome">Loading FarmPi guidance…</p>
-<div id="initialSuggestions"></div>
+<div class="warning">
+<strong>Prototype:</strong> MariaDB holds simulated 16-paddock telemetry.
+FarmPi labels simulated results and does not provide farm advice.
 </div>
 
 <textarea id="question" autocomplete="off"
@@ -175,10 +174,9 @@ synthetic ESP32 telemetry. FarmPi keeps simulated data explicitly marked as simu
 
 <div id="status"></div>
 <div id="answer"></div>
-<div id="suggestions"></div>
 
 <p class="footnote">
-Suggested follow-up questions are deterministic interface guidance. The LLM still receives only approved verified facts.
+If browser speech recognition is unavailable or denied, tap the microphone on your phone keyboard and dictate into the question box.
 </p>
 
 <script>
@@ -189,56 +187,26 @@ const askButton = document.getElementById("ask");
 const guideButton = document.getElementById("guide");
 const speakButton = document.getElementById("speak");
 const speakAnswer = document.getElementById("speakAnswer");
-const welcome = document.getElementById("welcome");
-const initialSuggestions = document.getElementById("initialSuggestions");
-const suggestions = document.getElementById("suggestions");
+let pendingConfirmationId = null;
 
-function renderSuggestions(target, items) {
-    target.replaceChildren();
-    if (!items || items.length === 0) {
-        return;
-    }
-
-    for (const text of items) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "suggestion";
-        button.textContent = text;
-        button.addEventListener("click", () => askFarmPi(text));
-        target.appendChild(button);
-    }
-}
-
-function speakText(text) {
-    if (!speakAnswer.checked || !("speechSynthesis" in window)) {
-        return;
-    }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "en-NZ";
-    window.speechSynthesis.speak(utterance);
-}
-
-async function askFarmPi(textOverride = null) {
-    const text = (textOverride || question.value).trim();
+async function askFarmPi() {
+    const text = question.value.trim();
     if (!text) {
-        status.textContent = "Enter, speak, or choose a question first.";
+        status.textContent = "Enter or speak a question first.";
         return;
     }
 
-    question.value = text;
     askButton.disabled = true;
     guideButton.disabled = true;
     speakButton.disabled = true;
     answer.textContent = "";
-    suggestions.replaceChildren();
     status.textContent = "Asking FarmPi…";
 
     try {
         const response = await fetch("/api/ask", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({question: text})
+            body: JSON.stringify({question: text, confirmation_id: pendingConfirmationId})
         });
 
         const data = await response.json();
@@ -247,7 +215,10 @@ async function askFarmPi(textOverride = null) {
         }
 
         answer.textContent = data.answer;
-        renderSuggestions(suggestions, data.suggestions);
+        pendingConfirmationId = data.confirmation_id || null;
+        if (data.suggestions && data.suggestions.length) {
+            status.textContent = "Try next: " + data.suggestions[0];
+        }
         if (data.timings) {
             const totalSeconds = (data.timings.total_ms / 1000).toFixed(2);
             const llmSeconds = (data.timings.llm_ms / 1000).toFixed(2);
@@ -257,7 +228,12 @@ async function askFarmPi(textOverride = null) {
             status.textContent = "Response received.";
         }
 
-        speakText(data.answer);
+        if (speakAnswer.checked && "speechSynthesis" in window) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(data.answer);
+            utterance.lang = "en-NZ";
+            window.speechSynthesis.speak(utterance);
+        }
     } catch (error) {
         status.textContent = "Error: " + error.message;
     } finally {
@@ -313,16 +289,14 @@ function startSpeech() {
     recognition.start();
 }
 
-async function loadGuidance() {
-    try {
-        const response = await fetch("/api/guidance");
-        const data = await response.json();
-        welcome.textContent = data.welcome;
-        renderSuggestions(initialSuggestions, data.suggestions);
-    } catch {
-        welcome.textContent = "Ask about current verified FarmPi sensor readings, or tap Guide me.";
+askButton.addEventListener("click", askFarmPi);
+guideButton.addEventListener("click", () => { question.value = "Guide me"; askFarmPi(); });
+speakButton.addEventListener("click", startSpeech);
+question.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        askFarmPi();
     }
-}
+});
 
 async function checkFarmPiStatus() {
     try {
@@ -340,16 +314,6 @@ async function checkFarmPiStatus() {
     }
 }
 
-askButton.addEventListener("click", () => askFarmPi());
-guideButton.addEventListener("click", () => askFarmPi("How do I use FarmPi?"));
-speakButton.addEventListener("click", startSpeech);
-question.addEventListener("keydown", (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-        askFarmPi();
-    }
-});
-
-loadGuidance();
 checkFarmPiStatus();
 </script>
 </body>
@@ -372,10 +336,7 @@ async def health() -> dict[str, str]:
 @app.get("/api/guidance", response_model=GuidanceResponse)
 async def guidance() -> GuidanceResponse:
     """Return deterministic onboarding text and example questions."""
-    return GuidanceResponse(
-        welcome=WELCOME_TEXT,
-        suggestions=list(INITIAL_SUGGESTIONS),
-    )
+    return GuidanceResponse(welcome=WELCOME_TEXT, suggestions=list(INITIAL_SUGGESTIONS))
 
 
 @app.get("/api/status")
@@ -428,6 +389,57 @@ async def ask(request: AskRequest) -> AskResponse:
     route = route_question(question_text)
     routing_ms = (time.perf_counter() - route_start) * 1000
 
+    def direct_action(answer: str, intent: str, confirmation_id: str | None = None) -> AskResponse:
+        total_ms = (time.perf_counter() - total_start) * 1000
+        return AskResponse(
+            answer=answer,
+            intent=intent,
+            confirmation_id=confirmation_id,
+            suggestions=list(follow_up_suggestions(intent)),
+            timings=AskTimings(
+                routing_ms=round(routing_ms, 2),
+                database_ms=round(total_ms - routing_ms, 2),
+                context_ms=0.0,
+                llm_ms=0.0,
+                total_ms=round(total_ms, 2),
+            ),
+        )
+
+    # Confirmation is an explicit deterministic mutation boundary. Qwen is not
+    # called to interpret, authorise, or execute the database update.
+    now = time.monotonic()
+    for token, (_, expires_at) in tuple(_pending_renames.items()):
+        if expires_at <= now:
+            del _pending_renames[token]
+    if request.confirmation_id and _CONFIRMATION_RE.fullmatch(question_text):
+        pending = _pending_renames.pop(request.confirmation_id, None)
+        if pending is None:
+            return direct_action("That rename confirmation is missing or expired. Please request the rename again.", "rename-confirmation")
+        proposal, expires_at = pending
+        if expires_at <= now:
+            return direct_action("That rename confirmation has expired. Please request the rename again.", "rename-confirmation")
+        try:
+            confirmed = await asyncio.to_thread(confirm_rename, proposal)
+        except (RenameRejected, DatabaseUnavailable) as exc:
+            return direct_action(str(exc), "rename-confirmation")
+        return direct_action(
+            f'Renamed "{confirmed.old_name}" to "{confirmed.new_name}". Historical readings remain linked to this paddock.',
+            "rename-confirmation",
+        )
+
+    if route.intent == "rename-request":
+        try:
+            proposal = await asyncio.to_thread(prepare_rename, route.paddock_name or "", route.new_paddock_name or "")
+        except (RenameRejected, DatabaseUnavailable) as exc:
+            return direct_action(str(exc), "rename-request")
+        confirmation_id = secrets.token_urlsafe(24)
+        _pending_renames[confirmation_id] = (proposal, now + 300)
+        return direct_action(
+            f'Rename "{proposal.old_name}" to "{proposal.new_name}"? Reply “confirm” or “yes” within five minutes to apply this change.',
+            "rename-request",
+            confirmation_id,
+        )
+
     database_start = time.perf_counter()
     try:
         grounding_data = await asyncio.to_thread(
@@ -435,6 +447,8 @@ async def ask(request: AskRequest) -> AskResponse:
             route.intent,
             route.paddock_name,
             route.measurement,
+            route.operation,
+            route.window_minutes,
         )
     except DatabaseUnavailable as exc:
         raise HTTPException(
@@ -444,7 +458,7 @@ async def ask(request: AskRequest) -> AskResponse:
     except NoFarmData as exc:
         raise HTTPException(
             status_code=503,
-            detail="No current environmental readings are available.",
+            detail="No current soil-moisture readings are available.",
         ) from exc
     database_ms = (time.perf_counter() - database_start) * 1000
 
@@ -458,7 +472,7 @@ async def ask(request: AskRequest) -> AskResponse:
             {"role": "user", "content": question_text},
         ],
         "temperature": 0.1,
-        "max_tokens": 80 if route.intent == "help" else 40,
+        "max_tokens": 40,
         "stream": False,
     }
     context_ms = (time.perf_counter() - context_start) * 1000
@@ -505,12 +519,6 @@ async def ask(request: AskRequest) -> AskResponse:
     return AskResponse(
         answer=answer,
         intent=route.intent,
-        suggestions=list(
-            follow_up_suggestions(
-                route.intent,
-                route.paddock_name,
-                route.measurement,
-            )
-        ),
+        suggestions=list(follow_up_suggestions(route.intent, route.paddock_name, route.measurement)),
         timings=timings,
     )

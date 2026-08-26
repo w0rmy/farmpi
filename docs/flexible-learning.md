@@ -49,6 +49,14 @@ A new user can be prompted with questions such as:
 - `What is Paddock A's relative humidity?`
 - `How do I use FarmPi?`
 
+The expanded synthetic-farm stage adds grounded examples such as:
+
+- `Which paddock is tallest?`
+- `What is the soil EC in Paddock C?`
+- `How much rainfall was there over the last 24 hours?`
+- `What is the pasture height change in North Flat over the last day?`
+- `Rename Paddock A to North Flat`
+
 After a user asks about one paddock, FarmPi can suggest other supported measurements for the same paddock. This gives the interaction continuity without requiring the user to know the system's exact vocabulary in advance.
 
 ## Speech
@@ -80,6 +88,8 @@ The next useful stage is a small persistent user interaction profile. Candidate 
 - how frequently FarmPi offers guidance;
 - whether onboarding/help should be repeated;
 - whether spoken responses are preferred.
+
+Explanation depth (simple / normal / technical) and guidance frequency (more / normal / less) are deliberately the immediate next stage, rather than rushed into the 16-paddock implementation. They must alter explanation and prompting only, never the verified facts or the allowed operations.
 
 The important architectural rule is that these preferences change **how verified information is explained**, not which facts are true.
 

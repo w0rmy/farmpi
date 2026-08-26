@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Any
 
 from .database import execute, fetch_one
+from .measurements import BY_KEY, MEASUREMENTS
 
 
 class UnknownSensor(RuntimeError):
@@ -19,85 +21,61 @@ class StoredReading:
     reading_id: int
     sensor_uid: str
     paddock_name: str
-    soil_moisture_pct: float
-    air_temperature_c: float
-    relative_humidity_pct: float
-    soil_ph: float
-    light_lux: float
+    values: dict[str, float]
     simulated: bool
     recorded_at: datetime
 
+    def __getattr__(self, key: str) -> float:
+        """Keep convenient attribute access for each catalogued measurement."""
+        if key in BY_KEY:
+            return self.values[key]
+        raise AttributeError(key)
+
 
 SENSOR_LOOKUP_SQL = """
-SELECT
-    s.id AS sensor_node_id,
-    s.node_uid,
-    p.name AS paddock_name
+SELECT s.id AS sensor_node_id, s.node_uid, p.name AS paddock_name
 FROM sensor_nodes AS s
 JOIN paddocks AS p ON p.id = s.paddock_id
-WHERE s.node_uid = %s
-  AND s.active = 1
-  AND p.active = 1
+WHERE s.node_uid = %s AND s.active = 1 AND p.active = 1
 LIMIT 1
 """
 
-INSERT_READING_SQL = """
+_COLUMNS = ",\n    ".join(item.key for item in MEASUREMENTS)
+_PLACEHOLDERS = ", ".join("%s" for _ in MEASUREMENTS)
+INSERT_READING_SQL = f"""
 INSERT INTO readings (
     sensor_node_id,
-    soil_moisture_pct,
-    air_temperature_c,
-    relative_humidity_pct,
-    soil_ph,
-    light_lux,
+    {_COLUMNS},
     simulated,
     recorded_at
 )
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+VALUES (%s, {_PLACEHOLDERS}, %s, %s)
 """
 
 
-def store_sensor_reading(
-    sensor_uid: str,
-    soil_moisture_pct: float,
-    air_temperature_c: float,
-    relative_humidity_pct: float,
-    soil_ph: float,
-    light_lux: float,
-    simulated: bool,
-) -> StoredReading:
+def validate_reading_values(values: dict[str, float]) -> dict[str, float]:
+    """Validate all values against the reviewed measurement catalogue."""
+    result: dict[str, float] = {}
+    for item in MEASUREMENTS:
+        if item.key not in values:
+            raise ValueError(f"Missing required measurement: {item.key}")
+        value = float(values[item.key])
+        if not item.minimum <= value <= item.maximum:
+            raise ValueError(f"{item.key} must be between {item.minimum} and {item.maximum}.")
+        result[item.key] = round(value, item.decimal_places)
+    return result
+
+
+def store_sensor_reading(sensor_uid: str, simulated: bool, **values: Any) -> StoredReading:
     """Validate a registered sensor and store one server-timestamped reading."""
     sensor = fetch_one(SENSOR_LOOKUP_SQL, (sensor_uid,))
     if sensor is None:
         raise UnknownSensor(f"Unknown or inactive sensor: {sensor_uid}")
-
-    # Store UTC in MariaDB as a naive DATETIME value. The UTC convention is
-    # explicit here so ESP32 nodes do not need a real-time clock for this test.
+    validated = validate_reading_values({key: float(value) for key, value in values.items()})
     recorded_at_utc = datetime.now(timezone.utc)
     recorded_at_db = recorded_at_utc.replace(tzinfo=None)
-
     reading_id = execute(
         INSERT_READING_SQL,
-        (
-            int(sensor["sensor_node_id"]),
-            round(float(soil_moisture_pct), 2),
-            round(float(air_temperature_c), 2),
-            round(float(relative_humidity_pct), 2),
-            round(float(soil_ph), 2),
-            round(float(light_lux), 2),
-            bool(simulated),
-            recorded_at_db,
-        ),
+        (int(sensor["sensor_node_id"]), *(validated[item.key] for item in MEASUREMENTS), bool(simulated), recorded_at_db),
     )
-
-    return StoredReading(
-        reading_id=reading_id,
-        sensor_uid=str(sensor["node_uid"]),
-        paddock_name=str(sensor["paddock_name"]),
-        soil_moisture_pct=round(float(soil_moisture_pct), 2),
-        air_temperature_c=round(float(air_temperature_c), 2),
-        relative_humidity_pct=round(float(relative_humidity_pct), 2),
-        soil_ph=round(float(soil_ph), 2),
-        light_lux=round(float(light_lux), 2),
-        simulated=bool(simulated),
-        recorded_at=recorded_at_utc,
-    )
+    return StoredReading(reading_id, str(sensor["node_uid"]), str(sensor["paddock_name"]), validated, bool(simulated), recorded_at_utc)

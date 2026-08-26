@@ -4,24 +4,23 @@ from __future__ import annotations
 
 WELCOME_TEXT = (
     "FarmPi can help you explore the current verified sensor readings. "
-    "You can ask about soil moisture, air temperature, relative humidity, "
-    "soil pH, and light. You can also ask which paddock is driest or wettest, "
-    "or ask for the average soil moisture. Tap Guide me for a short introduction."
+    "You can ask about soil moisture, temperature, humidity, pH, EC, light, rain, "
+    "pressure, wind, pasture height, and leaf wetness. Tap Guide me for examples."
 )
 
 HELP_FACTS = (
-    "FarmPi can answer current verified soil moisture, air temperature, relative humidity, soil pH, and light readings.",
-    "FarmPi can deterministically identify the driest paddock, the wettest paddock, and the average soil moisture.",
-    "Useful example questions include: Which paddock is driest? What is Paddock A's air temperature? What is Paddock A's relative humidity? What is Paddock A's soil pH? What is the light level in Paddock A?",
+    "FarmPi can answer current verified moisture, soil/air temperature, humidity, pH, EC, light, rainfall, pressure, wind, pasture height, and leaf wetness readings.",
+    "FarmPi can deterministically identify the driest/wettest paddock, average moisture, approved rankings, rainfall totals, and limited historical change.",
+    "Useful example questions include: Which paddock is tallest? What is Paddock A's soil EC? How much rainfall was there over the last 24 hours? What is the pasture height change in Paddock A over the last day?",
     "The current ESP32 readings are synthetic test telemetry and are marked as simulated in FarmPi.",
-    "FarmPi does not currently provide weather forecasts, irrigation recommendations, agronomic causes, or daylight-hour calculations unless a deterministic application rule is added for them.",
+    "FarmPi does not currently provide weather forecasts, irrigation recommendations, or agronomic causes. Daylight is a deterministic historical light-derived value.",
     "If FarmPi does not have a verified fact for a question, it should say the information is unavailable rather than inventing an answer.",
 )
 
 INITIAL_SUGGESTIONS = (
     "Which paddock is driest?",
-    "What is Paddock A's air temperature?",
-    "What is Paddock A's relative humidity?",
+    "Which paddock is tallest?",
+    "What is Paddock A's soil EC?",
     "How do I use FarmPi?",
 )
 
@@ -39,25 +38,25 @@ def follow_up_suggestions(
         candidates = (
             f"What is {paddock_name}'s soil moisture?",
             f"What is {paddock_name}'s air temperature?",
-            f"What is {paddock_name}'s relative humidity?",
-            f"What is {paddock_name}'s soil pH?",
-            f"What is the light level in {paddock_name}?",
+            f"What is {paddock_name}'s soil EC?",
+            f"What is the pasture height in {paddock_name}?",
+            f"What is the rainfall in {paddock_name}?",
         )
         if measurement == "air_temperature_c":
             return (candidates[2], candidates[0], candidates[3])
         if measurement == "relative_humidity_pct":
             return (candidates[1], candidates[0], candidates[4])
-        if measurement == "soil_ph":
+        if measurement in {"soil_ph", "soil_ec_ms_cm"}:
             return (candidates[0], candidates[1], candidates[4])
-        if measurement == "light_lux":
+        if measurement in {"light_lux", "pasture_height_cm"}:
             return (candidates[1], candidates[2], candidates[0])
         return (candidates[1], candidates[2], candidates[3])
 
     if intent in {"driest", "wettest", "average", "moisture-fallback"}:
         return (
-            "What is Paddock A's air temperature?",
-            "What is Paddock A's relative humidity?",
-            "What is Paddock A's soil pH?",
+            "Which paddock is tallest?",
+            "What is Paddock A's soil EC?",
+            "How much rainfall was there over the last 24 hours?",
         )
 
     if intent == "measurement-fallback":

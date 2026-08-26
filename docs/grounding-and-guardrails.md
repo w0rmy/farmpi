@@ -49,6 +49,11 @@ Current instantaneous fields are:
 - `light_lux` — 0 to 200,000 lux;
 - `simulated` — provenance flag for test telemetry.
 
+The 16-paddock expansion adds soil temperature, soil EC, rainfall per sample
+interval, barometric pressure, wind speed/direction, pasture height, and leaf
+wetness. Their aliases, ranges, units, and permitted operations are centrally
+defined in `app/measurements.py`, avoiding separate regex/validation lists.
+
 The endpoint also applies the deliberately lightweight prototype bearer token. This prevents arbitrary unauthenticated posts while avoiding a full embedded-device PKI project.
 
 ## 2. Sensor identity and storage — `app/sensor_ingest.py`
@@ -104,6 +109,11 @@ It retrieves the latest complete reading for active sensor nodes and produces th
 - average soil moisture.
 
 Current temperature, humidity, soil pH, and light are retrieved as measurements. Rankings or aggregates for those fields are not currently calculated, so questions such as `Which paddock is hottest?` remain unsupported until an explicit deterministic rule is implemented.
+
+The expanded layer now permits only catalogue-approved rankings and bounded
+historical sum/min/max/average/change. Rainfall total, pasture-height change,
+and daylight derived from five-minute light samples at or above 1,000 lux are
+the initial useful operations. The LLM still performs none of this arithmetic.
 
 The measurement metadata and units are also defined here so the value handed to the LLM is already a complete fact such as:
 
@@ -162,6 +172,15 @@ The browser can therefore prompt the user with useful next questions without all
 
 When the user taps **Guide me**, the request is routed through the normal grounded LLM path. Qwen may phrase the explanation naturally, but the list of what FarmPi can and cannot do is supplied by deterministic application facts.
 
+## 9. Controlled rename
+
+Rename wording is routed to a deterministic administrative action. FarmPi
+resolves the active paddock by identity/name, validates a non-duplicate display
+name, asks for an explicit five-minute confirmation, updates only
+`paddocks.name`, and records `paddock_admin_audit`. Qwen neither authorises
+nor executes it. Numeric relationships preserve all historical rows after the
+name changes.
+
 ## Behavioural contract — tests
 
 `tests/test_question_router.py` and `tests/test_guidance.py` are part of the control architecture even though they do not run in production request handling.
@@ -184,10 +203,9 @@ At this stage FarmPi does not deterministically establish:
 - irrigation decisions;
 - agronomic recommendations;
 - causal explanations such as why a pH value changed;
-- hottest/coldest/humidest rankings;
-- daylight hours.
+- rankings or summaries not enabled by the measurement catalogue.
 
-`daylight_hours` is intentionally not an ingest field. It should later be derived deterministically from historical `light_lux` readings using a defined threshold and time window if that capability becomes useful.
+`daylight_hours` is intentionally not an ingest field. It is now a documented deterministic historical derivation from `light_lux`, using a 1,000-lux threshold and five-minute sample interval.
 
 ## Why this matters to the capstone
 

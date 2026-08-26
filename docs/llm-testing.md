@@ -1,5 +1,9 @@
 # Raspberry Pi 4 Local LLM Testing – Preliminary Findings
 
+## 16-paddock synthetic-data stage
+
+The next alpha stage turns the connected ESP32 into a 16-node synthetic telemetry generator. This expands the data available for AI/Data Science and Flexible Learning evaluation without claiming real agronomy. The experiment deliberately keeps pressure, rainfall, soil moisture, light, EC, temperature and pasture-height relationships in deterministic application/firmware code; Qwen only receives verified results. This provides a useful evaluation dataset while preserving the original conclusion that the local model should not calculate farm facts, propose irrigation, or make causal agricultural claims.
+
 ## Purpose
 
 The purpose of this testing was to determine whether an existing Raspberry Pi 4 could provide a practical platform for running a lightweight large language model locally as part of the farm-monitoring capstone project.

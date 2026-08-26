@@ -29,11 +29,15 @@ These measurements are intended to show where latency actually occurs rather tha
 - `driest`;
 - `wettest`;
 - `average`;
-- `paddock` for a single named paddock;
-- `unsupported` for measurement types that are not currently available;
+- `paddock` for a named paddock's soil-moisture value;
+- `paddock-field` for a named paddock's current air temperature, relative humidity, soil pH, or light value;
+- `measurement-fallback` for a current environmental-measurement snapshot when no paddock is named;
+- `unsupported` for weather, advice, causal questions, daylight-hour aggregates, and non-approved aggregates;
 - `moisture-fallback` for broader or unclassified soil-moisture questions.
 
 The router does not generate SQL and does not ask Qwen to choose a database query. It selects from approved deterministic application functions.
+
+The expanded alpha now uses the measurement catalogue for aliases and allowed operations, resolves current paddock names dynamically, and has bounded historical routes. A rename confirmation is answered directly by the application and does not invoke the LLM, so mutation latency is not confused with model latency.
 
 ### 3. Context slimming
 
@@ -53,7 +57,7 @@ VERIFIED FACTS
 - Soil moisture: 18.00%.
 ```
 
-A paddock-specific question receives only that paddock's verified value. The complete moisture snapshot is retained as a fallback for broader questions and comparisons.
+A paddock-specific question receives only that paddock's verified latest complete current value. This applies to all catalogued fields, including EC, rainfall, pressure, wind, pasture height, and leaf wetness; Qwen never chooses the field or calculates a value. The complete moisture snapshot is retained as a fallback for broader questions and comparisons.
 
 This is important on the Raspberry Pi 4 because prompt evaluation is substantially slower than on desktop-class hardware. Reducing unnecessary prompt tokens can therefore reduce response time without weakening grounding.
 
@@ -94,7 +98,10 @@ Which paddock is driest?
 Which paddock is wettest?
 What is the average soil moisture?
 What is Paddock B's soil moisture?
-What is Paddock B's soil temperature?
+What is Paddock B's air temperature?
+What is Paddock B's humidity?
+What is Paddock B's soil pH?
+What is the light level in Paddock B?
 Compare Paddock A and Paddock B.
 ```
 
