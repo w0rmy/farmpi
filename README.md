@@ -1,37 +1,42 @@
 # FarmPi
 
-FarmPi is the local farm-monitoring service intended to run on the Raspberry Pi. It keeps application logic, deployment configuration, deterministic farm-data processing, and project notes in one version-controlled place.
+FarmPi is the local farm-monitoring service used as the technical medium for the capstone. The project keeps Raspberry Pi application logic, deterministic farm-data processing, ESP32 firmware, deployment configuration, tests, and project documentation in one version-controlled repository.
+
+The capstone focus remains **Artificial Intelligence and Data Science** plus **Developing Flexible IT Courses**. Farm monitoring is deliberately kept small enough to provide realistic data and interaction without becoming the primary engineering outcome.
 
 ## Known-good alpha milestone — 26 August 2026
 
-FarmPi has reached a known-good local-AI proof-of-concept milestone on the Raspberry Pi 4. Android/browser access over Caddy HTTPS with its internal CA, FastAPI grounding and control, MariaDB-backed deterministic farm data, and Qwen3 0.6B through `llama-server` work together. Both FarmPi and the LLM run through systemd; browser speech input (`en-NZ`) and text-to-speech output work; and unsupported information is rejected rather than invented.
+FarmPi has reached a known-good local-AI proof-of-concept milestone on the Raspberry Pi 4. Android/browser access over Caddy HTTPS with its internal CA, FastAPI grounding and control, MariaDB-backed deterministic farm data, and Qwen3 0.6B through `llama-server` work together. Browser speech input (`en-NZ`) and text-to-speech output work, and unsupported information is rejected rather than invented.
 
-The current optimisation pass adds deterministic question routing, smaller per-question grounding contexts, per-stage latency measurement, a shorter generation budget, and a persistent HTTP connection to `llama-server`. These changes preserve the same grounding model while reducing unnecessary work on the Raspberry Pi 4.
+The current development stage adds a real ESP32-over-Wi-Fi ingest path using **synthetic** soil-moisture data. This proves the device-to-database-to-grounded-AI path before any effort is spent on final physical sensor hardware.
 
 ## Current alpha architecture
 
 ```text
-Phone / browser
-    ↓
+ESP32 synthetic sensor
+        ↓ Wi-Fi / HTTPS
+POST /api/ingest
+        ↓
+FastAPI validation + lightweight bearer token
+        ↓
+MariaDB 127.0.0.1:3306
+        ↓
+deterministic farm-data functions
+        ↓
+verified result + simulation provenance
+        ↓
+question router / grounding layer
+        ↓
+llama-server 127.0.0.1:8080
+        ↓
+Qwen3 0.6B
+        ↓
 Caddy HTTPS :443
-    ↓
-FastAPI / Uvicorn 127.0.0.1:8000
-    ↓
-Deterministic question router
-    ↓
-Grounding and application logic
-    ├──→ MariaDB 127.0.0.1:3306
-    │      ↓
-    │   deterministic farm-data functions
-    │      ↓
-    │   minimal verified result
-    │
-    └──→ llama-server 127.0.0.1:8080
-              ↓
-           Qwen3 0.6B
+        ↓
+Phone / browser
 ```
 
-Caddy is the only application-facing service exposed to the local network. FastAPI, MariaDB, and llama-server remain local to the FarmPi host.
+Caddy is the application-facing HTTPS service. FastAPI, MariaDB, and llama-server remain local to the Raspberry Pi host.
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -39,10 +44,11 @@ Caddy is the only application-facing service exposed to the local network. FastA
 | `GET /health` | Cheap FastAPI health check for systemd/Caddy. |
 | `GET /api/status` | Shows FastAPI, MariaDB, and local LLM availability. |
 | `POST /api/ask` | Answers a grounded question using deterministic MariaDB-derived facts and returns alpha timing measurements. |
+| `POST /api/ingest` | Accepts one authenticated ESP32 sensor reading and stores it in MariaDB. |
 
 ## Deterministic grounding model
 
-The LLM does not query MariaDB directly and does not calculate farm statistics. `app/database.py` provides the small database access layer, `app/question_router.py` selects an approved deterministic operation, and `app/farm_data.py` provides functions such as:
+The LLM does not query MariaDB directly and does not calculate farm statistics. `app/database.py` provides the database boundary, `app/question_router.py` selects an approved deterministic operation, and `app/farm_data.py` provides functions such as:
 
 - `get_moisture_snapshot()`
 - `get_driest_paddock()`
@@ -50,11 +56,53 @@ The LLM does not query MariaDB directly and does not calculate farm statistics. 
 - `get_average_soil_moisture()`
 - `get_paddock_moisture()`
 
-The current rule selects the latest valid moisture reading from each active sensor. If a paddock has multiple active sensors, their latest values are averaged to produce the paddock's current moisture value. Python then determines the requested result before anything is sent to Qwen.
+For common questions, Qwen receives only the verified facts required for that request. Broader soil-moisture questions retain a deterministic full-snapshot fallback. Qwen remains the language interface rather than the factual authority.
 
-For common questions, Qwen receives only the verified facts required for that request plus the user question. Broader or unclassified soil-moisture questions retain a deterministic full-snapshot fallback. Qwen remains the language interface rather than the factual authority.
+The `readings.simulated` flag is carried through the deterministic layer so synthetic ESP32 data is not silently presented as a real farm observation.
 
-The current MariaDB rows are repeatable prototype seed data. They are not live sensor readings yet. See [docs/database-layer.md](docs/database-layer.md).
+## Sensor ingest
+
+The ESP32 sends a small JSON payload such as:
+
+```json
+{
+  "sensor": "test-moisture-a",
+  "soil_moisture_pct": 17.82,
+  "simulated": true
+}
+```
+
+FarmPi validates the sensor UID and moisture range, timestamps the reading in UTC, and stores it in MariaDB. The endpoint uses a deliberately simple FarmPi-wide bearer token for the alpha/test network.
+
+The token is stored locally in `/etc/farmpi/farmpi.env` as `FARMPI_INGEST_TOKEN` and is never committed to GitHub.
+
+See [docs/sensor-ingest.md](docs/sensor-ingest.md) and [firmware/esp32-sensor/README.md](firmware/esp32-sensor/README.md).
+
+## ESP32 firmware
+
+The project uses a monorepo. Embedded source lives under:
+
+```text
+firmware/esp32-sensor/
+```
+
+The current Arduino sketch joins Wi-Fi, resolves `farmpi.local` by mDNS, generates a small random-walk synthetic moisture value, and submits it approximately every 30 seconds.
+
+Copy:
+
+```text
+firmware/esp32-sensor/config.example.h
+```
+
+to:
+
+```text
+firmware/esp32-sensor/config.h
+```
+
+and set the Wi-Fi credentials, sensor UID, and ingest token. `config.h` is ignored by Git.
+
+For this prototype the ESP32 uses TLS with certificate validation disabled (`setInsecure()`). This avoids turning the capstone into an embedded certificate-provisioning project. The browser-facing FarmPi interface continues to use trusted HTTPS through Caddy's internal CA.
 
 ## Latency instrumentation
 
@@ -66,13 +114,9 @@ During alpha testing `POST /api/ask` returns:
 - `llm_ms`
 - `total_ms`
 
-The web page displays total response time and LLM time after each answer, and the same measurements are written to the FarmPi/Uvicorn log. This is intended to support measured before-and-after evaluation rather than relying on subjective impressions of speed.
-
-The optimisation design and recommended test method are documented in [docs/latency-optimization.md](docs/latency-optimization.md).
+The web page displays total response time and LLM time after each answer. The optimisation design is documented in [docs/latency-optimization.md](docs/latency-optimization.md).
 
 ## First-time installation on the Raspberry Pi
-
-These commands assume Raspberry Pi OS Lite 64-bit, a clone in the user's home directory, and a working internet connection for package installation.
 
 ```bash
 sudo apt update
@@ -83,20 +127,7 @@ cd ~/farmpi
 sudo bash ./scripts/setup-database
 ```
 
-`./update` creates or refreshes the Python environment, installs the FarmPi and Qwen3 0.6B systemd services, applies Caddy configuration when Caddy is installed, and restarts the services.
-
-The one-time `setup-database` helper:
-
-- installs and enables MariaDB;
-- creates the `farmpi` database;
-- creates a restricted `farmpi@127.0.0.1` application user;
-- generates a random database password;
-- stores the local credentials in `/etc/farmpi/farmpi.env` with restricted permissions;
-- applies `config/database/schema.sql`;
-- loads the repeatable prototype rows from `config/database/seed.sql`;
-- restarts the FastAPI service so it reads the new environment.
-
-The database password is never committed to GitHub.
+The one-time database setup creates MariaDB, the restricted application account, the database password, the sensor-ingest token, the schema, and the repeatable prototype rows. Credentials are stored in `/etc/farmpi/farmpi.env` with restricted permissions.
 
 ## Updating an existing FarmPi
 
@@ -105,62 +136,59 @@ cd ~/farmpi
 ./update
 ```
 
-If the MariaDB layer has not yet been configured, the updater prints the one-time setup command:
+The updater validates Python code and unit tests, updates the systemd configuration, reapplies the idempotent database schema when MariaDB is already configured, reloads Caddy, and restarts FarmPi.
+
+If an existing installation predates the sensor-ingest token, run once after updating:
 
 ```bash
 sudo bash ~/farmpi/scripts/setup-database
 ```
 
-The updater intentionally stops if there are local uncommitted files. Commit or stash those changes before pulling so remote changes cannot silently overwrite work done directly on the Pi.
+Then display the generated token with:
+
+```bash
+sudo grep '^FARMPI_INGEST_TOKEN=' /etc/farmpi/farmpi.env
+```
 
 ## Prototype database data
 
-The current seed contains:
+The seed creates four test nodes:
 
-| Paddock | Soil moisture |
-| --- | ---: |
-| Paddock A | 18% |
-| Paddock B | 24% |
-| Paddock C | 29% |
-| Paddock D | 21% |
+| Paddock | Sensor UID | Initial soil moisture |
+| --- | --- | ---: |
+| Paddock A | `test-moisture-a` | 18% |
+| Paddock B | `test-moisture-b` | 24% |
+| Paddock C | `test-moisture-c` | 29% |
+| Paddock D | `test-moisture-d` | 21% |
 
-Useful validation questions are:
+Useful validation questions include:
 
 - `Which paddock is driest?`
 - `Which paddock is wettest?`
-- `What is the average soil moisture?`
 - `What is Paddock B's soil moisture?`
 - `What is Paddock B's soil temperature?` — this should report that the information is unavailable.
-- `Compare Paddock A and Paddock B.` — this exercises the broader deterministic fallback.
 
-## Speech input and output
+## HTTPS and speech
 
-The web page supports browser speech recognition where the browser permits it and uses `en-NZ`. Because browser microphone APIs require a secure context, the local application URL is HTTPS through Caddy.
+The repository Caddy configuration serves `https://farmpi.local` using Caddy's internal certificate authority. The Caddy root CA must be trusted by browser devices for normal trusted HTTPS. Browser speech recognition requires this secure context.
 
-If browser speech recognition is unavailable or denied, the user can use the microphone on the Android keyboard to dictate into the question field. Browser text-to-speech can read FarmPi responses aloud on the phone.
-
-## HTTPS and Caddy
-
-The repository Caddy configuration serves `https://farmpi.local` using Caddy's internal certificate authority and reverse-proxies to FastAPI on `127.0.0.1:8000`.
-
-The Caddy root CA must be trusted by client devices before browsers consider the local HTTPS site fully trusted. The root certificate is stored on FarmPi at:
+The root certificate is stored on FarmPi at:
 
 ```text
 /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
 ```
 
-The updater automatically validates and reloads the repository Caddyfile when `caddy.service` is installed.
-
 ## Project layout
 
 ```text
-app/                     FastAPI service, DB access, router, deterministic farm logic
+app/                     FastAPI, ingest API, DB access, routing, grounding logic
+firmware/esp32-sensor/   ESP32 synthetic sensor firmware
 config/Caddyfile          HTTPS reverse-proxy configuration
 config/database/          MariaDB schema and repeatable prototype seed data
 config/systemd/           FarmPi and llama-server service templates
 docs/                     findings and design notes
-scripts/install-service   systemd deployment helper
-scripts/setup-database    one-time MariaDB setup helper
+tests/                    Python unit tests
+scripts/                  deployment and database helpers
 update                    single-command Raspberry Pi updater
 ```
 
@@ -170,9 +198,14 @@ update                    single-command Raspberry Pi updater
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r app/requirements.txt
-uvicorn app.app:app --reload
+uvicorn app.main:app --reload
 ```
 
-A local development shell must provide the same `FARMPI_DB_*` environment variables used by the service if database-backed routes are to be exercised.
+A local development shell must provide the same `FARMPI_DB_*` and `FARMPI_INGEST_TOKEN` environment values used by the systemd service when exercising database-backed or ingest routes.
 
-The Raspberry Pi LLM findings are recorded in [docs/llm-testing.md](docs/llm-testing.md), the database design is described in [docs/database-layer.md](docs/database-layer.md), and the latency optimisation is documented in [docs/latency-optimization.md](docs/latency-optimization.md).
+Key project notes are in:
+
+- [docs/llm-testing.md](docs/llm-testing.md)
+- [docs/database-layer.md](docs/database-layer.md)
+- [docs/latency-optimization.md](docs/latency-optimization.md)
+- [docs/sensor-ingest.md](docs/sensor-ingest.md)
