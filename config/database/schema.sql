@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS readings (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     sensor_node_id INT UNSIGNED NOT NULL,
     soil_moisture_pct DECIMAL(5,2) NULL,
+    simulated BOOLEAN NOT NULL DEFAULT FALSE,
     recorded_at DATETIME(6) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -39,3 +40,9 @@ CREATE TABLE IF NOT EXISTS readings (
     CONSTRAINT chk_readings_soil_moisture
         CHECK (soil_moisture_pct IS NULL OR (soil_moisture_pct >= 0 AND soil_moisture_pct <= 100))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Existing alpha databases may pre-date the simulated marker. MariaDB accepts
+-- ADD COLUMN IF NOT EXISTS, making this schema safe to re-apply during updates.
+ALTER TABLE readings
+    ADD COLUMN IF NOT EXISTS simulated BOOLEAN NOT NULL DEFAULT FALSE
+    AFTER soil_moisture_pct;
