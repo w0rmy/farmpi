@@ -5,6 +5,20 @@
 
 #include "config.h"
 
+// Existing test nodes may have copied config.h before the additional
+// environmental controls were introduced. Keep those local configs valid.
+#ifndef SYNTHETIC_START_AIR_TEMPERATURE_C
+#define SYNTHETIC_START_AIR_TEMPERATURE_C 16.0f
+#endif
+
+#ifndef SYNTHETIC_START_RELATIVE_HUMIDITY_PCT
+#define SYNTHETIC_START_RELATIVE_HUMIDITY_PCT 72.0f
+#endif
+
+#ifndef SYNTHETIC_START_SOIL_PH
+#define SYNTHETIC_START_SOIL_PH 6.3f
+#endif
+
 static float syntheticMoisture = SYNTHETIC_START_MOISTURE;
 static float syntheticTemperatureBase = SYNTHETIC_START_AIR_TEMPERATURE_C;
 static float syntheticHumidity = SYNTHETIC_START_RELATIVE_HUMIDITY_PCT;

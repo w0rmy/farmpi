@@ -37,6 +37,11 @@ sudo grep '^FARMPI_INGEST_TOKEN=' /etc/farmpi/farmpi.env
 
 Copy only the token value into `config.h`. `config.h` is ignored by Git.
 
+Existing `config.h` files from the earlier moisture-only sketch remain valid:
+the new air-temperature, humidity, and pH starting values have safe firmware
+defaults. You may add the optional values from `config.example.h` if you want
+to tune the synthetic starting point.
+
 ## Build
 
 The sketch uses only libraries supplied by the ESP32 Arduino core:
