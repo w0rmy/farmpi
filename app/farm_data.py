@@ -23,6 +23,14 @@ class PaddockMoisture:
     sensor_count: int
 
 
+@dataclass(frozen=True)
+class GroundingData:
+    """Structured deterministic facts to expose to the language model."""
+
+    intent: str
+    facts: tuple[str, ...]
+
+
 LATEST_PADDOCK_MOISTURE_SQL = """
 SELECT
     p.name,
@@ -103,40 +111,103 @@ def get_average_soil_moisture(
     return round(fmean(item.soil_moisture_pct for item in values), 2)
 
 
-def build_verified_moisture_context() -> str:
-    """Build compact model context only from deterministic database results."""
+def get_paddock_moisture(
+    paddock_name: str,
+    snapshot: list[PaddockMoisture] | None = None,
+) -> PaddockMoisture | None:
+    """Return the current moisture value for one named paddock, if present."""
+    values = snapshot if snapshot is not None else get_moisture_snapshot()
+    wanted = paddock_name.casefold()
+    for item in values:
+        if item.name.casefold() == wanted:
+            return item
+    return None
+
+
+def get_grounding_data(intent: str, paddock_name: str | None = None) -> GroundingData:
+    """Return only the deterministic facts needed for the selected question route."""
+    if intent == "unsupported":
+        return GroundingData(
+            intent=intent,
+            facts=(
+                "The requested information is unavailable.",
+                "FarmPi currently has verified soil-moisture data only.",
+            ),
+        )
+
+    if intent == "driest":
+        item = get_driest_paddock()
+        return GroundingData(
+            intent=intent,
+            facts=(
+                f"Driest paddock: {item.name}.",
+                f"Soil moisture: {item.soil_moisture_pct:.2f}%.",
+            ),
+        )
+
+    if intent == "wettest":
+        item = get_wettest_paddock()
+        return GroundingData(
+            intent=intent,
+            facts=(
+                f"Wettest paddock: {item.name}.",
+                f"Soil moisture: {item.soil_moisture_pct:.2f}%.",
+            ),
+        )
+
+    if intent == "average":
+        average = get_average_soil_moisture()
+        return GroundingData(
+            intent=intent,
+            facts=(f"Farm average soil moisture: {average:.2f}%.",),
+        )
+
+    if intent == "paddock":
+        if not paddock_name:
+            return GroundingData(
+                intent=intent,
+                facts=("The requested paddock was not identified.",),
+            )
+
+        snapshot = get_moisture_snapshot()
+        item = get_paddock_moisture(paddock_name, snapshot)
+        if item is None:
+            return GroundingData(
+                intent=intent,
+                facts=(f"No verified soil-moisture reading is available for {paddock_name}.",),
+            )
+
+        return GroundingData(
+            intent=intent,
+            facts=(
+                f"{item.name} soil moisture: {item.soil_moisture_pct:.2f}%.",
+                f"Reading time: {item.recorded_at.isoformat(sep=' ')}.",
+            ),
+        )
+
+    # Fallback keeps the broad soil-moisture capability for questions that the
+    # small deterministic router does not yet classify more narrowly.
     snapshot = get_moisture_snapshot()
     driest = get_driest_paddock(snapshot)
     wettest = get_wettest_paddock(snapshot)
     average = get_average_soil_moisture(snapshot)
 
-    lines = [
-        "VERIFIED FARM INFORMATION",
-        "Source: MariaDB current soil-moisture readings.",
-        (
-            "Rule: each paddock value is the average of the latest valid "
-            "soil-moisture reading from each active sensor in that paddock."
-        ),
-        "",
-        "Current soil moisture:",
+    facts = [
+        *(f"{item.name} soil moisture: {item.soil_moisture_pct:.2f}%." for item in snapshot),
+        f"Farm average soil moisture: {average:.2f}%.",
+        f"Driest paddock: {driest.name} at {driest.soil_moisture_pct:.2f}%.",
+        f"Wettest paddock: {wettest.name} at {wettest.soil_moisture_pct:.2f}%.",
     ]
+    return GroundingData(intent="moisture-fallback", facts=tuple(facts))
 
-    for item in snapshot:
-        lines.append(
-            f"- {item.name}: {item.soil_moisture_pct:.2f}% "
-            f"(latest contributing reading {item.recorded_at.isoformat(sep=' ')})"
-        )
 
-    lines.extend(
-        [
-            "",
-            "Verified deterministic results:",
-            f"- Farm average soil moisture: {average:.2f}%",
-            f"- Driest paddock: {driest.name} at {driest.soil_moisture_pct:.2f}%",
-            f"- Wettest paddock: {wettest.name} at {wettest.soil_moisture_pct:.2f}%",
-            "",
-            "No temperature, pH, weather, irrigation, or agronomic recommendation data is supplied.",
-        ]
-    )
-
+def format_grounding_context(grounding: GroundingData) -> str:
+    """Format structured deterministic facts into compact LLM context."""
+    lines = ["VERIFIED FACTS"]
+    lines.extend(f"- {fact}" for fact in grounding.facts)
     return "\n".join(lines)
+
+
+def build_verified_moisture_context() -> str:
+    """Build the complete deterministic moisture context for diagnostics/fallback use."""
+    return format_grounding_context(get_grounding_data("moisture-fallback"))
