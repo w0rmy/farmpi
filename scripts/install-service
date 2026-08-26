@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install FarmPi's systemd unit for the user and project directory supplied.
+# Install FarmPi's systemd units for the user and project directory supplied.
 set -Eeuo pipefail
 
 if [[ ${EUID} -ne 0 ]]; then
@@ -15,25 +15,54 @@ if [[ -z ${service_user} || ${service_user} == root ]]; then
   exit 1
 fi
 
-if [[ ! -f ${project_dir}/config/systemd/farmpi.service.template ]]; then
-  echo "FarmPi service template was not found in ${project_dir}." >&2
+service_home=$(getent passwd "${service_user}" | cut -d: -f6)
+service_group=$(id -gn "${service_user}")
+
+if [[ -z ${service_home} || -z ${service_group} ]]; then
+  echo "Could not determine the deployment user's home directory or group." >&2
   exit 1
 fi
+
+templates=(farmpi-llm.service farmpi.service)
+for service_name in "${templates[@]}"; do
+  if [[ ! -f ${project_dir}/config/systemd/${service_name}.template ]]; then
+    echo "FarmPi service template ${service_name}.template was not found." >&2
+    exit 1
+  fi
+done
 
 escape_sed_replacement() {
   printf '%s' "$1" | sed 's/[&|\\]/\\&/g'
 }
 
 escaped_user=$(escape_sed_replacement "${service_user}")
+escaped_group=$(escape_sed_replacement "${service_group}")
+escaped_home=$(escape_sed_replacement "${service_home}")
 escaped_dir=$(escape_sed_replacement "${project_dir}")
-temporary_unit=$(mktemp)
-trap 'rm -f "${temporary_unit}"' EXIT
+temporary_dir=$(mktemp -d)
+cleanup() {
+  rm -f \
+    "${temporary_dir}/farmpi-llm.service" \
+    "${temporary_dir}/farmpi.service"
+  rmdir "${temporary_dir}"
+}
+trap cleanup EXIT
 
-sed \
-  -e "s|@FARMPI_USER@|${escaped_user}|g" \
-  -e "s|@FARMPI_DIR@|${escaped_dir}|g" \
-  "${project_dir}/config/systemd/farmpi.service.template" > "${temporary_unit}"
+for service_name in "${templates[@]}"; do
+  sed \
+    -e "s|@FARMPI_USER@|${escaped_user}|g" \
+    -e "s|@FARMPI_GROUP@|${escaped_group}|g" \
+    -e "s|@FARMPI_HOME@|${escaped_home}|g" \
+    -e "s|@FARMPI_DIR@|${escaped_dir}|g" \
+    "${project_dir}/config/systemd/${service_name}.template" \
+    > "${temporary_dir}/${service_name}"
+done
 
-install -m 0644 "${temporary_unit}" /etc/systemd/system/farmpi.service
+systemd-analyze verify \
+  "${temporary_dir}/farmpi-llm.service" \
+  "${temporary_dir}/farmpi.service"
+
+install -m 0644 "${temporary_dir}/farmpi-llm.service" /etc/systemd/system/farmpi-llm.service
+install -m 0644 "${temporary_dir}/farmpi.service" /etc/systemd/system/farmpi.service
 systemctl daemon-reload
-systemctl enable farmpi.service
+systemctl enable farmpi-llm.service farmpi.service

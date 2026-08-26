@@ -26,7 +26,7 @@ fi
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -r app/requirements.txt
 
-echo "Installing the FarmPi service..."
+echo "Installing the FarmPi services..."
 sudo "${project_dir}/scripts/install-service" "${project_dir}"
 
 if systemctl list-unit-files caddy.service --no-legend 2>/dev/null | grep -q '^caddy.service'; then
@@ -37,5 +37,6 @@ if systemctl list-unit-files caddy.service --no-legend 2>/dev/null | grep -q '^c
 fi
 
 echo "Restarting FarmPi..."
-sudo systemctl restart farmpi.service
-sudo systemctl --no-pager --full status farmpi.service
+sudo systemctl restart farmpi-llm.service farmpi.service
+sudo systemctl is-active --quiet farmpi-llm.service farmpi.service
+sudo systemctl --no-pager --full status farmpi-llm.service farmpi.service

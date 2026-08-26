@@ -23,7 +23,7 @@ cd ~/farmpi
 ./update
 ```
 
-`./update` creates or refreshes the Python environment, installs the systemd service, enables it at boot, and restarts the service. It will request the user's `sudo` password to apply the service configuration.
+`./update` creates or refreshes the Python environment, installs the FarmPi and Qwen3 0.6B systemd services, validates and enables them at boot, and restarts both services. The LLM listens only on `127.0.0.1:8080`. It will request the user's `sudo` password to apply the service configuration.
 
 Thereafter, update the Pi from the project directory with:
 
