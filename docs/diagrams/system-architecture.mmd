@@ -1,0 +1,12 @@
+flowchart LR
+  E[ESP32: 16 synthetic nodes] -->|HTTPS telemetry| I[FastAPI ingest]
+  I --> D[(MariaDB)]
+  W[Browser] --> A[FastAPI ask API]
+  N[Native Android] --> A
+  A --> R[Structured request router]
+  R --> X[Deterministic analytics / education]
+  X --> D
+  X --> Q[Qwen language layer]
+  X --> G[Charts + evidence]
+  Q --> A
+  G --> A

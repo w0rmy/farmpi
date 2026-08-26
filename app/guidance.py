@@ -41,22 +41,25 @@ def follow_up_suggestions(
             f"What is {paddock_name}'s soil EC?",
             f"What is the pasture height in {paddock_name}?",
             f"What is the rainfall in {paddock_name}?",
+            f"How has {paddock_name} soil moisture changed over the last 24 hours?",
+            f"What does {measurement or 'soil moisture'} mean?",
         )
         if measurement == "air_temperature_c":
-            return (candidates[2], candidates[0], candidates[3])
+            return (candidates[2], candidates[0], candidates[5])
         if measurement == "relative_humidity_pct":
-            return (candidates[1], candidates[0], candidates[4])
+            return (candidates[1], candidates[0], candidates[5])
         if measurement in {"soil_ph", "soil_ec_ms_cm"}:
-            return (candidates[0], candidates[1], candidates[4])
+            return (candidates[0], candidates[1], candidates[5])
         if measurement in {"light_lux", "pasture_height_cm"}:
-            return (candidates[1], candidates[2], candidates[0])
-        return (candidates[1], candidates[2], candidates[3])
+            return (candidates[1], candidates[2], candidates[5])
+        return (candidates[1], candidates[2], candidates[5])
 
     if intent in {"driest", "wettest", "average", "moisture-fallback"}:
         return (
             "Which paddock is tallest?",
             "What is Paddock A's soil EC?",
-            "How much rainfall was there over the last 24 hours?",
+            "Compare soil EC across all paddocks.",
+            "Show a graph of soil moisture over the last 24 hours.",
         )
 
     if intent == "measurement-fallback":

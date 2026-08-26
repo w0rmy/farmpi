@@ -1,0 +1,8 @@
+flowchart LR
+  D[(readings)] --> A[approved analytics]
+  A --> B[bar comparison]
+  A --> L[line time series]
+  A --> E[evidence metadata]
+  B --> C[web/Android chart]
+  L --> C
+  E --> C

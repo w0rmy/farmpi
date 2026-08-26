@@ -1,0 +1,9 @@
+flowchart LR
+  T[Question] --> S[Speech/domain normalisation]
+  S --> V[Schema-valid structured route]
+  V -->|observation| M[MariaDB + deterministic arithmetic]
+  V -->|concept| K[Curated educational content]
+  M --> F[Verified facts]
+  K --> F
+  F --> E[Evidence/chart]
+  F --> L[Optional Qwen phrasing]

@@ -1,0 +1,9 @@
+flowchart TB
+  UI[Web / Android: voice, display, local preferences]
+  API[FastAPI: validation and response schema]
+  ROUTE[Deterministic router: allowed request only]
+  DATA[Analytics, evidence, education content]
+  DB[(MariaDB)]
+  LLM[Qwen: wording only]
+  UI --> API --> ROUTE --> DATA --> DB
+  DATA --> LLM --> API

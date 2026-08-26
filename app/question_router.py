@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
-from .measurements import AVERAGE, CHANGE, DAYLIGHT, MAXIMUM, MINIMUM, RANKING, SUM, BY_KEY, measurement_for_text
+from .measurements import ANOMALY, AVERAGE, CHANGE, DAYLIGHT, MAXIMUM, MINIMUM, RANGE, RANKING, SUM, TREND, BY_KEY, measurement_for_text
 
 
 @dataclass(frozen=True)
@@ -18,6 +18,9 @@ class QuestionRoute:
     operation: str | None = None
     window_minutes: int | None = None
     new_paddock_name: str | None = None
+    time_label: str | None = None
+    comparison: bool = False
+    presentation: str | None = None
 
 
 _UNSUPPORTED_RE = re.compile(
@@ -35,7 +38,14 @@ _AVERAGE_RE = re.compile(r"\b(?:average|mean)\b", re.IGNORECASE)
 _MIN_RE = re.compile(r"\b(?:minimum|min|lowest|least)\b", re.IGNORECASE)
 _MAX_RE = re.compile(r"\b(?:maximum|max|highest|most)\b", re.IGNORECASE)
 _CHANGE_RE = re.compile(r"\b(?:change|changed|trend|trending|increase|decrease|difference)\b", re.IGNORECASE)
+_RANGE_RE = re.compile(r"\b(?:range|spread)\b", re.IGNORECASE)
+_ANOMALY_RE = re.compile(r"\b(?:anomal(?:y|ies|ous)|outlier|unusual)\b", re.IGNORECASE)
 _HELP_RE = re.compile(r"\b(?:help|guide\s+me|what\s+can\s+(?:i|we)\s+ask|what\s+can\s+you\s+do|how\s+(?:can|do)\s+i\s+use\s+farmpi)\b", re.IGNORECASE)
+_EDUCATION_RE = re.compile(r"\b(?:what\s+does|explain|meaning|mean|unit|simulated\s+(?:data|telemetry)|observed(?:_at|\s+at)?|received(?:_at|\s+at)?)\b", re.IGNORECASE)
+_COMPARE_RE = re.compile(r"\b(?:compare|across\s+all\s+paddocks|all\s+paddocks|which\s+paddock.{0,30}(?:most|highest|lowest|least))\b", re.IGNORECASE)
+_TODAY_RE = re.compile(r"\b(?:today|this\s+morning)\b", re.IGNORECASE)
+_GRAPH_RE = re.compile(r"\b(?:show\s+(?:a\s+)?graph|chart|trend\s+graph)\b", re.IGNORECASE)
+_EVIDENCE_RE = re.compile(r"\b(?:show\s+(?:the\s+)?(?:data|evidence)|why\??)\b", re.IGNORECASE)
 
 
 def _canonical_paddock_name(name: str) -> str:
@@ -60,6 +70,7 @@ def _extract_paddock(question: str) -> str | None:
     preposition = _PREPOSITION_RE.search(question)
     if preposition:
         candidate = preposition.group(1).strip(" '")
+        candidate = re.sub(r"\s+(?:today|this\s+morning)$", "", candidate, flags=re.IGNORECASE)
         if candidate.casefold() not in {"the farm", "farm", "a paddock", "paddock"} and not candidate.casefold().startswith(("last ", "past ")):
             return _canonical_paddock_name(candidate)
     return None
@@ -83,10 +94,15 @@ def route_question(question: str) -> QuestionRoute:
         return QuestionRoute("rename-request", _canonical_paddock_name(rename.group(1)), new_paddock_name=" ".join(rename.group(2).split()))
     if _HELP_RE.search(question):
         return QuestionRoute("help")
+    measurement = measurement_for_text(question)
+    presentation = "evidence" if _EVIDENCE_RE.search(question) else "graph" if _GRAPH_RE.search(question) else None
+    # Educational "what does this mean?" questions are safe and routed before
+    # the causal/advice guardrail, which remains intact for agronomy questions.
+    if _EDUCATION_RE.search(question) and (measurement or re.search(r"\b(?:simulated|observed|received|trend|average|comparison)\b", question, re.IGNORECASE)):
+        return QuestionRoute("education", paddock_name=_extract_paddock(question), measurement=measurement, presentation=presentation)
     if _UNSUPPORTED_RE.search(question):
         return QuestionRoute("unsupported")
 
-    measurement = measurement_for_text(question)
     # Conversational ranking shorthand has no literal catalogue alias.
     if not measurement and re.search(r"\b(?:driest|dryest|wettest)\b", question, re.IGNORECASE):
         measurement = "soil_moisture_pct"
@@ -96,12 +112,26 @@ def route_question(question: str) -> QuestionRoute:
         measurement = "air_temperature_c"
     paddock = _extract_paddock(question)
     window = _window_minutes(question)
+    today_match = _TODAY_RE.search(question)
+    time_label = today_match.group(0).casefold() if today_match else None
+    if time_label and not window:
+        window = 1440
+    comparison = bool(_COMPARE_RE.search(question))
+
+    if re.search(r"\b(?:what\s+has\s+happened|summary|summarise|summarize)\b", question, re.IGNORECASE) and (paddock or time_label):
+        return QuestionRoute("summary", paddock_name=paddock, window_minutes=window or 1440, time_label=time_label or "last 24 hours", presentation=presentation)
 
     if re.search(r"\bdaylight\s+hours?\b", question, re.IGNORECASE):
         return QuestionRoute("historical", paddock, "light_lux", DAYLIGHT, window or 1440)
     if window and measurement:
-        if _CHANGE_RE.search(question) and CHANGE in BY_KEY[measurement].operations:
+        if _ANOMALY_RE.search(question) and ANOMALY in BY_KEY[measurement].operations:
+            operation = ANOMALY
+        elif _RANGE_RE.search(question) and RANGE in BY_KEY[measurement].operations:
+            operation = RANGE
+        elif _CHANGE_RE.search(question) and CHANGE in BY_KEY[measurement].operations:
             operation = CHANGE
+        elif presentation == "graph" and TREND in BY_KEY[measurement].operations:
+            operation = TREND
         elif measurement == "rainfall_mm" and SUM in BY_KEY[measurement].operations and not _AVERAGE_RE.search(question):
             operation = SUM
         elif _AVERAGE_RE.search(question) and AVERAGE in BY_KEY[measurement].operations:
@@ -112,7 +142,15 @@ def route_question(question: str) -> QuestionRoute:
             operation = MAXIMUM
         else:
             return QuestionRoute("unsupported")
-        return QuestionRoute("historical", paddock, measurement, operation, window)
+        if comparison:
+            # rainfall is summed; other comparison operations use the requested
+            # aggregate or an average as the explicit default.
+            return QuestionRoute("comparison", paddock, measurement, operation, window, time_label=time_label, comparison=True, presentation=presentation)
+        return QuestionRoute("historical", paddock, measurement, operation, window, time_label=time_label, presentation=presentation)
+
+    if comparison and measurement:
+        # Current comparisons are already deterministic snapshot operations.
+        return QuestionRoute("comparison", paddock, measurement, AVERAGE, 60, time_label="last hour", comparison=True, presentation=presentation)
 
     if measurement == "soil_moisture_pct" and re.search(r"\b(?:driest|dryest|lowest|least)\b", question, re.IGNORECASE):
         return QuestionRoute("driest")
@@ -123,15 +161,15 @@ def route_question(question: str) -> QuestionRoute:
 
     if measurement and RANKING in BY_KEY[measurement].operations:
         if _RANK_HIGH_RE.search(question):
-            return QuestionRoute("ranking", measurement=measurement, operation="highest")
+            return QuestionRoute("ranking", measurement=measurement, operation="highest", presentation=presentation)
         if _RANK_LOW_RE.search(question):
-            return QuestionRoute("ranking", measurement=measurement, operation="lowest")
+            return QuestionRoute("ranking", measurement=measurement, operation="lowest", presentation=presentation)
 
     if measurement and (_RANK_HIGH_RE.search(question) or _RANK_LOW_RE.search(question) or _AVERAGE_RE.search(question)):
         return QuestionRoute("unsupported")
 
     if paddock:
-        return QuestionRoute("paddock-field" if measurement and measurement != "soil_moisture_pct" else "paddock", paddock, measurement)
+        return QuestionRoute("paddock-field" if measurement and measurement != "soil_moisture_pct" else "paddock", paddock, measurement, presentation=presentation)
     if measurement and measurement != "soil_moisture_pct":
         return QuestionRoute("measurement-fallback", measurement=measurement)
     return QuestionRoute("moisture-fallback")

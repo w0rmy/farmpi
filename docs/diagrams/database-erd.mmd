@@ -1,0 +1,8 @@
+erDiagram
+  PADDOCKS ||--o{ SENSOR_NODES : contains
+  SENSOR_NODES ||--o{ READINGS : emits
+  PADDOCKS ||--o{ PADDOCK_ADMIN_AUDIT : records
+  PADDOCKS { int id string name bool active }
+  SENSOR_NODES { int id int paddock_id string node_uid }
+  READINGS { bigint id int sensor_node_id datetime observed_at datetime received_at bigint sample_seq bool simulated }
+  PADDOCK_ADMIN_AUDIT { bigint id int paddock_id string old_name string new_name }

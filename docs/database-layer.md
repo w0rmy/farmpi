@@ -19,3 +19,6 @@ The latest-complete reading query uses `received_at` for current values/freshnes
 Derived daylight counts each five-minute historical light sample at or above 1,000 lux. It is documented approximation, not a stored field and not an LLM calculation.
 
 The prior “Paddock IS” failure is guarded by treating conversational words after paddock as non-identifiers. For arbitrary current names, the router extracts only a candidate phrase and the data layer resolves it against the database names; it does not hard-code Paddock A/B/C.
+# Current implementation note
+
+Analytics selects an explicit UTC range. Local-calendar requests such as `today` are first converted from `Pacific/Auckland` midnight to UTC, avoiding the common error of presenting a rolling 24-hour window as a local day. It uses valid, in-tolerance `observed_at`; otherwise it uses FarmPi `received_at`. See [analytics and graphing](analytics-and-graphing.md).

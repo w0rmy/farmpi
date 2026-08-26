@@ -13,6 +13,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -34,6 +36,9 @@ import java.util.Locale
 import javax.net.ssl.HttpsURLConnection
 
 private data class SpeechResult(val heard: String, val interpreted: String, val changed: Boolean)
+private data class ChartPoint(val label: String, val value: Double)
+private data class ChartPayload(val type: String, val title: String, val unit: String, val period: String, val provenance: String, val series: List<Pair<String, List<ChartPoint>>>)
+private data class AskResult(val answer: String, val suggestions: List<String>, val intent: String, val chart: ChartPayload?, val evidence: List<String>)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,6 +62,11 @@ private fun FarmPiApp() {
     var guidance by remember { mutableStateOf("normal") }
     var learnTab by remember { mutableStateOf(false) }
     var asking by remember { mutableStateOf(false) }
+    var chart by remember { mutableStateOf<ChartPayload?>(null) }
+    var evidence by remember { mutableStateOf(emptyList<String>()) }
+    var showEvidence by remember { mutableStateOf(false) }
+    val preferences = remember { context.getSharedPreferences("farmpi-learning", 0) }
+    LaunchedEffect(Unit) { explanation = preferences.getString("explanation", "normal") ?: "normal"; guidance = preferences.getString("guidance", "normal") ?: "normal" }
     val tts = remember { TextToSpeech(context) { } }
     DisposableEffect(Unit) { onDispose { tts.shutdown() } }
 
@@ -74,7 +84,7 @@ private fun FarmPiApp() {
             heard = speech?.heard; interpreted = speech?.interpreted?.takeIf { speech.changed }
             question = routedQuestion
             val result = FarmPiApi.ask(routedQuestion, explanation, guidance)
-            answer = result.first; suggestions = result.second; connection = "FarmPi connected"; speak(result.first)
+            answer = result.answer; suggestions = result.suggestions; chart = result.chart; evidence = result.evidence; showEvidence = false; connection = "FarmPi connected"; speak(result.answer)
         } catch (_: Exception) { answer = "FarmPi is unavailable. Check the local connection and certificate trust."; connection = "FarmPi is unavailable" }
         asking = false
     }
@@ -120,7 +130,7 @@ private fun FarmPiApp() {
         NavigationBarItem(selected = !learnTab, onClick = { learnTab = false }, icon = { Text("💬") }, label = { Text("Ask") })
         NavigationBarItem(selected = learnTab, onClick = { learnTab = true }, icon = { Text("✓") }, label = { Text("Learn") })
     } }) { padding ->
-        if (learnTab) LearnArea(Modifier.padding(padding)) else Column(
+        if (learnTab) LearnArea(Modifier.padding(padding)) { prompt -> learnTab = false; question = prompt; ask(prompt) } else Column(
             modifier = Modifier.padding(padding).padding(20.dp).fillMaxSize().verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -135,11 +145,40 @@ private fun FarmPiApp() {
                 Button(onClick = { ask(question) }, enabled = !asking) { Text("Ask FarmPi") }
                 OutlinedButton(onClick = { guideMe() }) { Text("Guide me") }
             }
-            Preferences(explanation, guidance, { explanation = it }, { guidance = it })
+            Preferences(explanation, guidance, { explanation = it; preferences.edit().putString("explanation", it).apply() }, { guidance = it; preferences.edit().putString("guidance", it).apply() })
             if (heard != null) Text("Heard: $heard", modifier = Modifier.fillMaxWidth().padding(top = 14.dp), style = MaterialTheme.typography.bodySmall)
             if (interpreted != null) Text("Interpreted: $interpreted", modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
             Card(modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) { Text(answer, modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodyLarge) }
+            chart?.let { ChartCard(it) }
+            if (evidence.isNotEmpty()) {
+                TextButton(onClick = { showEvidence = !showEvidence }) { Text(if (showEvidence) "Hide evidence" else "Show evidence / data") }
+                if (showEvidence) Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) { Text("Evidence used", fontWeight = FontWeight.Bold); evidence.take(12).forEach { Text(it, style = MaterialTheme.typography.bodySmall) } } }
+            }
             suggestions.forEach { suggestion -> TextButton(onClick = { question = suggestion; ask(suggestion) }) { Text(suggestion, textAlign = TextAlign.Start) } }
+        }
+    }
+}
+
+@Composable
+private fun ChartCard(chart: ChartPayload) {
+    Card(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        Column(Modifier.padding(14.dp)) {
+            Text(chart.title, fontWeight = FontWeight.Bold)
+            Text("${chart.period} • ${chart.provenance}", style = MaterialTheme.typography.bodySmall)
+            val points = chart.series.flatMap { it.second }
+            val maximum = points.maxOfOrNull { it.value }?.takeIf { it > 0.0 } ?: 1.0
+            chart.series.forEach { (name, values) ->
+                Text(name, modifier = Modifier.padding(top = 8.dp), style = MaterialTheme.typography.labelLarge)
+                if (chart.type == "bar") values.forEach { point ->
+                    Text("${point.label}: ${"%.2f".format(point.value)} ${chart.unit}", style = MaterialTheme.typography.bodySmall)
+                    LinearProgressIndicator(progress = (point.value / maximum).toFloat().coerceIn(0f, 1f), modifier = Modifier.fillMaxWidth().height(9.dp).padding(bottom = 4.dp), color = MaterialTheme.colorScheme.primary)
+                } else {
+                    // Each point is an actual backend-supplied, timestamped value;
+                    // the connected markers form a compact native line/spark view.
+                    Row(Modifier.fillMaxWidth().height(54.dp), verticalAlignment = Alignment.Bottom) { values.takeLast(24).forEach { point -> Box(Modifier.weight(1f).fillMaxHeight((point.value / maximum).toFloat().coerceIn(.03f, 1f)).padding(horizontal = 1.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))) } }
+                    values.takeLast(2).forEach { point -> Text("${point.label}: ${"%.2f".format(point.value)} ${chart.unit}", style = MaterialTheme.typography.bodySmall) }
+                }
+            }
         }
     }
 }
@@ -153,10 +192,18 @@ private fun Preferences(explanation: String, guidance: String, setExplanation: (
 }
 
 @Composable
-private fun LearnArea(modifier: Modifier) = Column(modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
+private fun LearnArea(modifier: Modifier, usePrompt: (String) -> Unit) = Column(modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
     Text("Learn FarmPi", style = MaterialTheme.typography.headlineMedium)
     Text("Short teach-by-doing tasks use only verified FarmPi information.")
-    listOf("Getting started — use Guide me, then ask one question.", "One paddock — ask for Paddock A's soil EC.", "Compare paddocks — ask which paddock is driest.", "Understand data — ask about a unit and simulated provenance.", "Unavailable answers — ask for irrigation advice and see the safe boundary.").forEach { task -> Card(Modifier.fillMaxWidth().padding(top = 10.dp)) { Text(task, Modifier.padding(14.dp)) } }
+    listOf(
+        "Getting started" to "Guide me",
+        "One paddock" to "What is Paddock A's soil EC?",
+        "Compare paddocks" to "Compare soil EC across all paddocks.",
+        "Inspect a trend" to "Show a graph of soil moisture over the last 24 hours.",
+        "Understand a measurement" to "What does soil EC mean?",
+        "Understand provenance" to "Explain simulated data.",
+        "Safe boundaries" to "Should I irrigate Paddock A?"
+    ).forEach { (title, prompt) -> Card(Modifier.fillMaxWidth().padding(top = 10.dp)) { Column(Modifier.padding(14.dp)) { Text(title, fontWeight = FontWeight.Bold); Text("Try this real FarmPi task, then inspect the answer and evidence."); TextButton(onClick = { usePrompt(prompt) }) { Text(prompt) } } } }
 }
 
 private object FarmPiApi {
@@ -174,9 +221,17 @@ private object FarmPiApi {
         val array = JSONArray(); alternatives.forEach { array.put(JSONObject().put("transcript", it)) }; val json = request("api/speech/normalize", "POST", JSONObject().put("transcript", transcript).put("alternatives", array))
         SpeechResult(json.getString("raw_transcript"), json.getString("normalized_transcript"), json.getBoolean("correction_applied") || json.getBoolean("alternative_selected"))
     }
-    suspend fun ask(question: String, explanation: String, guidance: String): Pair<String, List<String>> = withContext(Dispatchers.IO) {
+    suspend fun ask(question: String, explanation: String, guidance: String): AskResult = withContext(Dispatchers.IO) {
         val body = JSONObject().put("question", question).put("preferences", JSONObject().put("explanation_level", explanation).put("guidance_level", guidance)); val json = request("api/ask", "POST", body)
-        json.getString("answer") to json.optJSONArray("suggestions").strings()
+        AskResult(json.getString("answer"), json.optJSONArray("suggestions").strings(), json.optString("intent"), json.optJSONObject("chart")?.chart(), json.optJSONArray("evidence")?.let { evidence -> (0 until evidence.length()).map { evidence.getJSONObject(it).toString() } } ?: emptyList())
+    }
+    private fun JSONObject.chart(): ChartPayload {
+        val entries = optJSONArray("series") ?: JSONArray()
+        val series = (0 until entries.length()).map { index ->
+            val item = entries.getJSONObject(index); val points = item.optJSONArray("data") ?: JSONArray()
+            item.optString("name") to (0 until points.length()).map { point -> points.getJSONObject(point).let { ChartPoint(it.optString("x"), it.optDouble("y")) } }
+        }
+        return ChartPayload(optString("type"), optString("title"), optString("unit"), optString("source_period"), optString("provenance"), series)
     }
     private fun JSONArray?.strings(): List<String> = if (this == null) emptyList() else (0 until length()).map { getString(it) }
 }

@@ -1,0 +1,9 @@
+sequenceDiagram
+  participant U as User
+  participant F as FarmPi
+  participant D as MariaDB
+  U->>F: Rename Paddock A to North Flat
+  F-->>U: confirmation token (5 minutes)
+  U->>F: confirm + token
+  F->>D: validate, update paddocks.name, append audit
+  F-->>U: deterministic result

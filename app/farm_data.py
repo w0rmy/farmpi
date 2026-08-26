@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from statistics import fmean
+from zoneinfo import ZoneInfo
 
 from .database import fetch_all
+from .analytics import AnalyticsResult, comparison_chart, compare_paddocks, historical_analysis
 from .measurements import AVERAGE, BY_KEY, CHANGE, CURRENT, DAYLIGHT, MAXIMUM, MINIMUM, RANKING, SUM, MEASUREMENTS, format_measurement, measurement
 
 
@@ -43,6 +45,9 @@ class GroundingData:
 
     intent: str
     facts: tuple[str, ...]
+    evidence: tuple[dict[str, object], ...] = ()
+    chart: dict[str, object] | None = None
+    source_category: str = "observational"
 
 
 _SELECT_VALUES = ",\n    ".join(
@@ -151,7 +156,9 @@ def _current_ranking(key: str, highest: bool) -> GroundingData:
     items = get_environment_snapshot()
     winner = max(items, key=lambda item: item.values[key]) if highest else min(items, key=lambda item: item.values[key])
     direction = "Highest" if highest else "Lowest"
-    return GroundingData("ranking", (f"{direction} {measurement(key).label}: {winner.name}.", _measurement_fact(winner, key), _provenance_fact([winner])))
+    values = dict(sorted(((item.name, item.values[key]) for item in items), key=lambda entry: entry[1], reverse=highest))
+    evidence = tuple({"paddock": item.name, "sensor": None, "timestamp": item.received_at.isoformat(), "value": item.values[key], "simulated": item.contains_simulated} for item in items)
+    return GroundingData("ranking", (f"{direction} {measurement(key).label}: {winner.name}.", _measurement_fact(winner, key), _provenance_fact([winner])), evidence, comparison_chart(key, values, "current/latest", direction.casefold()))
 
 
 def _historical_rows(key: str, minutes: int, paddock_name: str | None) -> tuple[list[dict[str, object]], str | None]:
@@ -212,6 +219,72 @@ def historical_grounding(key: str, operation: str, minutes: int, paddock_name: s
     if operation == CHANGE:
         return GroundingData("historical", (f"{prefix}: {format_measurement(value, key)} (last minus first sample).",))
     return GroundingData("historical", (f"{prefix}: {format_measurement(value, key)}.",))
+
+
+def time_window_start(window_minutes: int | None, window_label: str | None) -> tuple[datetime, str]:
+    """Resolve presentation terms to an explicit UTC database boundary.
+
+    ``today`` is a Pacific/Auckland local calendar day; all stored/query times
+    remain UTC.  This prevents the old and subtle 'last 24 hours = today' bug.
+    """
+    now = datetime.now(timezone.utc)
+    if window_label == "today":
+        local = now.astimezone(ZoneInfo("Pacific/Auckland"))
+        return local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc), "today (Pacific/Auckland)"
+    if window_label == "this morning":
+        local = now.astimezone(ZoneInfo("Pacific/Auckland"))
+        return local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc), "this morning (Pacific/Auckland)"
+    minutes = window_minutes or 1440
+    return now - timedelta(minutes=minutes), f"the last {minutes} minutes"
+
+
+def historical_rows_from(key: str, start_at: datetime, paddock_name: str | None = None) -> tuple[list[dict[str, object]], str | None]:
+    """Read verified history from an explicit UTC start boundary."""
+    if key not in BY_KEY:
+        raise ValueError("Unknown measurement.")
+    analysis_time = "CASE WHEN r.clock_valid = 1 AND r.clock_out_of_tolerance = 0 THEN r.observed_at ELSE r.received_at END"
+    params: list[object] = [start_at.replace(tzinfo=None)]
+    where = [f"{analysis_time} >= %s", f"r.{key} IS NOT NULL"]
+    resolved_name = None
+    if paddock_name:
+        target = resolve_paddock(paddock_name)
+        if target is None:
+            return [], None
+        where.append("p.id = %s")
+        params.append(target.id)
+        resolved_name = target.name
+    sql = f"""
+SELECT p.name, s.node_uid AS sensor_uid, r.{key} AS value, {analysis_time} AS analysis_at, r.simulated
+FROM readings AS r JOIN sensor_nodes AS s ON s.id = r.sensor_node_id JOIN paddocks AS p ON p.id = s.paddock_id
+WHERE {" AND ".join(where)} ORDER BY {analysis_time} ASC, r.id ASC
+"""
+    return fetch_all(sql, tuple(params)), resolved_name
+
+
+def analytics_grounding(key: str, operation: str, window_minutes: int | None, window_label: str | None, paddock_name: str | None = None, comparison: bool = False) -> GroundingData:
+    """Expose expanded analytics as facts plus optional evidence/chart payload."""
+    start, period = time_window_start(window_minutes, window_label)
+    rows, resolved = historical_rows_from(key, start, None if comparison else paddock_name)
+    scope = "all paddocks" if comparison else (resolved or paddock_name or "the farm")
+    result: AnalyticsResult = compare_paddocks(key, operation, rows, period) if comparison else historical_analysis(key, operation, rows, period, scope)
+    evidence = tuple({"paddock": item.paddock, "sensor": item.sensor, "timestamp": item.timestamp, "value": item.value, "simulated": item.simulated} for item in result.evidence)
+    return GroundingData("comparison" if comparison else "historical", result.facts, evidence, result.chart)
+
+
+def paddock_summary(paddock_name: str | None, window_minutes: int | None, window_label: str | None) -> GroundingData:
+    """A compact deterministic learning summary, assembled from real operations."""
+    item = resolve_paddock(paddock_name) if paddock_name else None
+    if paddock_name and item is None:
+        return GroundingData("summary", (f"No verified current reading is available for {paddock_name}.",))
+    name = item.name if item else "FarmPi"
+    start, period = time_window_start(window_minutes, window_label)
+    moisture_rows, _ = historical_rows_from("soil_moisture_pct", start, name if item else None)
+    rain_rows, _ = historical_rows_from("rainfall_mm", start, name if item else None)
+    moisture = historical_analysis("soil_moisture_pct", "change", moisture_rows, period, name)
+    rain = historical_analysis("rainfall_mm", SUM, rain_rows, period, name)
+    current = (f"Current soil moisture: {format_measurement(item.soil_moisture_pct, 'soil_moisture_pct')}." if item else "Use a named paddock for a current-value summary.")
+    facts = (f"{name} summary for {period}.", current, *moisture.facts[:1], *rain.facts[:1], "Any rainfall/moisture sequence is an association in the selected telemetry, not proof of cause.")
+    return GroundingData("summary", facts, moisture.evidence + rain.evidence, moisture.chart)
 
 
 def get_grounding_data(intent: str, paddock_name: str | None = None, measurement_key: str | None = None, operation: str | None = None, window_minutes: int | None = None) -> GroundingData:

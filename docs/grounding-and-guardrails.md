@@ -224,3 +224,6 @@ At this stage FarmPi does not deterministically establish:
 The layered design demonstrates an important AI/Data Science distinction: a fluent LLM response is not itself evidence that the answer is correct. FarmPi therefore establishes provenance, validation, retrieval, calculation, and scope before the language model is allowed to phrase the result.
 
 It also supports the Flexible Learning component because user guidance can become more adaptive without weakening factual controls. Explanation style, onboarding depth, repeated hints, and user preferences can change independently of the deterministic factual authority underneath them.
+# Current implementation note
+
+FarmPi now returns a labelled observational, educational, or combined source category, plus deterministic chart/evidence payloads when useful. Curated concepts are separate from MariaDB readings and Qwen still has no authority to calculate, query, mutate, or make causal/agronomic claims. See [educational grounding](educational-grounding.md), [structured requests](structured-requests.md), and [the grounding diagram](diagrams/grounding-pipeline.mmd).

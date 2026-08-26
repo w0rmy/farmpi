@@ -1,0 +1,7 @@
+flowchart LR
+  V[SpeechRecognizer / text] --> N[Compose UI]
+  N --> H[HTTPS farmpi.local]
+  H --> F[FastAPI]
+  F --> N
+  N --> T[Native TextToSpeech]
+  N --> P[local SharedPreferences: learning preferences]

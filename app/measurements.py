@@ -23,6 +23,8 @@ class Measurement:
     maximum: float
     decimal_places: int
     operations: frozenset[str]
+    chart_kind: str = "line"
+    educational_concept: str | None = None
 
 
 CURRENT = "current"
@@ -33,35 +35,40 @@ MAXIMUM = "maximum"
 SUM = "sum"
 CHANGE = "change"
 DAYLIGHT = "daylight"
+TREND = "trend"
+RANGE = "range"
+COMPARISON = "comparison"
+SUMMARY = "summary"
+ANOMALY = "anomaly"
 
 
 MEASUREMENTS: tuple[Measurement, ...] = (
     Measurement("soil_moisture_pct", "soil moisture", "%", ("soil moisture", "moisture"), 0, 100, 2,
-                frozenset({CURRENT, RANKING, AVERAGE, MINIMUM, MAXIMUM, CHANGE})),
+                frozenset({CURRENT, RANKING, AVERAGE, MINIMUM, MAXIMUM, CHANGE, TREND, RANGE, COMPARISON, ANOMALY}), "line", "soil_moisture"),
     Measurement("soil_temperature_c", "soil temperature", "°C", ("soil temperature", "ground temperature"), -10, 60, 2,
-                frozenset({CURRENT, RANKING, AVERAGE, MINIMUM, MAXIMUM, CHANGE})),
+                frozenset({CURRENT, RANKING, AVERAGE, MINIMUM, MAXIMUM, CHANGE, TREND, RANGE, COMPARISON, ANOMALY}), "line", "soil_temperature"),
     Measurement("air_temperature_c", "air temperature", "°C", ("air temperature", "air temp", "temperature", "temp"), -30, 60, 2,
-                frozenset({CURRENT, RANKING, AVERAGE, MINIMUM, MAXIMUM, CHANGE})),
+                frozenset({CURRENT, RANKING, AVERAGE, MINIMUM, MAXIMUM, CHANGE, TREND, RANGE, COMPARISON, ANOMALY}), "line", "air_temperature"),
     Measurement("relative_humidity_pct", "relative humidity", "%", ("relative humidity", "humidity", "humid"), 0, 100, 2,
-                frozenset({CURRENT, RANKING, AVERAGE, MINIMUM, MAXIMUM, CHANGE})),
+                frozenset({CURRENT, RANKING, AVERAGE, MINIMUM, MAXIMUM, CHANGE, TREND, RANGE, COMPARISON, ANOMALY}), "line", "relative_humidity"),
     Measurement("soil_ph", "soil pH", "", ("soil ph", "ph"), 0, 14, 2,
-                frozenset({CURRENT, AVERAGE, MINIMUM, MAXIMUM, CHANGE})),
+                frozenset({CURRENT, AVERAGE, MINIMUM, MAXIMUM, CHANGE, TREND, RANGE, COMPARISON}), "line", "soil_ph"),
     Measurement("soil_ec_ms_cm", "soil electrical conductivity", "mS/cm", ("soil electrical conductivity", "soil ec", "electrical conductivity", "ec"), 0, 20, 2,
-                frozenset({CURRENT, RANKING, AVERAGE, MINIMUM, MAXIMUM, CHANGE})),
+                frozenset({CURRENT, RANKING, AVERAGE, MINIMUM, MAXIMUM, CHANGE, TREND, RANGE, COMPARISON, ANOMALY}), "line", "soil_ec"),
     Measurement("light_lux", "light", "lux", ("light level", "light", "lux", "illumination", "brightness"), 0, 200000, 0,
-                frozenset({CURRENT, AVERAGE, MINIMUM, MAXIMUM, CHANGE, DAYLIGHT})),
+                frozenset({CURRENT, AVERAGE, MINIMUM, MAXIMUM, CHANGE, DAYLIGHT, TREND, RANGE, COMPARISON}), "line", "light_lux"),
     Measurement("rainfall_mm", "rainfall", "mm", ("rainfall", "rain"), 0, 100, 2,
-                frozenset({CURRENT, RANKING, AVERAGE, MAXIMUM, SUM})),
+                frozenset({CURRENT, RANKING, AVERAGE, MAXIMUM, SUM, TREND, COMPARISON}), "bar", "rainfall"),
     Measurement("barometric_pressure_hpa", "barometric pressure", "hPa", ("barometric pressure", "air pressure", "pressure"), 850, 1100, 1,
-                frozenset({CURRENT, AVERAGE, MINIMUM, MAXIMUM, CHANGE})),
+                frozenset({CURRENT, AVERAGE, MINIMUM, MAXIMUM, CHANGE, TREND, RANGE, COMPARISON, ANOMALY}), "line", "barometric_pressure"),
     Measurement("wind_speed_kmh", "wind speed", "km/h", ("wind speed", "wind"), 0, 250, 1,
-                frozenset({CURRENT, AVERAGE, MAXIMUM})),
+                frozenset({CURRENT, AVERAGE, MAXIMUM, TREND, COMPARISON}), "line", "wind_speed"),
     Measurement("wind_direction_deg", "wind direction", "°", ("wind direction", "wind bearing"), 0, 360, 0,
-                frozenset({CURRENT})),
+                frozenset({CURRENT}), "bar", "wind_direction"),
     Measurement("pasture_height_cm", "pasture height", "cm", ("pasture height", "grass height", "grass length", "pasture", "grass"), 0, 300, 1,
-                frozenset({CURRENT, RANKING, AVERAGE, MINIMUM, MAXIMUM, CHANGE})),
+                frozenset({CURRENT, RANKING, AVERAGE, MINIMUM, MAXIMUM, CHANGE, TREND, RANGE, COMPARISON, ANOMALY}), "line", "pasture_height"),
     Measurement("leaf_wetness_pct", "leaf wetness", "%", ("leaf wetness", "wet leaves"), 0, 100, 1,
-                frozenset({CURRENT, AVERAGE, MAXIMUM, CHANGE})),
+                frozenset({CURRENT, AVERAGE, MAXIMUM, CHANGE, TREND, COMPARISON}), "line", "leaf_wetness"),
 )
 
 BY_KEY = {measurement.key: measurement for measurement in MEASUREMENTS}

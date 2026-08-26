@@ -1,0 +1,15 @@
+sequenceDiagram
+  participant U as Learner
+  participant C as Client
+  participant F as FarmPi
+  participant D as MariaDB
+  participant Q as Qwen
+  U->>C: speak/type question
+  C->>F: alternatives + preferences
+  F->>F: normalise and route
+  F->>D: approved query only
+  F->>F: analytics / education / evidence
+  opt language phrasing useful
+    F->>Q: verified facts only
+  end
+  F-->>C: answer, chart, evidence, suggestions

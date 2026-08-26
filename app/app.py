@@ -19,9 +19,13 @@ from pydantic import BaseModel, Field
 from .database import DatabaseUnavailable, ping_database
 from .farm_data import (
     NoFarmData,
+    analytics_grounding,
     format_grounding_context,
     get_grounding_data,
+    paddock_summary,
 )
+from .education import CONCEPTS, concept_for_measurement, render_concept
+from .learning import activity_payload
 from .question_router import route_question
 from .paddock_admin import RenameProposal, RenameRejected, confirm_rename, prepare_rename
 from .guidance import INITIAL_SUGGESTIONS, WELCOME_TEXT, follow_up_suggestions
@@ -43,7 +47,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         yield
 
 
-app = FastAPI(title="FarmPi", version="0.5.0", lifespan=lifespan)
+app = FastAPI(title="FarmPi", version="0.6.0", lifespan=lifespan)
 
 SYSTEM_PROMPT = """You are FarmPi.
 Use only VERIFIED FACTS supplied by FarmPi.
@@ -119,6 +123,9 @@ class AskResponse(BaseModel):
     suggestions: list[str] = []
     speech_normalization: SpeechNormalizationResponse | None = None
     preferences: ClientPreferences = ClientPreferences()
+    chart: dict[str, Any] | None = None
+    evidence: list[dict[str, Any]] = []
+    source_category: Literal["observational", "educational", "combined"] = "observational"
 
 
 class GuidanceResponse(BaseModel):
@@ -126,6 +133,12 @@ class GuidanceResponse(BaseModel):
 
     welcome: str
     suggestions: list[str]
+
+
+@app.get("/api/learning/activities")
+async def learning_activities() -> dict[str, list[dict[str, object]]]:
+    """Serve the short activity catalogue; each activity invokes real routes."""
+    return {"activities": activity_payload()}
 
 
 # A confirmation is intentionally short-lived in process memory. It is not a
@@ -481,7 +494,7 @@ async def ask(request: AskRequest) -> AskResponse:
     route = route_question(question_text)
     routing_ms = (time.perf_counter() - route_start) * 1000
 
-    def direct_action(answer: str, intent: str, confirmation_id: str | None = None) -> AskResponse:
+    def direct_action(answer: str, intent: str, confirmation_id: str | None = None, *, chart: dict[str, Any] | None = None, evidence: list[dict[str, Any]] | None = None, source_category: Literal["observational", "educational", "combined"] = "observational") -> AskResponse:
         total_ms = (time.perf_counter() - total_start) * 1000
         return AskResponse(
             answer=answer,
@@ -490,6 +503,9 @@ async def ask(request: AskRequest) -> AskResponse:
             suggestions=list(follow_up_suggestions(intent)[:4 if preferences.guidance_level == "more" else 1 if preferences.guidance_level == "less" else 3]),
             speech_normalization=speech_normalization,
             preferences=preferences,
+            chart=chart,
+            evidence=evidence or [],
+            source_category=source_category,
             timings=AskTimings(
                 routing_ms=round(routing_ms, 2),
                 database_ms=round(total_ms - routing_ms, 2),
@@ -534,16 +550,33 @@ async def ask(request: AskRequest) -> AskResponse:
             confirmation_id,
         )
 
+    # Educational definitions are curated and version controlled.  A named
+    # current measurement may be included as observational grounding, but the
+    # definition itself never comes from Qwen.
+    if route.intent == "education":
+        concept = concept_for_measurement(route.measurement)
+        lowered = question_text.casefold()
+        if concept is None:
+            concept = CONCEPTS.get("simulated_data" if "simulat" in lowered else "observed_received" if ("observed" in lowered or "received" in lowered) else "trend")
+        facts = list(render_concept(concept, preferences.explanation_level))
+        evidence: list[dict[str, Any]] = []
+        if route.paddock_name and route.measurement:
+            try:
+                observed = await asyncio.to_thread(get_grounding_data, "paddock-field", route.paddock_name, route.measurement)
+                facts.insert(0, observed.facts[0])
+                evidence = [{"source": "observational", "fact": fact} for fact in observed.facts]
+            except (DatabaseUnavailable, NoFarmData):
+                facts.insert(0, "The requested current reading is unavailable, but the concept explanation is still available.")
+        return direct_action("\n".join(facts), "education", evidence=evidence + [{"source": "educational", "concept": concept.key}], source_category="combined" if evidence else "educational")
+
     database_start = time.perf_counter()
     try:
-        grounding_data = await asyncio.to_thread(
-            get_grounding_data,
-            route.intent,
-            route.paddock_name,
-            route.measurement,
-            route.operation,
-            route.window_minutes,
-        )
+        if route.intent in {"historical", "comparison"} and route.measurement and route.operation:
+            grounding_data = await asyncio.to_thread(analytics_grounding, route.measurement, route.operation, route.window_minutes, route.time_label, route.paddock_name, route.intent == "comparison")
+        elif route.intent == "summary":
+            grounding_data = await asyncio.to_thread(paddock_summary, route.paddock_name, route.window_minutes, route.time_label)
+        else:
+            grounding_data = await asyncio.to_thread(get_grounding_data, route.intent, route.paddock_name, route.measurement, route.operation, route.window_minutes)
     except DatabaseUnavailable as exc:
         raise HTTPException(
             status_code=503,
@@ -555,6 +588,16 @@ async def ask(request: AskRequest) -> AskResponse:
             detail="No current soil-moisture readings are available.",
         ) from exc
     database_ms = (time.perf_counter() - database_start) * 1000
+
+    # Calculated responses and unavailable-boundary explanations are already
+    # complete deterministic teaching material.  They do not need a language
+    # model call, which also makes evidence/chart rendering dependable offline.
+    if route.intent in {"historical", "comparison", "summary", "unsupported"}:
+        return direct_action(
+            "\n".join(grounding_data.facts), route.intent,
+            chart=grounding_data.chart,
+            evidence=list(grounding_data.evidence),
+        )
 
     context_start = time.perf_counter()
     verified_farm_data = format_grounding_context(grounding_data)
@@ -592,6 +635,16 @@ async def ask(request: AskRequest) -> AskResponse:
             detail="The local language model returned an empty response.",
         )
 
+    # Keep the observation identical but make explanation levels demonstrably
+    # instructional rather than only changing Qwen's token limit.  These notes
+    # are curated, so the model does not invent a definition or limitation.
+    source_category: Literal["observational", "educational", "combined"] = "observational"
+    concept = concept_for_measurement(route.measurement)
+    if concept and preferences.explanation_level in {"normal", "technical"}:
+        note = concept.normal if preferences.explanation_level == "normal" else f"{concept.technical} Limitation: {concept.limitations}"
+        answer = f"{answer}\n\nLearning note: {note}"
+        source_category = "combined"
+
     total_ms = (time.perf_counter() - total_start) * 1000
     timings = AskTimings(
         routing_ms=round(routing_ms, 2),
@@ -618,4 +671,7 @@ async def ask(request: AskRequest) -> AskResponse:
         speech_normalization=speech_normalization,
         preferences=preferences,
         timings=timings,
+        chart=grounding_data.chart,
+        evidence=list(grounding_data.evidence),
+        source_category=source_category,
     )

@@ -7,7 +7,7 @@
 - `clients/android/` — native Kotlin/Jetpack Compose user client.
 - `config/`, `tests/`, `docs/`, and `scripts/` — deployment configuration, validation, evidence, and repeatable operational helpers.
 
-See [the time-sync contract](docs/time-sync-telemetry.md), [NZ synthetic simulation](docs/nz-synthetic-simulation.md), and [Android architecture](docs/android-client.md).
+See [the time-sync contract](docs/time-sync-telemetry.md), [NZ synthetic simulation](docs/nz-synthetic-simulation.md), [deterministic analytics and graphs](docs/analytics-and-graphing.md), [educational grounding](docs/educational-grounding.md), [structured requests](docs/structured-requests.md), and [Android architecture](docs/android-client.md). Editable Mermaid diagram sources are in [docs/diagrams](docs/diagrams/).
 
 FarmPi is a local farm-monitoring alpha and capstone technical medium for Artificial Intelligence/Data Science and Flexible Learning. It deliberately produces a rich, believable **synthetic** dataset while keeping factual queries, calculations, and administration deterministic.
 
@@ -56,7 +56,9 @@ No fabricated N/P/K values are used; soil EC is the practical raw soil-chemistry
 - Current values for any supported measurement, including renamed paddocks: “What is the pasture height in North Flat?”
 - Current moisture: driest, wettest, and farm average.
 - Safe current rankings where listed in the catalogue, for example: “Which paddock is tallest?”
-- Small historical calculations: “How much rainfall was there over the last 24 hours?”, “What is the pasture height change in North Flat over the last day?”, and min/max/average/change for permitted fields.
+- Expanded historical calculations: totals, min/max/average, change, range, deterministic first-to-last trend, simple baseline anomaly flagging, comparison bars, and time-series charts. Examples: “Compare soil EC across all paddocks.” and “Show a graph of soil moisture over the last 24 hours.”
+- Curated concept explanations at Simple/Normal/Technical levels: “What does soil EC mean?”, “Explain simulated data.”, and “What are observed and received times?”
+- Learner evidence: returned charts include the selected time period/provenance and a bounded list of measurements used.
 - Derived daylight hours from historical light_lux, counting five-minute samples at or above 1,000 lux. It is not an ingest field.
 - Controlled rename: “Rename Paddock A to North Flat”, followed by “confirm” or “yes” in the same browser within five minutes.
 
@@ -101,5 +103,9 @@ The implementation and evidence are documented in:
 - [paddock administration](docs/paddock-admin.md)
 - [firmware guide](firmware/esp32-sensor/README.md)
 - [latency method](docs/latency-optimization.md)
+- [analytics, chart, and evidence contract](docs/analytics-and-graphing.md)
+- [educational content and teach-by-doing design](docs/educational-grounding.md)
+- [structured request model](docs/structured-requests.md)
+- [testing and nontechnical evaluation plan](docs/testing-and-evaluation.md)
 
 The main lesson is architectural: small local models become more useful when deterministic software owns measurements, calculations, safety boundaries, and mutations, while the model owns understandable language.

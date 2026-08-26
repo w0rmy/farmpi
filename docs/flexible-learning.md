@@ -140,3 +140,6 @@ The flexible-learning component should eventually be evaluated with a nontechnic
 - where users become confused about what FarmPi can and cannot know.
 
 These observations can then drive a second iteration of the interface and provide direct capstone evidence of evaluation and refinement.
+# Current implementation note
+
+The initial scaffold is now backed by version-controlled educational concepts, distinct Simple/Normal/Technical materials, More/Normal/Less suggestion counts, real-action learning activities, and Android-local learner preferences. See [educational grounding](educational-grounding.md) and [the visual learning flow](diagrams/flexible-learning.mmd). It remains deliberately lightweight: no account system, gradebook, or full LMS.

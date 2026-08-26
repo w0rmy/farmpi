@@ -1,0 +1,7 @@
+flowchart LR
+  UTC[FarmPi UTC] --> NZ[Pacific/Auckland local date]
+  NZ --> SUN[latitude + monthly baseline + sunrise/sunset]
+  SUN --> WEATHER[coherent weather: cloud/rain/pressure/wind]
+  WEATHER --> P[16 stable paddock states]
+  P --> R[one 5-minute round]
+  R --> T[staggered telemetry every 18.75 seconds]

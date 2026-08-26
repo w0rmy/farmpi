@@ -1,0 +1,11 @@
+sequenceDiagram
+  participant E as ESP32
+  participant P as FarmPi
+  participant D as MariaDB
+  E->>P: HTTPS payload(device_time, clock_valid, sample_seq)
+  P->>P: receive UTC; validate fields/drift
+  P->>D: insert or deduplicate(sensor, sample_seq)
+  P-->>E: accepted, observed_at, received_at, server_time, time_sync_required
+  alt invalid or drift > 30s
+    E->>E: set FarmPi UTC before next round
+  end
