@@ -34,7 +34,7 @@ echo "Installing the FarmPi services..."
 sudo "${project_dir}/scripts/install-service" "${project_dir}"
 
 if [[ -f /etc/farmpi/farmpi.env ]] && systemctl list-unit-files mariadb.service --no-legend 2>/dev/null | grep -q '^mariadb.service'; then
-  sudo "${project_dir}/scripts/apply-database-schema"
+  sudo bash "${project_dir}/scripts/apply-database-schema"
 fi
 
 if systemctl list-unit-files caddy.service --no-legend 2>/dev/null | grep -q '^caddy.service'; then
