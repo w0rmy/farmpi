@@ -21,6 +21,7 @@ class PaddockMoisture:
     soil_moisture_pct: float
     recorded_at: datetime
     sensor_count: int
+    contains_simulated: bool
 
 
 @dataclass(frozen=True)
@@ -36,7 +37,8 @@ SELECT
     p.name,
     ROUND(AVG(r.soil_moisture_pct), 2) AS soil_moisture_pct,
     MAX(r.recorded_at) AS recorded_at,
-    COUNT(*) AS sensor_count
+    COUNT(*) AS sensor_count,
+    MAX(CASE WHEN r.simulated = 1 THEN 1 ELSE 0 END) AS contains_simulated
 FROM paddocks AS p
 JOIN sensor_nodes AS s
     ON s.paddock_id = p.id
@@ -72,6 +74,7 @@ def get_moisture_snapshot() -> list[PaddockMoisture]:
                 soil_moisture_pct=float(row["soil_moisture_pct"]),
                 recorded_at=recorded_at,
                 sensor_count=int(row["sensor_count"]),
+                contains_simulated=bool(row["contains_simulated"]),
             )
         )
 
@@ -124,6 +127,12 @@ def get_paddock_moisture(
     return None
 
 
+def _provenance_fact(items: list[PaddockMoisture]) -> str:
+    if any(item.contains_simulated for item in items):
+        return "The result includes simulated test readings."
+    return "The result uses non-simulated sensor readings."
+
+
 def get_grounding_data(intent: str, paddock_name: str | None = None) -> GroundingData:
     """Return only the deterministic facts needed for the selected question route."""
     if intent == "unsupported":
@@ -142,6 +151,7 @@ def get_grounding_data(intent: str, paddock_name: str | None = None) -> Groundin
             facts=(
                 f"Driest paddock: {item.name}.",
                 f"Soil moisture: {item.soil_moisture_pct:.2f}%.",
+                _provenance_fact([item]),
             ),
         )
 
@@ -152,14 +162,19 @@ def get_grounding_data(intent: str, paddock_name: str | None = None) -> Groundin
             facts=(
                 f"Wettest paddock: {item.name}.",
                 f"Soil moisture: {item.soil_moisture_pct:.2f}%.",
+                _provenance_fact([item]),
             ),
         )
 
     if intent == "average":
-        average = get_average_soil_moisture()
+        snapshot = get_moisture_snapshot()
+        average = get_average_soil_moisture(snapshot)
         return GroundingData(
             intent=intent,
-            facts=(f"Farm average soil moisture: {average:.2f}%.",),
+            facts=(
+                f"Farm average soil moisture: {average:.2f}%.",
+                _provenance_fact(snapshot),
+            ),
         )
 
     if intent == "paddock":
@@ -181,7 +196,8 @@ def get_grounding_data(intent: str, paddock_name: str | None = None) -> Groundin
             intent=intent,
             facts=(
                 f"{item.name} soil moisture: {item.soil_moisture_pct:.2f}%.",
-                f"Reading time: {item.recorded_at.isoformat(sep=' ')}.",
+                f"Reading time: {item.recorded_at.isoformat(sep=' ')} UTC.",
+                _provenance_fact([item]),
             ),
         )
 
@@ -197,6 +213,7 @@ def get_grounding_data(intent: str, paddock_name: str | None = None) -> Groundin
         f"Farm average soil moisture: {average:.2f}%.",
         f"Driest paddock: {driest.name} at {driest.soil_moisture_pct:.2f}%.",
         f"Wettest paddock: {wettest.name} at {wettest.soil_moisture_pct:.2f}%.",
+        _provenance_fact(snapshot),
     ]
     return GroundingData(intent="moisture-fallback", facts=tuple(facts))
 
