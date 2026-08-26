@@ -40,3 +40,9 @@ echo "Restarting FarmPi..."
 sudo systemctl restart farmpi-llm.service farmpi.service
 sudo systemctl is-active --quiet farmpi-llm.service farmpi.service
 sudo systemctl --no-pager --full status farmpi-llm.service farmpi.service
+
+if [[ ! -f /etc/farmpi/farmpi.env ]]; then
+  echo
+  echo "MariaDB grounding is not configured yet."
+  echo "Run: sudo bash ${project_dir}/scripts/setup-database"
+fi
