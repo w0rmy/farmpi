@@ -100,6 +100,10 @@ The random walk is intentionally more realistic than an unrelated random value o
 
 The ESP32 uses TLS but calls `WiFiClientSecure::setInsecure()`, so it does not validate Caddy's private-CA certificate. This is a deliberate prototype simplification. The user-facing browser path continues to use trusted HTTPS through Caddy's internal CA.
 
+The first ESP32 integration attempt successfully resolved `farmpi.local` through mDNS but then opened TLS using only the resolved IP address. Caddy serves the HTTPS site as `farmpi.local`, so the TLS handshake also needs that hostname as Server Name Indication (SNI). Disabling certificate validation with `setInsecure()` bypasses certificate verification, but it does not remove Caddy's need to know which hostname/site the client is requesting.
+
+The firmware now connects to the mDNS-resolved IP while explicitly supplying `farmpi.local` as the TLS hostname/SNI value. It also reports the underlying TLS error on the serial console if a handshake still fails. This preserves the current HTTPS architecture without introducing certificate provisioning on the ESP32.
+
 For this capstone stage, certificate provisioning on embedded nodes would add engineering work without materially improving demonstration of the two target elective areas.
 
 ## Validation sequence
