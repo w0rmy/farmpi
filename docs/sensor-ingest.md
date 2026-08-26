@@ -8,6 +8,8 @@ The required payload has sensor, simulated, and these instantaneous values: soil
 
 The sketch owns Paddocks A–P, using sensor UIDs test-moisture-a through test-moisture-p. It posts exactly one node every 18,750 ms and completes each node's sample cycle in five minutes. Failed posts are diagnosed on serial output and retried during that node's next round; they do not stop later nodes.
 
+Existing four-node installations are expanded by the normal `./update` database migration. A `404 Unknown or inactive sensor node` response for test-moisture-e or later means the firmware is already running the 16-node loop but the server has not yet applied that migration. The repeatable seed keys this upgrade by stable sensor UID, preserving current paddock names and historical relationships.
+
 The generator has shared weather and persistent per-paddock state. Rainfall events raise humidity, moisture, and leaf wetness; they reduce light and air temperature and bring pressure downward. Paddocks retain stable moisture, shade, temperature, pH, EC and growth differences. Pasture grows slowly and rarely drops sharply. The result is correlated synthetic test telemetry, not a prediction or agronomic model.
 
 The global clock is advanced only immediately before Paddock A begins a new 16-post round. This avoids the earlier conceptual error of advancing an entire day after every HTTP request.

@@ -88,7 +88,7 @@ EOF_SQL
 echo "Applying the FarmPi schema..."
 mariadb --protocol=socket farmpi < "${schema_file}"
 
-echo "Loading repeatable prototype readings..."
+echo "Loading repeatable 16-node prototype data..."
 mariadb --protocol=socket farmpi < "${seed_file}"
 
 if systemctl list-unit-files farmpi.service --no-legend 2>/dev/null | grep -q '^farmpi.service'; then

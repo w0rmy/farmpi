@@ -66,7 +66,7 @@ cd ~/farmpi
 sudo bash ./scripts/setup-database
 ```
 
-./update performs a fast-forward pull, installs requirements, compiles and tests Python, reapplies the additive/idempotent schema, and restarts the services. It stops if the deployment clone has local changes.
+./update performs a fast-forward pull, installs requirements, compiles and tests Python, reapplies the additive/idempotent schema, runs the rename-safe 16-node prototype data migration, and restarts the services. It stops if the deployment clone has local changes. Existing four-node installations are expanded to Paddocks A–P without moving an existing sensor away from a paddock that has been renamed.
 
 ## ESP32 configuration
 

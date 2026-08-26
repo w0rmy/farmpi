@@ -1,18 +1,64 @@
--- Repeatable synthetic baseline for the 16-paddock alpha simulation.
--- Names are display values only: readings link through paddocks.id and
--- sensor_nodes.id, so later renames do not rewrite or orphan history.
-INSERT INTO paddocks (name, active) VALUES
-('Paddock A', TRUE), ('Paddock B', TRUE), ('Paddock C', TRUE), ('Paddock D', TRUE),
-('Paddock E', TRUE), ('Paddock F', TRUE), ('Paddock G', TRUE), ('Paddock H', TRUE),
-('Paddock I', TRUE), ('Paddock J', TRUE), ('Paddock K', TRUE), ('Paddock L', TRUE),
-('Paddock M', TRUE), ('Paddock N', TRUE), ('Paddock O', TRUE), ('Paddock P', TRUE)
+-- Repeatable synthetic baseline and upgrade for the 16-paddock simulation.
+-- The sensor UID is the stable identity. Existing nodes keep their current
+-- paddock_id, so reapplying this file after "Paddock A" has been renamed to
+-- "North Flat" cannot recreate Paddock A or move test-moisture-a away from it.
+INSERT INTO paddocks (name, active)
+SELECT v.paddock_name, TRUE
+FROM (
+ SELECT 'a' suffix, 'Paddock A' paddock_name UNION ALL
+ SELECT 'b', 'Paddock B' UNION ALL
+ SELECT 'c', 'Paddock C' UNION ALL
+ SELECT 'd', 'Paddock D' UNION ALL
+ SELECT 'e', 'Paddock E' UNION ALL
+ SELECT 'f', 'Paddock F' UNION ALL
+ SELECT 'g', 'Paddock G' UNION ALL
+ SELECT 'h', 'Paddock H' UNION ALL
+ SELECT 'i', 'Paddock I' UNION ALL
+ SELECT 'j', 'Paddock J' UNION ALL
+ SELECT 'k', 'Paddock K' UNION ALL
+ SELECT 'l', 'Paddock L' UNION ALL
+ SELECT 'm', 'Paddock M' UNION ALL
+ SELECT 'n', 'Paddock N' UNION ALL
+ SELECT 'o', 'Paddock O' UNION ALL
+ SELECT 'p', 'Paddock P'
+) AS v
+LEFT JOIN sensor_nodes AS s ON s.node_uid = CONCAT('test-moisture-', v.suffix)
+LEFT JOIN paddocks AS p ON p.name = v.paddock_name
+WHERE s.id IS NULL AND p.id IS NULL
 ON DUPLICATE KEY UPDATE active = VALUES(active);
 
 INSERT INTO sensor_nodes (paddock_id, node_uid, name, active)
-SELECT p.id, CONCAT('test-moisture-', LOWER(RIGHT(p.name, 1))), CONCAT(p.name, ' virtual node'), TRUE
-FROM paddocks AS p
-WHERE p.name REGEXP '^Paddock [A-P]$'
-ON DUPLICATE KEY UPDATE paddock_id = VALUES(paddock_id), name = VALUES(name), active = VALUES(active);
+SELECT p.id, CONCAT('test-moisture-', v.suffix), CONCAT(v.paddock_name, ' virtual node'), TRUE
+FROM (
+ SELECT 'a' suffix, 'Paddock A' paddock_name UNION ALL
+ SELECT 'b', 'Paddock B' UNION ALL
+ SELECT 'c', 'Paddock C' UNION ALL
+ SELECT 'd', 'Paddock D' UNION ALL
+ SELECT 'e', 'Paddock E' UNION ALL
+ SELECT 'f', 'Paddock F' UNION ALL
+ SELECT 'g', 'Paddock G' UNION ALL
+ SELECT 'h', 'Paddock H' UNION ALL
+ SELECT 'i', 'Paddock I' UNION ALL
+ SELECT 'j', 'Paddock J' UNION ALL
+ SELECT 'k', 'Paddock K' UNION ALL
+ SELECT 'l', 'Paddock L' UNION ALL
+ SELECT 'm', 'Paddock M' UNION ALL
+ SELECT 'n', 'Paddock N' UNION ALL
+ SELECT 'o', 'Paddock O' UNION ALL
+ SELECT 'p', 'Paddock P'
+) AS v
+JOIN paddocks AS p ON p.name = v.paddock_name
+LEFT JOIN sensor_nodes AS s ON s.node_uid = CONCAT('test-moisture-', v.suffix)
+WHERE s.id IS NULL
+ON DUPLICATE KEY UPDATE active = VALUES(active);
+
+-- An expected UID which already exists remains attached to its numeric
+-- paddock identity. Reactivate it and make its descriptive node name follow
+-- the paddock's current display name.
+UPDATE sensor_nodes AS s
+JOIN paddocks AS p ON p.id = s.paddock_id
+SET s.name = CONCAT(p.name, ' virtual node'), s.active = TRUE, p.active = TRUE
+WHERE s.node_uid REGEXP '^test-moisture-[a-p]$';
 
 -- Remove the alpha seed timestamp that was accidentally later than UTC ingest
 -- timestamps on some New Zealand installations.
