@@ -1,7 +1,7 @@
 [Unit]
 Description=FarmPi farm-monitoring service
-After=network-online.target farmpi-llm.service mariadb.service
-Wants=network-online.target farmpi-llm.service mariadb.service
+After=network-online.target farmpi-llm.service
+Wants=network-online.target farmpi-llm.service
 
 [Service]
 Type=simple
