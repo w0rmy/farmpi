@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Re-apply the idempotent FarmPi database schema on an existing installation.
+set -Eeuo pipefail
+
+if [[ ${EUID} -ne 0 ]]; then
+  echo "Run this helper through sudo." >&2
+  exit 1
+fi
+
+project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+schema_file=${project_dir}/config/database/schema.sql
+
+if [[ ! -f ${schema_file} ]]; then
+  echo "FarmPi database schema not found: ${schema_file}" >&2
+  exit 1
+fi
+
+if ! systemctl is-active --quiet mariadb.service; then
+  echo "MariaDB is not running; skipping schema update." >&2
+  exit 1
+fi
+
+echo "Applying FarmPi database schema updates..."
+mariadb --protocol=socket farmpi < "${schema_file}"
