@@ -7,6 +7,7 @@ from datetime import datetime
 from statistics import fmean
 
 from .database import fetch_all
+from .guidance import HELP_FACTS
 
 
 class NoFarmData(RuntimeError):
@@ -78,7 +79,7 @@ def get_environment_snapshot() -> list[PaddockEnvironment]:
     for row in rows:
         recorded_at = row["recorded_at"]
         if not isinstance(recorded_at, datetime):
-            raise NoFarmData("A moisture reading has an invalid timestamp.")
+            raise NoFarmData("An environmental reading has an invalid timestamp.")
 
         snapshot.append(
             PaddockEnvironment(
@@ -185,6 +186,9 @@ def get_grounding_data(
     measurement: str | None = None,
 ) -> GroundingData:
     """Return only the deterministic facts needed for the selected question route."""
+    if intent == "help":
+        return GroundingData(intent=intent, facts=HELP_FACTS)
+
     if intent == "unsupported":
         return GroundingData(
             intent=intent,
