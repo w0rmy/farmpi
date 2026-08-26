@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 WELCOME_TEXT = (
-    "FarmPi can help you explore the current verified sensor readings. "
+    "FarmPi can count active paddocks and help you explore current verified sensor readings. "
     "You can ask about soil moisture, temperature, humidity, pH, EC, light, rain, "
     "pressure, wind, pasture height, and leaf wetness. Tap Guide me for examples."
 )
@@ -11,16 +11,16 @@ WELCOME_TEXT = (
 HELP_FACTS = (
     "FarmPi can answer current verified moisture, soil/air temperature, humidity, pH, EC, light, rainfall, pressure, wind, pasture height, and leaf wetness readings.",
     "FarmPi can deterministically identify the driest/wettest paddock, average moisture, approved rankings, rainfall totals, and limited historical change.",
-    "Useful example questions include: Which paddock is tallest? What is Paddock A's soil EC? How much rainfall was there over the last 24 hours? What is the pasture height change in Paddock A over the last day?",
+    "Useful example questions include: How many paddocks are we monitoring? What stats are available on Paddock B? What is Paddock 2's temperature? How much rainfall was there over the last 24 hours?",
     "The current ESP32 readings are synthetic test telemetry and are marked as simulated in FarmPi.",
     "FarmPi does not currently provide weather forecasts, irrigation recommendations, or agronomic causes. Daylight is a deterministic historical light-derived value.",
     "If FarmPi does not have a verified fact for a question, it should say the information is unavailable rather than inventing an answer.",
 )
 
 INITIAL_SUGGESTIONS = (
-    "Which paddock is driest?",
-    "Which paddock is tallest?",
-    "What is Paddock A's soil EC?",
+    "How many paddocks are we monitoring?",
+    "What stats are available on Paddock B?",
+    "What is Paddock 2's temperature?",
     "How do I use FarmPi?",
 )
 
@@ -33,6 +33,13 @@ def follow_up_suggestions(
     """Return small deterministic next-question prompts for the user interface."""
     if intent == "help":
         return INITIAL_SUGGESTIONS[:3]
+
+    if intent == "farm_inventory_count":
+        return (
+            "What stats are available on Paddock B?",
+            "What is the temperature in Paddock 2?",
+            "Which paddock is driest?",
+        )
 
     if paddock_name:
         candidates = (

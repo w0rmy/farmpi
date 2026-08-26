@@ -29,6 +29,7 @@ _UNSUPPORTED_RE = re.compile(
 )
 _RENAME_RE = re.compile(r"^\s*rename\s+(.+?)\s+to\s+(.+?)[?.! ]*\s*$", re.IGNORECASE)
 _PADDOCK_RE = re.compile(r"\b(paddock\s+[a-z0-9_-]+)\b", re.IGNORECASE)
+_NUMBERED_PADDOCK_RE = re.compile(r"\b(?:paddock\s+)?number\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen)\b", re.IGNORECASE)
 _POSSESSIVE_RE = re.compile(r"\b([a-z][a-z0-9 '&-]{0,98}?)'s\s+(?:soil\s+)?(?:moisture|temperature|humidity|ph|ec|light|rainfall|pressure|wind|pasture|grass|leaf)", re.IGNORECASE)
 _PREPOSITION_RE = re.compile(r"\b(?:in|for|at|of)\s+([a-z][a-z0-9 '&-]{0,98}?)(?=\s+(?:over|during|in)\s+(?:the\s+)?(?:last|past)\b|[?!.]|$)", re.IGNORECASE)
 _WINDOW_RE = re.compile(r"\b(?:over|during|in)\s+(?:the\s+)?(?:last|past)\s+(?:(\d+)\s*)?(minutes?|mins?|hours?|hrs?|days?)\b", re.IGNORECASE)
@@ -46,6 +47,10 @@ _COMPARE_RE = re.compile(r"\b(?:compare|across\s+all\s+paddocks|all\s+paddocks|w
 _TODAY_RE = re.compile(r"\b(?:today|this\s+morning)\b", re.IGNORECASE)
 _GRAPH_RE = re.compile(r"\b(?:show\s+(?:a\s+)?graph|chart|trend\s+graph)\b", re.IGNORECASE)
 _EVIDENCE_RE = re.compile(r"\b(?:show\s+(?:the\s+)?(?:data|evidence)|why\??)\b", re.IGNORECASE)
+_INVENTORY_RE = re.compile(r"\bhow\s+many\s+(?:active\s+)?(?:paddocks?|sensor\s+nodes?)\b|\b(?:count|number)\s+of\s+(?:active\s+)?(?:paddocks?|sensor\s+nodes?)\b", re.IGNORECASE)
+_PADDOCK_SUMMARY_RE = re.compile(r"\b(?:what\s+(?:stats|data|measurements?)\s+(?:are|do)\s+(?:available|we\s+have)|what\s+are\s+we\s+monitoring|tell\s+me\s+about|what\s+do\s+we\s+know\s+about)\b", re.IGNORECASE)
+_FOLLOW_UP_RE = re.compile(r"^\s*what\s+about\s+(.+?)\s*[?!.]*\s*$", re.IGNORECASE)
+_SUMMARY_TARGET_RE = re.compile(r"\b(?:tell\s+me\s+about|what\s+do\s+we\s+know\s+about)\s+([a-z][a-z0-9 '&-]{0,98}?)(?=[?!.]|$)", re.IGNORECASE)
 
 
 def _canonical_paddock_name(name: str) -> str:
@@ -61,6 +66,9 @@ def _extract_paddock(question: str) -> str | None:
     direct_matches = _PADDOCK_RE.findall(question)
     if len(direct_matches) > 1:
         return None
+    numbered = _NUMBERED_PADDOCK_RE.search(question)
+    if numbered and ("paddock" in question.casefold() or _FOLLOW_UP_RE.match(question) or measurement_for_text(question)):
+        return _canonical_paddock_name(numbered.group(0))
     direct = _PADDOCK_RE.search(question)
     if direct and direct.group(1).casefold() not in {"paddock is", "paddock are"}:
         return _canonical_paddock_name(direct.group(1))
@@ -73,6 +81,9 @@ def _extract_paddock(question: str) -> str | None:
         candidate = re.sub(r"\s+(?:today|this\s+morning)$", "", candidate, flags=re.IGNORECASE)
         if candidate.casefold() not in {"the farm", "farm", "a paddock", "paddock"} and not candidate.casefold().startswith(("last ", "past ")):
             return _canonical_paddock_name(candidate)
+    summary_target = _SUMMARY_TARGET_RE.search(question)
+    if summary_target:
+        return _canonical_paddock_name(summary_target.group(1))
     return None
 
 
@@ -94,6 +105,8 @@ def route_question(question: str) -> QuestionRoute:
         return QuestionRoute("rename-request", _canonical_paddock_name(rename.group(1)), new_paddock_name=" ".join(rename.group(2).split()))
     if _HELP_RE.search(question):
         return QuestionRoute("help")
+    if _INVENTORY_RE.search(question):
+        return QuestionRoute("farm_inventory_count")
     measurement = measurement_for_text(question)
     presentation = "evidence" if _EVIDENCE_RE.search(question) else "graph" if _GRAPH_RE.search(question) else None
     # Educational "what does this mean?" questions are safe and routed before
@@ -106,6 +119,8 @@ def route_question(question: str) -> QuestionRoute:
     # Conversational ranking shorthand has no literal catalogue alias.
     if not measurement and re.search(r"\b(?:driest|dryest|wettest)\b", question, re.IGNORECASE):
         measurement = "soil_moisture_pct"
+    if not measurement and re.search(r"\bhow\s+wet\b", question, re.IGNORECASE):
+        measurement = "soil_moisture_pct"
     if not measurement and re.search(r"\b(?:tallest|shortest)\b", question, re.IGNORECASE):
         measurement = "pasture_height_cm"
     if not measurement and re.search(r"\b(?:hottest|coldest)\b", question, re.IGNORECASE):
@@ -117,6 +132,13 @@ def route_question(question: str) -> QuestionRoute:
     if time_label and not window:
         window = 1440
     comparison = bool(_COMPARE_RE.search(question))
+
+    follow_up = _FOLLOW_UP_RE.match(question)
+    if follow_up and paddock:
+        return QuestionRoute("contextual-follow-up", paddock_name=paddock, presentation=presentation)
+
+    if paddock and _PADDOCK_SUMMARY_RE.search(question):
+        return QuestionRoute("paddock_summary", paddock_name=paddock, presentation=presentation)
 
     if re.search(r"\b(?:what\s+has\s+happened|summary|summarise|summarize)\b", question, re.IGNORECASE) and (paddock or time_label):
         return QuestionRoute("summary", paddock_name=paddock, window_minutes=window or 1440, time_label=time_label or "last 24 hours", presentation=presentation)

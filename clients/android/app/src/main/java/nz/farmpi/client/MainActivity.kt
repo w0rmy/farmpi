@@ -39,7 +39,7 @@ import javax.net.ssl.HttpsURLConnection
 private data class SpeechResult(val heard: String, val interpreted: String, val changed: Boolean)
 private data class ChartPoint(val label: String, val value: Double)
 private data class ChartPayload(val type: String, val title: String, val unit: String, val period: String, val provenance: String, val series: List<Pair<String, List<ChartPoint>>>)
-private data class AskResult(val answer: String, val suggestions: List<String>, val intent: String, val chart: ChartPayload?, val evidence: List<String>)
+private data class AskResult(val answer: String, val suggestions: List<String>, val intent: String, val conversationId: String?, val chart: ChartPayload?, val evidence: List<String>)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,6 +66,7 @@ private fun FarmPiApp() {
     var chart by remember { mutableStateOf<ChartPayload?>(null) }
     var evidence by remember { mutableStateOf(emptyList<String>()) }
     var showEvidence by remember { mutableStateOf(false) }
+    var conversationId by remember { mutableStateOf<String?>(null) }
     val preferences = remember { context.getSharedPreferences("farmpi-learning", 0) }
     LaunchedEffect(Unit) { explanation = preferences.getString("explanation", "normal") ?: "normal"; guidance = preferences.getString("guidance", "normal") ?: "normal" }
     val tts = remember { TextToSpeech(context) { } }
@@ -84,7 +85,8 @@ private fun FarmPiApp() {
             val routedQuestion = speech?.interpreted ?: text
             heard = speech?.heard; interpreted = speech?.interpreted?.takeIf { speech.changed }
             question = routedQuestion
-            val result = FarmPiApi.ask(routedQuestion, explanation, guidance)
+            val result = FarmPiApi.ask(routedQuestion, explanation, guidance, conversationId)
+            conversationId = result.conversationId ?: conversationId
             answer = result.answer; suggestions = result.suggestions; chart = result.chart; evidence = result.evidence; showEvidence = false; connection = "FarmPi connected"; speak(result.answer)
         } catch (_: Exception) { answer = "FarmPi is unavailable. Check the local connection and certificate trust."; connection = "FarmPi is unavailable" }
         asking = false
@@ -222,9 +224,9 @@ private object FarmPiApi {
         val array = JSONArray(); alternatives.forEach { array.put(JSONObject().put("transcript", it)) }; val json = request("api/speech/normalize", "POST", JSONObject().put("transcript", transcript).put("alternatives", array))
         SpeechResult(json.getString("raw_transcript"), json.getString("normalized_transcript"), json.getBoolean("correction_applied") || json.getBoolean("alternative_selected"))
     }
-    suspend fun ask(question: String, explanation: String, guidance: String): AskResult = withContext(Dispatchers.IO) {
-        val body = JSONObject().put("question", question).put("preferences", JSONObject().put("explanation_level", explanation).put("guidance_level", guidance)); val json = request("api/ask", "POST", body)
-        AskResult(json.getString("answer"), json.optJSONArray("suggestions").strings(), json.optString("intent"), json.optJSONObject("chart")?.chart(), json.optJSONArray("evidence")?.let { evidence -> (0 until evidence.length()).map { evidence.getJSONObject(it).toString() } } ?: emptyList())
+    suspend fun ask(question: String, explanation: String, guidance: String, conversationId: String?): AskResult = withContext(Dispatchers.IO) {
+        val body = JSONObject().put("question", question).put("preferences", JSONObject().put("explanation_level", explanation).put("guidance_level", guidance)); if (conversationId != null) body.put("conversation_id", conversationId); val json = request("api/ask", "POST", body)
+        AskResult(json.getString("answer"), json.optJSONArray("suggestions").strings(), json.optString("intent"), json.optString("conversation_id").takeIf { it.isNotBlank() }, json.optJSONObject("chart")?.chart(), json.optJSONArray("evidence")?.let { evidence -> (0 until evidence.length()).map { evidence.getJSONObject(it).toString() } } ?: emptyList())
     }
     private fun JSONObject.chart(): ChartPayload {
         val entries = optJSONArray("series") ?: JSONArray()

@@ -10,6 +10,7 @@ import re
 import secrets
 import time
 from typing import Any, AsyncIterator, Literal
+from dataclasses import dataclass, replace
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -62,6 +63,7 @@ class AskRequest(BaseModel):
 
     question: str = Field(min_length=1, max_length=1000)
     confirmation_id: str | None = Field(default=None, min_length=16, max_length=128)
+    conversation_id: str | None = Field(default=None, min_length=16, max_length=128)
     speech: "SpeechInput | None" = None
     preferences: "ClientPreferences | None" = None
 
@@ -120,6 +122,7 @@ class AskResponse(BaseModel):
     intent: str
     timings: AskTimings
     confirmation_id: str | None = None
+    conversation_id: str | None = None
     suggestions: list[str] = []
     speech_normalization: SpeechNormalizationResponse | None = None
     preferences: ClientPreferences = ClientPreferences()
@@ -146,6 +149,20 @@ async def learning_activities() -> dict[str, list[dict[str, object]]]:
 # explicitly returns its opaque token with a spoken/typed confirmation.
 _pending_renames: dict[str, tuple[RenameProposal, float]] = {}
 _CONFIRMATION_RE = re.compile(r"^\s*(?:yes|confirm|confirm rename|please confirm)\s*[!.]?\s*$", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class ConversationState:
+    """The one small, non-durable state needed for an ordinal follow-up."""
+
+    intent: str
+    measurement: str | None
+    operation: str | None
+    expires_at: float
+
+
+_conversation_states: dict[str, ConversationState] = {}
+_CONVERSATION_TTL_SECONDS = 30 * 60
 
 
 PAGE = r"""<!doctype html>
@@ -245,6 +262,7 @@ const guideButton = document.getElementById("guide");
 const speakButton = document.getElementById("speak");
 const speakAnswer = document.getElementById("speakAnswer");
 let pendingConfirmationId = null;
+let conversationId = null;
 
 async function askFarmPi(speechInput = null) {
     const text = question.value.trim();
@@ -264,7 +282,7 @@ async function askFarmPi(speechInput = null) {
         const response = await fetch("/api/ask", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({question: text, confirmation_id: pendingConfirmationId, speech: speechInput})
+            body: JSON.stringify({question: text, confirmation_id: pendingConfirmationId, conversation_id: conversationId, speech: speechInput})
         });
 
         const data = await response.json();
@@ -274,6 +292,7 @@ async function askFarmPi(speechInput = null) {
 
         answer.textContent = data.answer;
         pendingConfirmationId = data.confirmation_id || null;
+        conversationId = data.conversation_id || conversationId;
         if (data.speech_normalization &&
                 (data.speech_normalization.correction_applied || data.speech_normalization.alternative_selected)) {
             const interpreted = data.speech_normalization.normalized_transcript;
@@ -493,13 +512,42 @@ async def ask(request: AskRequest) -> AskResponse:
     route_start = time.perf_counter()
     route = route_question(question_text)
     routing_ms = (time.perf_counter() - route_start) * 1000
+    conversation_id = request.conversation_id or secrets.token_urlsafe(18)
+
+    now = time.monotonic()
+    for token, state in tuple(_conversation_states.items()):
+        if state.expires_at <= now:
+            del _conversation_states[token]
+    if route.intent == "contextual-follow-up":
+        state = _conversation_states.get(conversation_id)
+        if state is None:
+            route = replace(route, intent="contextual-follow-up-missing")
+        elif state.intent in {"paddock", "paddock-field"} and state.measurement:
+            route = replace(
+                route,
+                intent="paddock-field" if state.measurement != "soil_moisture_pct" else "paddock",
+                measurement=state.measurement,
+                operation=state.operation,
+            )
+        elif state.intent == "paddock_summary":
+            route = replace(route, intent="paddock_summary")
+        else:
+            route = replace(route, intent="contextual-follow-up-missing")
+
+    def remember_conversation() -> None:
+        if route.intent in {"paddock", "paddock-field", "paddock_summary"}:
+            _conversation_states[conversation_id] = ConversationState(
+                route.intent, route.measurement, route.operation, time.monotonic() + _CONVERSATION_TTL_SECONDS,
+            )
 
     def direct_action(answer: str, intent: str, confirmation_id: str | None = None, *, chart: dict[str, Any] | None = None, evidence: list[dict[str, Any]] | None = None, source_category: Literal["observational", "educational", "combined"] = "observational") -> AskResponse:
+        remember_conversation()
         total_ms = (time.perf_counter() - total_start) * 1000
         return AskResponse(
             answer=answer,
             intent=intent,
             confirmation_id=confirmation_id,
+            conversation_id=conversation_id,
             suggestions=list(follow_up_suggestions(intent)[:4 if preferences.guidance_level == "more" else 1 if preferences.guidance_level == "less" else 3]),
             speech_normalization=speech_normalization,
             preferences=preferences,
@@ -517,7 +565,6 @@ async def ask(request: AskRequest) -> AskResponse:
 
     # Confirmation is an explicit deterministic mutation boundary. Qwen is not
     # called to interpret, authorise, or execute the database update.
-    now = time.monotonic()
     for token, (_, expires_at) in tuple(_pending_renames.items()):
         if expires_at <= now:
             del _pending_renames[token]
@@ -548,6 +595,12 @@ async def ask(request: AskRequest) -> AskResponse:
             f'Rename "{proposal.old_name}" to "{proposal.new_name}"? Reply “confirm” or “yes” within five minutes to apply this change.',
             "rename-request",
             confirmation_id,
+        )
+
+    if route.intent == "contextual-follow-up-missing":
+        return direct_action(
+            "I need a previous paddock measurement in this conversation before I can interpret “What about …?”. Try, for example, “What is the temperature in Paddock B?”.",
+            "contextual-follow-up",
         )
 
     # Educational definitions are curated and version controlled.  A named
@@ -592,7 +645,7 @@ async def ask(request: AskRequest) -> AskResponse:
     # Calculated responses and unavailable-boundary explanations are already
     # complete deterministic teaching material.  They do not need a language
     # model call, which also makes evidence/chart rendering dependable offline.
-    if route.intent in {"historical", "comparison", "summary", "unsupported"}:
+    if route.intent in {"historical", "comparison", "summary", "unsupported", "farm_inventory_count", "paddock_summary", "paddock", "paddock-field"}:
         return direct_action(
             "\n".join(grounding_data.facts), route.intent,
             chart=grounding_data.chart,
@@ -667,6 +720,7 @@ async def ask(request: AskRequest) -> AskResponse:
     return AskResponse(
         answer=answer,
         intent=route.intent,
+        conversation_id=conversation_id,
         suggestions=list(follow_up_suggestions(route.intent, route.paddock_name, route.measurement)[:4 if preferences.guidance_level == "more" else 1 if preferences.guidance_level == "less" else 3]),
         speech_normalization=speech_normalization,
         preferences=preferences,

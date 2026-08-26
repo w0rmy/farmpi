@@ -53,6 +53,10 @@ No fabricated N/P/K values are used; soil EC is the practical raw soil-chemistry
 
 ## Supported deterministic interactions
 
+- Farm-wide inventory: “How many paddocks are we monitoring?” and “How many sensor nodes are active?” return active configuration counts, separately identifying inactive/historical paddock records where applicable.
+- Current paddock overview: “What stats are available on Paddock B?”, “What data do we have for Paddock B?”, and “Tell me about Paddock B” return the central measurement catalogue's latest verified values, timestamp, and provenance.
+- Natural paddock aliases: `Paddock 1`, `Paddock two`, and `Paddock number 2` map to the active configured order. The stable identity survives a rename, so the second paddock remains `Paddock 2` even if Paddock B becomes North Flat.
+- Short contextual follow-ups: after “What is the temperature in Paddock A?”, “What about Paddock 2?” retrieves air temperature for the second configured paddock using the API's opaque conversation token.
 - Current values for any supported measurement, including renamed paddocks: “What is the pasture height in North Flat?”
 - Current moisture: driest, wettest, and farm average.
 - Safe current rankings where listed in the catalogue, for example: “Which paddock is tallest?”

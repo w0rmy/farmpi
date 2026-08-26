@@ -47,6 +47,9 @@ A new user can be prompted with questions such as:
 - `Which paddock is driest?`
 - `What is Paddock A's air temperature?`
 - `What is Paddock A's relative humidity?`
+- `How many paddocks are we monitoring?`
+- `What stats are available on Paddock B?`
+- `What is the temperature in Paddock 2?`
 - `How do I use FarmPi?`
 
 The expanded synthetic-farm stage adds grounded examples such as:
@@ -57,7 +60,7 @@ The expanded synthetic-farm stage adds grounded examples such as:
 - `What is the pasture height change in North Flat over the last day?`
 - `Rename Paddock A to North Flat`
 
-After a user asks about one paddock, FarmPi can suggest other supported measurements for the same paddock. This gives the interaction continuity without requiring the user to know the system's exact vocabulary in advance.
+After a user asks about one paddock, FarmPi can suggest other supported measurements for the same paddock. It also retains a small, explicit conversation token for 30 minutes: after a current measurement question, `What about Paddock 2?` reuses that supported measurement for the second configured paddock. Numeric aliases follow the active database paddock order and keep the same identity after a paddock is renamed. This gives the interaction continuity without requiring the user to know the system's exact vocabulary in advance.
 
 ## Speech
 

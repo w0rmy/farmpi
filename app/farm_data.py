@@ -7,9 +7,10 @@ from datetime import datetime, timedelta, timezone
 from statistics import fmean
 from zoneinfo import ZoneInfo
 
-from .database import fetch_all
+from .database import fetch_all, fetch_one
 from .analytics import AnalyticsResult, comparison_chart, compare_paddocks, historical_analysis
 from .measurements import AVERAGE, BY_KEY, CHANGE, CURRENT, DAYLIGHT, MAXIMUM, MINIMUM, RANKING, SUM, MEASUREMENTS, format_measurement, measurement
+from .paddock_resolver import PaddockIdentity, PaddockResolution, active_paddocks, resolve_paddock as resolve_paddock_identity
 
 
 class NoFarmData(RuntimeError):
@@ -73,7 +74,7 @@ JOIN readings AS r ON r.id = (
 )
 WHERE p.active = 1
 GROUP BY p.id, p.name
-ORDER BY p.name
+ORDER BY p.id
 """
 
 
@@ -106,13 +107,72 @@ def get_moisture_snapshot() -> list[PaddockEnvironment]:
     return get_environment_snapshot()
 
 
+def _snapshot_identities(snapshot: list[PaddockEnvironment]) -> tuple[PaddockIdentity, ...]:
+    return tuple(PaddockIdentity(item.id, item.name, index, item.sensor_count) for index, item in enumerate(snapshot, start=1))
+
+
+def resolve_paddock_reference(name: str, snapshot: list[PaddockEnvironment] | None = None) -> PaddockResolution:
+    """Resolve every web/API client phrase through one canonical resolver."""
+    return resolve_paddock_identity(name, _snapshot_identities(snapshot) if snapshot is not None else None)
+
+
 def resolve_paddock(name: str, snapshot: list[PaddockEnvironment] | None = None) -> PaddockEnvironment | None:
-    """Resolve a user phrase against current database names, case-insensitively."""
-    wanted = " ".join(name.split()).casefold()
-    for item in snapshot if snapshot is not None else get_environment_snapshot():
-        if item.name.casefold() == wanted:
+    """Resolve a phrase to its latest reading, retaining its stable paddock ID."""
+    readings = snapshot if snapshot is not None else get_environment_snapshot()
+    resolution = resolve_paddock_reference(name, readings)
+    if resolution.paddock is None:
+        return None
+    for item in readings:
+        if item.id == resolution.paddock.id:
             return item
     return None
+
+
+def _paddock_resolution_facts(resolution: PaddockResolution) -> tuple[str, ...]:
+    if resolution.status == "no-active-paddocks":
+        return ("There are no active paddocks configured for monitoring.",)
+    suggestions = ", ".join(resolution.suggestions)
+    if resolution.status == "paddock-out-of-range":
+        count = len(resolution.suggestions)  # only used to select the empty-case message below
+        return (f"{resolution.reference} is outside the active configured paddock range. Try one of: {suggestions}." if count else "There are no active paddocks configured for monitoring.",)
+    if resolution.status == "ambiguous-paddock":
+        return (f"{resolution.reference} is ambiguous. Try one of: {suggestions}." if suggestions else f"{resolution.reference} is ambiguous.",)
+    return (f"No active paddock matches {resolution.reference}." + (f" Try: {suggestions}." if suggestions else ""),)
+
+
+def farm_inventory_count() -> GroundingData:
+    """Return active monitored inventory without inferring it from readings."""
+    paddocks = active_paddocks()
+    total_row = fetch_one("SELECT COUNT(*) AS total_paddocks FROM paddocks") or {"total_paddocks": len(paddocks)}
+    total = int(total_row.get("total_paddocks", len(paddocks)))
+    sensors = sum(item.active_sensor_count for item in paddocks)
+    facts = [f"Active monitored paddocks: {len(paddocks)}.", f"Active sensor nodes: {sensors}."]
+    if total != len(paddocks):
+        facts.append(f"Total paddock records, including inactive/historical paddocks: {total}.")
+    return GroundingData("farm_inventory_count", tuple(facts))
+
+
+def latest_paddock_summary(paddock_name: str | None) -> GroundingData:
+    """List the catalogue-backed current measurements for one paddock."""
+    if not paddock_name:
+        return GroundingData("paddock_summary", ("Please name a paddock, for example Paddock B or Paddock 2.",))
+    try:
+        snapshot = get_environment_snapshot()
+    except NoFarmData:
+        snapshot = []
+    resolution = resolve_paddock_reference(paddock_name, snapshot if snapshot else None)
+    if resolution.paddock is None:
+        return GroundingData("paddock_summary", _paddock_resolution_facts(resolution))
+    try:
+        item = resolve_paddock(paddock_name, snapshot)
+    except NoFarmData:
+        item = None
+    if item is None:
+        return GroundingData("paddock_summary", (f"{resolution.paddock.name} is active, but has no current complete sensor reading yet.",))
+    facts = [f"{item.name} currently has these monitored measurements:"]
+    facts.extend(_measurement_fact(item, field.key) for field in MEASUREMENTS)
+    facts.extend((f"Reading time: {item.received_at.isoformat(sep=' ')} UTC.", f"Active sensor nodes for this paddock: {resolution.paddock.active_sensor_count}.", _provenance_fact([item])))
+    return GroundingData("paddock_summary", tuple(facts))
 
 
 def get_paddock_environment(paddock_name: str, snapshot: list[PaddockEnvironment] | None = None) -> PaddockEnvironment | None:
@@ -296,10 +356,14 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
         ))
     if intent == "help":
         return GroundingData(intent, (
-            "FarmPi can report current moisture, soil/air temperature, humidity, pH, EC, light, rainfall, pressure, wind, pasture height, and leaf wetness.",
-            "Try: Which paddock is tallest?; What is the soil EC in Paddock C?; How much rainfall was there over the last 24 hours?; What is the pasture height change in Paddock A over the last day?",
+            "FarmPi can count active monitored paddocks and sensor nodes, and report current moisture, soil/air temperature, humidity, pH, EC, light, rainfall, pressure, wind, pasture height, and leaf wetness.",
+            "Try: How many paddocks are we monitoring?; What stats are available on Paddock B?; What is the temperature in Paddock 2?; What about Paddock 2? after a measurement question.",
             "It can rename a paddock only after an explicit confirmation. FarmPi does not currently provide forecasts, irrigation advice, or agronomic recommendations.",
         ))
+    if intent == "farm_inventory_count":
+        return farm_inventory_count()
+    if intent == "paddock_summary":
+        return latest_paddock_summary(paddock_name)
     if intent == "driest":
         item = get_driest_paddock()
         return GroundingData(intent, (f"Driest paddock: {item.name}.", f"Soil moisture: {format_measurement(item.soil_moisture_pct, 'soil_moisture_pct')}.", _provenance_fact([item])))
@@ -316,9 +380,19 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
     if intent in {"paddock", "paddock-field"}:
         if not paddock_name:
             return GroundingData(intent, ("The requested paddock was not identified.",))
-        item = resolve_paddock(paddock_name)
+        try:
+            snapshot = get_environment_snapshot()
+        except NoFarmData:
+            snapshot = []
+        resolution = resolve_paddock_reference(paddock_name, snapshot if snapshot else None)
+        if resolution.paddock is None:
+            return GroundingData(intent, _paddock_resolution_facts(resolution))
+        try:
+            item = resolve_paddock(paddock_name, snapshot)
+        except NoFarmData:
+            item = None
         if item is None:
-            return GroundingData(intent, (f"No verified current reading is available for {paddock_name}.",))
+            return GroundingData(intent, (f"{resolution.paddock.name} is active, but has no current complete reading for the requested measurement.",))
         key = measurement_key or "soil_moisture_pct"
         if key not in BY_KEY or CURRENT not in BY_KEY[key].operations:
             return GroundingData("unsupported", ("The requested information is unavailable.",))

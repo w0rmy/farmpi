@@ -96,6 +96,8 @@ Typed questions bypass this layer. Normalisation may make a spoken rename routea
 The router currently recognises:
 
 - help/onboarding requests;
+- active paddock and sensor-node inventory counts;
+- a latest-measurement paddock summary, including the supported measurement set;
 - driest paddock;
 - wettest paddock;
 - average soil moisture;
@@ -104,7 +106,9 @@ The router currently recognises:
 - broader soil-moisture questions using a safe deterministic fallback;
 - unsupported questions.
 
-It also maps natural-language measurement terms such as `temperature`, `humidity`, `pH`, and `lux` to explicit internal field names.
+It also maps natural-language measurement terms such as `temperature`, `humidity`, `pH`, `EC`, `how wet`, and `lux` to explicit internal field names. Plain `temperature` selects air temperature; `soil temperature` remains explicit.
+
+Paddock references pass through one database-backed resolver shared by every API client. It prioritises current display name, audited previous name, canonical letter, and then the active configured numeric/word-number order (`Paddock 2`, `Paddock two`, or `Paddock number 2`). The resolver returns a specific unknown, ambiguous, out-of-range, no-current-reading, or no-active-paddocks result rather than a generic unavailable answer. The API's short opaque conversation token can reuse the preceding approved current measurement for “What about Paddock 2?”; it does not provide free-form LLM memory.
 
 The router does **not** generate SQL and does not ask the LLM to decide which database function to execute.
 
