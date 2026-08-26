@@ -14,6 +14,8 @@ The first version intentionally uses only three tables:
 - `sensor_nodes` — physical or simulated sensor nodes assigned to a paddock;
 - `readings` — timestamped sensor values. The current schema contains soil moisture only.
 
+The `readings` table also records whether a value is simulated. This allows seed data and synthetic ESP32 telemetry to remain clearly distinguishable from future physical sensor measurements.
+
 The schema is in `config/database/schema.sql`.
 
 ## Current deterministic rule
@@ -45,11 +47,7 @@ The router selects approved application operations. It does not generate SQL and
 ## Grounding path
 
 ```text
-User question
-      ↓
-app/question_router.py
-      ↓
-approved deterministic operation
+ESP32 / seeded reading
       ↓
 MariaDB readings
       ↓
@@ -57,7 +55,7 @@ app/database.py
       ↓
 app/farm_data.py
       ↓
-small verified result
+small verified result + simulated-data provenance
       ↓
 FastAPI /api/ask
       ↓
@@ -68,24 +66,32 @@ natural-language answer
 
 This keeps factual authority in the deterministic application layer. Qwen is used as a language interface, not as the source of farm measurements or statistical conclusions.
 
-For common questions FarmPi now supplies only the minimum verified facts needed for the answer. A broader full-moisture snapshot is retained as a fallback where the deterministic router cannot safely narrow the request.
+For common questions FarmPi supplies only the minimum verified facts needed for the answer. A broader full-moisture snapshot is retained as a fallback where the deterministic router cannot safely narrow the request.
 
 ## Prototype seed data
 
 `config/database/seed.sql` creates four prototype paddocks and one simulated moisture sensor per paddock:
 
-| Paddock | Soil moisture |
-| --- | ---: |
-| Paddock A | 18% |
-| Paddock B | 24% |
-| Paddock C | 29% |
-| Paddock D | 21% |
+| Paddock | Sensor UID | Soil moisture |
+| --- | --- | ---: |
+| Paddock A | `test-moisture-a` | 18% |
+| Paddock B | `test-moisture-b` | 24% |
+| Paddock C | `test-moisture-c` | 29% |
+| Paddock D | `test-moisture-d` | 21% |
 
-The seed is repeatable and uses a fixed timestamp so rerunning database setup does not create duplicate readings. These rows are test data, not live sensor measurements.
+The seed is repeatable and uses a fixed timestamp so rerunning database setup does not create duplicate readings. These rows are test data and are marked as simulated.
+
+## Sensor ingest
+
+`POST /api/ingest` now accepts validated soil-moisture readings from registered ESP32 sensor nodes. The server timestamps each reading in UTC, stores the simulation flag, and rejects unknown sensors or moisture values outside 0–100%.
+
+The endpoint uses a lightweight FarmPi-wide bearer token stored in `/etc/farmpi/farmpi.env`. This is intentionally sufficient for the alpha/test network without introducing per-device PKI or a full provisioning system.
+
+The ingest design and ESP32 test path are documented in [sensor-ingest.md](sensor-ingest.md).
 
 ## Database credentials
 
-The repository does not contain the MariaDB password. `scripts/setup-database` generates a random password and writes the local service environment to `/etc/farmpi/farmpi.env` with restricted permissions. The FastAPI systemd service reads that file at startup.
+The repository does not contain the MariaDB password or sensor-ingest token. `scripts/setup-database` generates both and writes the local service environment to `/etc/farmpi/farmpi.env` with restricted permissions. The FastAPI systemd service reads that file at startup.
 
 ## Performance instrumentation
 
@@ -99,4 +105,4 @@ The current database-backed prototype supports soil moisture only. Temperature, 
 
 ## Next database work
 
-After the routed/optimised grounding path has been measured and validated, the next logical step is to replace the seeded readings with a controlled sensor-ingest endpoint and then connect an ESP32 sensor node. Historical queries, sensor freshness rules, anomaly handling, and additional measurement types can be added after the basic ingest path is proven.
+Once the synthetic ESP32 ingest path is proven end to end, additional farm-database features are not a priority for the capstone. Historical queries, sensor freshness rules, anomaly handling, and additional measurement types can be added only if they directly support the AI/Data Science or Flexible Learning outcomes. The main development emphasis should then move to the adaptive learning/user-profile layer.
