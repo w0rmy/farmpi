@@ -8,7 +8,7 @@ The capstone focus remains **Artificial Intelligence and Data Science** plus **D
 
 FarmPi has reached a known-good local-AI proof-of-concept milestone on the Raspberry Pi 4. Android/browser access over Caddy HTTPS with its internal CA, FastAPI grounding and control, MariaDB-backed deterministic farm data, and Qwen3 0.6B through `llama-server` work together. Browser speech input (`en-NZ`) and text-to-speech output work, and unsupported information is rejected rather than invented.
 
-The current development stage adds a real ESP32-over-Wi-Fi ingest path using **synthetic** environmental data: soil moisture, air temperature, relative humidity, soil pH, and light. This proves the device-to-database-to-grounded-AI path before any effort is spent on final physical sensor hardware.
+The current development stage adds a real ESP32-over-Wi-Fi ingest path using **synthetic** environmental data: soil moisture, air temperature, relative humidity, soil pH, and light. It also begins the Flexible Learning layer with onboarding, a grounded **Guide me** path, and deterministic follow-up question suggestions.
 
 ## Current alpha architecture
 
@@ -21,11 +21,11 @@ FastAPI validation + lightweight bearer token
         ↓
 MariaDB 127.0.0.1:3306
         ↓
-deterministic farm-data functions
+deterministic question routing
         ↓
-verified result + simulation provenance
+approved deterministic retrieval/calculation
         ↓
-question router / grounding layer
+VERIFIED FACTS grounding context
         ↓
 llama-server 127.0.0.1:8080
         ↓
@@ -34,6 +34,8 @@ Qwen3 0.6B
 Caddy HTTPS :443
         ↓
 Phone / browser
+        ↓
+onboarding + suggested next questions + speech
 ```
 
 Caddy is the application-facing HTTPS service. FastAPI, MariaDB, and llama-server remain local to the Raspberry Pi host.
@@ -43,12 +45,43 @@ Caddy is the application-facing HTTPS service. FastAPI, MariaDB, and llama-serve
 | `GET /` | Mobile-friendly FarmPi AI interface. |
 | `GET /health` | Cheap FastAPI health check for systemd/Caddy. |
 | `GET /api/status` | Shows FastAPI, MariaDB, and local LLM availability. |
-| `POST /api/ask` | Answers a grounded question using deterministic MariaDB-derived facts and returns alpha timing measurements. |
+| `GET /api/guidance` | Returns deterministic onboarding text and initial example questions. |
+| `POST /api/ask` | Answers a grounded question using deterministic MariaDB-derived facts and returns alpha timing measurements plus suggested follow-up questions. |
 | `POST /api/ingest` | Accepts one authenticated ESP32 sensor reading and stores it in MariaDB. |
+
+## Layered grounding and guardrails
+
+FarmPi does not have one monolithic guardrail file. The control model is layered:
+
+```text
+sensor validation
+→ sensor identity/storage logic
+→ MariaDB constraints
+→ deterministic question routing
+→ approved deterministic calculations/lookups
+→ VERIFIED FACTS grounding
+→ LLM system instructions
+→ deterministic user guidance
+```
+
+The main files are:
+
+- `app/ingest_api.py` — validates incoming telemetry and bearer-token authentication;
+- `app/sensor_ingest.py` — checks registered sensor identity and stores server-timestamped readings;
+- `config/database/schema.sql` — database relationships and measurement constraints;
+- `app/question_router.py` — interprets wording and selects approved deterministic routes;
+- `app/farm_data.py` — retrieves/calculates factual results and builds verified grounding facts;
+- `app/app.py` — orchestrates the request and constrains Qwen with the system prompt;
+- `app/guidance.py` — deterministic onboarding, capability facts, and suggested next questions;
+- `tests/test_question_router.py` and `tests/test_guidance.py` — behavioural regression tests for the control policy.
+
+Qwen remains the language interface rather than the factual authority. It does not query MariaDB, choose SQL, or calculate farm statistics.
+
+See [docs/grounding-and-guardrails.md](docs/grounding-and-guardrails.md) for the full architecture and the alpha failures that helped validate these boundaries.
 
 ## Deterministic grounding model
 
-The LLM does not query MariaDB directly and does not calculate farm statistics. `app/database.py` provides the database boundary, `app/question_router.py` selects an approved deterministic operation, and `app/farm_data.py` provides functions such as:
+`app/database.py` provides the database boundary, `app/question_router.py` selects an approved deterministic operation, and `app/farm_data.py` provides functions such as:
 
 - `get_moisture_snapshot()`
 - `get_environment_snapshot()`
@@ -58,9 +91,23 @@ The LLM does not query MariaDB directly and does not calculate farm statistics. 
 - `get_paddock_environment()`
 - `get_paddock_moisture()`
 
-For common questions, Qwen receives only the verified facts required for that request. Broader soil-moisture questions retain a deterministic full-snapshot fallback, while named paddock questions can retrieve the other current environmental fields. Qwen remains the language interface rather than the factual authority and does not calculate facts.
+For common questions, Qwen receives only the verified facts required for that request. Broader soil-moisture questions retain a deterministic full-snapshot fallback, while named paddock questions can retrieve the other current environmental fields.
 
 The `readings.simulated` flag is carried through the deterministic layer so synthetic ESP32 data is not silently presented as a real farm observation.
+
+## Guided learning interface
+
+The first Flexible Learning scaffold is now present in the browser interface. It provides:
+
+- a short onboarding introduction;
+- example questions that can be tapped directly;
+- a **Guide me** button;
+- context-sensitive follow-up question suggestions after each answer;
+- browser speech input and text-to-speech output.
+
+The guidance itself is grounded. `app/guidance.py` defines what FarmPi can currently teach the user about the interface. A **Guide me** request is routed through the normal LLM path, but Qwen receives deterministic capability facts rather than inventing what the system can do.
+
+The next planned Flexible Learning stage is a small persistent interaction profile for explanation depth, answer length, presentation preference, guidance frequency, and speech preference. See [docs/flexible-learning.md](docs/flexible-learning.md).
 
 ## Sensor ingest
 
@@ -92,7 +139,7 @@ The project uses a monorepo. Embedded source lives under:
 firmware/esp32-sensor/
 ```
 
-The current Arduino sketch joins Wi-Fi, resolves `farmpi.local` by mDNS, generates bounded random-walk synthetic values for all five fields (with a gentle light/temperature cycle), and submits them together every five minutes by default.
+The current Arduino sketch joins Wi-Fi, resolves `farmpi.local` by mDNS, generates bounded random-walk synthetic values for all five fields (with a gentle light/temperature cycle), and submits them together every **five minutes** by default. At that rate each sensor produces 288 readings per day, which is enough for trends and usability testing without filling the prototype database unnecessarily quickly.
 
 `daylight_hours` is deliberately not a sensor payload field. It is an aggregate that can later be derived deterministically from historical `light_lux` readings using a documented rule; it is not an instantaneous reading and Qwen must not calculate it.
 
@@ -176,6 +223,7 @@ Useful validation questions include:
 - `What is Paddock B's soil moisture?`
 - `What is Paddock B's air temperature?`
 - `What is Paddock C's soil pH?`
+- `How do I use FarmPi?`
 - `How many daylight hours were there?` — this should report that the information is unavailable.
 
 ## HTTPS and speech
@@ -191,12 +239,12 @@ The root certificate is stored on FarmPi at:
 ## Project layout
 
 ```text
-app/                     FastAPI, ingest API, DB access, routing, grounding logic
+app/                     FastAPI, ingest API, DB access, routing, grounding, guidance
 firmware/esp32-sensor/   ESP32 synthetic sensor firmware
 config/Caddyfile          HTTPS reverse-proxy configuration
 config/database/          MariaDB schema and repeatable prototype seed data
 config/systemd/           FarmPi and llama-server service templates
-docs/                     findings and design notes
+docs/                     architecture, findings, and design notes
 tests/                    Python unit tests
 scripts/                  deployment and database helpers
 update                    single-command Raspberry Pi updater
@@ -219,3 +267,5 @@ Key project notes are in:
 - [docs/database-layer.md](docs/database-layer.md)
 - [docs/latency-optimization.md](docs/latency-optimization.md)
 - [docs/sensor-ingest.md](docs/sensor-ingest.md)
+- [docs/grounding-and-guardrails.md](docs/grounding-and-guardrails.md)
+- [docs/flexible-learning.md](docs/flexible-learning.md)
