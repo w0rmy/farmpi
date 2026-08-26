@@ -26,6 +26,15 @@ class QuestionRouterTests(unittest.TestCase):
             "average",
         )
 
+    def test_help_and_onboarding(self) -> None:
+        for question in (
+            "How do I use FarmPi?",
+            "What can I ask?",
+            "What can you do?",
+            "Guide me",
+        ):
+            self.assertEqual(route_question(question).intent, "help")
+
     def test_single_paddock(self) -> None:
         route = route_question("What is Paddock B's soil moisture?")
         self.assertEqual(route.intent, "paddock")
