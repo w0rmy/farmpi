@@ -2,6 +2,12 @@
 
 FarmPi is the local farm-monitoring service intended to run on the Raspberry Pi. It keeps application logic, deployment configuration, and project notes in one version-controlled place.
 
+## Known-good alpha milestone — 26 August 2026
+
+FarmPi has reached a known-good alpha milestone: the complete local AI proof of concept is working on the Raspberry Pi 4. Android/browser access over Caddy HTTPS with its internal CA, FastAPI grounding and control, and Qwen3 0.6B through `llama-server` are working together. Both FarmPi and the LLM service are enabled through systemd; the lightweight `GET /health` and LLM status checks work; browser speech input (`en-NZ`) and text-to-speech output work; and supported, hard-coded prototype farm data is answered correctly while out-of-scope data is rejected rather than invented.
+
+This milestone is deliberately an alpha proof of concept. The next architectural step is to replace the hard-coded data with a small deterministic MariaDB-backed data layer, beginning with tables such as paddocks, sensors, and readings, and a query function such as `get_driest_paddock()`.
+
 ## Current alpha architecture
 
 The current prototype now includes the local AI interaction path:

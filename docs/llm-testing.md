@@ -8,6 +8,37 @@ The intended role of the LLM is not to perform statistical calculations or indep
 
 The initial question was therefore whether a Raspberry Pi 4 could run a sufficiently capable LLM at an acceptable speed for an interactive user interface.
 
+## Known-Good Alpha Milestone — 26 August 2026
+
+The complete local AI proof-of-concept chain is now working and is recorded as a **known-good alpha milestone**:
+
+```text
+Android phone / browser
+        ↓ HTTPS (Caddy internal CA)
+Caddy reverse proxy
+        ↓ http://127.0.0.1:8000
+FastAPI application and grounding/control layer
+        ↓ http://127.0.0.1:8080
+llama-server (Qwen3 0.6B, reasoning off)
+        ↓
+Grounded response to the browser
+```
+
+The following behaviours have been verified:
+
+- Android/browser access over HTTPS works through Caddy;
+- Caddy's reverse proxy and internal CA HTTPS configuration work;
+- FastAPI listens locally on `127.0.0.1:8000` and `llama-server` listens locally on `127.0.0.1:8080`;
+- FastAPI supplies the system constraints and verified, hard-coded prototype farm data before calling the LLM;
+- Qwen3 0.6B runs with reasoning disabled;
+- browser speech input (`en-NZ`) and browser text-to-speech output work;
+- the FarmPi application and local LLM are enabled as systemd services;
+- `GET /health` remains a lightweight service check, while the LLM status check confirms whether the local model is reachable;
+- supported questions grounded in the supplied farm data are answered correctly; and
+- requests for out-of-scope data are rejected rather than answered with invented information.
+
+This is a deliberately constrained alpha, not yet a live farm-data system. The next architectural step is to replace hard-coded data with a small deterministic MariaDB-backed data layer. The first iteration should define simple `paddocks`, `sensors`, and `readings` data, then expose a deterministic function such as `get_driest_paddock()` for the grounding layer to use.
+
 ## Test Platform
 
 The initial test platform was:
