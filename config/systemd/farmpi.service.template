@@ -1,13 +1,14 @@
 [Unit]
 Description=FarmPi farm-monitoring service
-After=network-online.target farmpi-llm.service
-Wants=network-online.target farmpi-llm.service
+After=network-online.target farmpi-llm.service mariadb.service
+Wants=network-online.target farmpi-llm.service mariadb.service
 
 [Service]
 Type=simple
 User=@FARMPI_USER@
 WorkingDirectory=@FARMPI_DIR@
 Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/farmpi/farmpi.env
 ExecStart=@FARMPI_DIR@/.venv/bin/uvicorn app.app:app --host 127.0.0.1 --port 8000
 Restart=on-failure
 RestartSec=5
