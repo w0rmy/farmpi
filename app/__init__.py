@@ -1,0 +1,1 @@
+"""FarmPi application package."""

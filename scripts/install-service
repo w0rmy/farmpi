@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Install FarmPi's systemd unit for the user and project directory supplied.
+set -Eeuo pipefail
+
+if [[ ${EUID} -ne 0 ]]; then
+  echo "Run this helper through sudo (normally via ./update)." >&2
+  exit 1
+fi
+
+project_dir=${1:?Usage: install-service /absolute/path/to/farmpi}
+service_user=${SUDO_USER:-}
+
+if [[ -z ${service_user} || ${service_user} == root ]]; then
+  echo "Run ./update as the regular Raspberry Pi user, not as root." >&2
+  exit 1
+fi
+
+if [[ ! -f ${project_dir}/config/systemd/farmpi.service.template ]]; then
+  echo "FarmPi service template was not found in ${project_dir}." >&2
+  exit 1
+fi
+
+escape_sed_replacement() {
+  printf '%s' "$1" | sed 's/[&|\\]/\\&/g'
+}
+
+escaped_user=$(escape_sed_replacement "${service_user}")
+escaped_dir=$(escape_sed_replacement "${project_dir}")
+temporary_unit=$(mktemp)
+trap 'rm -f "${temporary_unit}"' EXIT
+
+sed \
+  -e "s|@FARMPI_USER@|${escaped_user}|g" \
+  -e "s|@FARMPI_DIR@|${escaped_dir}|g" \
+  "${project_dir}/config/systemd/farmpi.service.template" > "${temporary_unit}"
+
+install -m 0644 "${temporary_unit}" /etc/systemd/system/farmpi.service
+systemctl daemon-reload
+systemctl enable farmpi.service
