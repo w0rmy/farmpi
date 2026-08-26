@@ -29,22 +29,30 @@ SELECT id, 'test-moisture-d', 'Paddock D moisture sensor', TRUE
 FROM paddocks WHERE name = 'Paddock D'
 ON DUPLICATE KEY UPDATE paddock_id = VALUES(paddock_id), name = VALUES(name), active = VALUES(active);
 
-INSERT INTO readings (sensor_node_id, soil_moisture_pct, recorded_at)
-SELECT id, 18.00, '2026-08-26 18:00:00.000000'
+INSERT INTO readings (sensor_node_id, soil_moisture_pct, simulated, recorded_at)
+SELECT id, 18.00, TRUE, '2026-08-26 18:00:00.000000'
 FROM sensor_nodes WHERE node_uid = 'test-moisture-a'
-ON DUPLICATE KEY UPDATE soil_moisture_pct = VALUES(soil_moisture_pct);
+ON DUPLICATE KEY UPDATE
+    soil_moisture_pct = VALUES(soil_moisture_pct),
+    simulated = VALUES(simulated);
 
-INSERT INTO readings (sensor_node_id, soil_moisture_pct, recorded_at)
-SELECT id, 24.00, '2026-08-26 18:00:00.000000'
+INSERT INTO readings (sensor_node_id, soil_moisture_pct, simulated, recorded_at)
+SELECT id, 24.00, TRUE, '2026-08-26 18:00:00.000000'
 FROM sensor_nodes WHERE node_uid = 'test-moisture-b'
-ON DUPLICATE KEY UPDATE soil_moisture_pct = VALUES(soil_moisture_pct);
+ON DUPLICATE KEY UPDATE
+    soil_moisture_pct = VALUES(soil_moisture_pct),
+    simulated = VALUES(simulated);
 
-INSERT INTO readings (sensor_node_id, soil_moisture_pct, recorded_at)
-SELECT id, 29.00, '2026-08-26 18:00:00.000000'
+INSERT INTO readings (sensor_node_id, soil_moisture_pct, simulated, recorded_at)
+SELECT id, 29.00, TRUE, '2026-08-26 18:00:00.000000'
 FROM sensor_nodes WHERE node_uid = 'test-moisture-c'
-ON DUPLICATE KEY UPDATE soil_moisture_pct = VALUES(soil_moisture_pct);
+ON DUPLICATE KEY UPDATE
+    soil_moisture_pct = VALUES(soil_moisture_pct),
+    simulated = VALUES(simulated);
 
-INSERT INTO readings (sensor_node_id, soil_moisture_pct, recorded_at)
-SELECT id, 21.00, '2026-08-26 18:00:00.000000'
+INSERT INTO readings (sensor_node_id, soil_moisture_pct, simulated, recorded_at)
+SELECT id, 21.00, TRUE, '2026-08-26 18:00:00.000000'
 FROM sensor_nodes WHERE node_uid = 'test-moisture-d'
-ON DUPLICATE KEY UPDATE soil_moisture_pct = VALUES(soil_moisture_pct);
+ON DUPLICATE KEY UPDATE
+    soil_moisture_pct = VALUES(soil_moisture_pct),
+    simulated = VALUES(simulated);
