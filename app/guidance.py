@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 WELCOME_TEXT = (
-    "FarmPi can count active paddocks and help you explore current verified sensor readings. "
+    "FarmPi can list or count active paddocks and help you explore current verified sensor readings. "
     "You can ask about soil moisture, temperature, humidity, pH, EC, light, rain, "
     "pressure, wind, pasture height, and leaf wetness. Tap Guide me for examples."
 )
@@ -19,6 +19,7 @@ HELP_FACTS = (
 
 INITIAL_SUGGESTIONS = (
     "How many paddocks are we monitoring?",
+    "List the paddocks.",
     "What stats are available on Paddock B?",
     "What is Paddock 2's temperature?",
     "How do I use FarmPi?",
@@ -38,6 +39,13 @@ def follow_up_suggestions(
         return (
             "What stats are available on Paddock B?",
             "What is the temperature in Paddock 2?",
+            "Which paddock is driest?",
+        )
+
+    if intent == "farm_inventory_list":
+        return (
+            "How many paddocks are we monitoring?",
+            "What stats are available on Paddock 2?",
             "Which paddock is driest?",
         )
 

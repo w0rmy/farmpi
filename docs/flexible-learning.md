@@ -84,6 +84,8 @@ Qwen language response
 
 The normaliser uses aliases from the central measurement catalogue and the active MariaDB paddock display names as a small farm vocabulary. It can prefer a clearly better browser alternative and applies a short, contextual list of known corrections. The initial real usability finding is `Patek` being transcribed for `paddock`; for example, “What is the moisture in Patek C?” becomes “What is the moisture in Paddock C?” Browser phrase/context biasing is inconsistent across browsers, so this reviewed deterministic layer is the reliable FarmPi behaviour.
 
+When a paddock phrase cannot be resolved, FarmPi distinguishes interpretation from data availability. It may safely resolve one very close name, ask `Did you mean ...?` for a medium-confidence candidate, or list valid active paddocks and an example question when confidence is low. This is deliberate Flexible Learning behaviour: recovery teaches the language that works instead of implying that telemetry does not exist.
+
 Corrections are deliberately cautious. A sentence about a Patek watch is not changed, and an ambiguous alternative keeps the browser's top transcript. When a correction or alternative selection occurs, the UI displays **Heard** and **Interpreted** text. That makes evaluation practical: a tester can identify whether an error originated in speech recognition or FarmPi's interpretation. Typed input bypasses the normaliser unchanged.
 
 Speech-normalised rename requests still only create a five-minute confirmation proposal. They cannot bypass the existing explicit confirmation or mutate MariaDB directly.

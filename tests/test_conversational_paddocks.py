@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from app.app import AskRequest, _conversation_states, ask
-from app.farm_data import GroundingData, farm_inventory_count, get_grounding_data, latest_paddock_summary
+from app.farm_data import GroundingData, farm_inventory_count, farm_inventory_list, get_grounding_data, latest_paddock_summary
 from app.paddock_resolver import PaddockIdentity, resolve_paddock
 from app.question_router import route_question
 
@@ -35,7 +35,12 @@ class ConversationalPaddockTests(unittest.TestCase):
 
     def test_inventory_summary_and_measurement_wording_route_to_approved_operations(self) -> None:
         cases = {
+            "Can you give me a list of all current paddocks being monitored?": "farm_inventory_list",
+            "List the paddocks.": "farm_inventory_list",
+            "What paddocks are being monitored?": "farm_inventory_list",
+            "Which paddocks are active?": "farm_inventory_list",
             "How many paddocks are we monitoring?": "farm_inventory_count",
+            "How many paddocks are there?": "farm_inventory_count",
             "How many sensor nodes are active?": "farm_inventory_count",
             "What stats are available on Paddock B?": "paddock_summary",
             "What data do we have for Paddock B?": "paddock_summary",
@@ -63,6 +68,12 @@ class ConversationalPaddockTests(unittest.TestCase):
         self.assertEqual(result.status, "paddock-out-of-range")
         self.assertIn("Paddock A", result.suggestions)
 
+    def test_close_paddock_recovery_is_cautious(self) -> None:
+        self.assertEqual(resolve_paddock("North Flatt", self._paddocks(), {}).status, "resolved-fuzzy")
+        suggestion = resolve_paddock("North Field", self._paddocks(), {})
+        self.assertEqual(suggestion.status, "did-you-mean")
+        self.assertEqual(suggestion.suggestions[0], "North Flat")
+
     @patch("app.farm_data.fetch_all")
     def test_summary_lists_the_catalogue_current_values_and_provenance(self, fetch_all) -> None:
         fetch_all.return_value = [self._reading("Paddock A", 10), self._reading()]
@@ -70,7 +81,8 @@ class ConversationalPaddockTests(unittest.TestCase):
         self.assertEqual(result.intent, "paddock_summary")
         self.assertIn("Paddock B air temperature: 17.20 °C.", result.facts)
         self.assertIn("Paddock B soil electrical conductivity: 0.55 mS/cm.", result.facts)
-        self.assertTrue(any("Reading time:" in fact for fact in result.facts))
+        self.assertTrue(any(fact.startswith(("Updated", "Last reading:")) for fact in result.facts))
+        self.assertTrue(result.evidence[0]["simulated"])
 
     @patch("app.farm_data.fetch_one", return_value={"total_paddocks": 4})
     @patch("app.farm_data.active_paddocks")
@@ -80,6 +92,22 @@ class ConversationalPaddockTests(unittest.TestCase):
             farm_inventory_count().facts,
             ("Active monitored paddocks: 2.", "Active sensor nodes: 2.", "Total paddock records, including inactive/historical paddocks: 4."),
         )
+
+    @patch("app.farm_data.active_paddocks")
+    def test_inventory_list_uses_active_configured_order(self, active) -> None:
+        active.return_value = self._paddocks()
+        result = farm_inventory_list()
+        self.assertEqual(result.intent, "farm_inventory_list")
+        self.assertEqual(result.facts, ("Active monitored paddocks (3): Paddock A, North Flat, Paddock C.",))
+
+    @patch("app.farm_data.fetch_all")
+    def test_current_answers_are_screen_friendly_and_keep_precise_evidence(self, fetch_all) -> None:
+        fetch_all.return_value = [self._reading("Paddock A", 10), self._reading()]
+        result = get_grounding_data("paddock-field", "Paddock B", "air_temperature_c")
+        self.assertTrue(result.facts[1].startswith(("Updated", "Last reading:")))
+        self.assertNotIn("T", result.facts[1])
+        self.assertEqual(result.spoken_facts, ("Paddock B air temperature: 17.20 °C.",))
+        self.assertEqual(result.evidence[0]["observed_at"], "2026-08-27T09:00:00")
 
     @patch("app.app.get_grounding_data")
     def test_contextual_follow_up_reuses_the_previous_measurement(self, grounding) -> None:

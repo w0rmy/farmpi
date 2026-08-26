@@ -10,7 +10,9 @@ Recruit a small number of nontechnical learners after deployment; do not fabrica
 
 ## Preserved lessons
 
-- Timestamp ordering mistakes matter: `observed_at`, `received_at`, and database audit time answer different questions.
+- Timestamp ordering mistakes matter: `observed_at`, `received_at`, and database audit time answer different questions. Verify that screen freshness is readable and that exact times/provenance remain in evidence, not routine TTS.
+- Test farm-wide phrases independently of prior conversation context: “List the paddocks”, “What paddocks are being monitored?”, and “How many paddocks are there?” must not become a paddock-name lookup.
+- Test recovery as learning: unknown/ambiguous paddock phrasing should offer a cautious “Did you mean...?” or valid-name examples, while a known paddock with no reading should report missing data distinctly.
 - TLS/SNI matters on the local network: resolve the Pi address but present `farmpi.local` as the HTTPS hostname.
 - `Paddock IS` must not become a paddock name in the deterministic router.
 - Speech usability matters: contextual `Patek` → `paddock` is visible to the learner rather than hidden.

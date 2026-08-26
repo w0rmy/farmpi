@@ -12,6 +12,10 @@ Supported operations include current values, extrema/rankings, minimum, maximum,
 
 The same response includes bounded `evidence`: paddock, sensor UID where available, timestamp, value, and simulated flag. This is deliberately separate from fluent answer text so a learner can inspect how a result was produced.
 
+## Screen, voice, and evidence
+
+Current-value responses use human-readable freshness on screen (for example, `Updated 2 minutes ago` or `Last reading: 9:42 am`). Their evidence payload retains full `observed_at` and `received_at` values plus sensor and simulated provenance. The API also provides a concise `spoken_answer`; Android and browser clients use it for normal TTS, so exact timestamps and routine simulated-data labels are available visually or through **Show evidence**, rather than adding avoidable spoken cognitive load.
+
 Charts are deliberately modest: line/time views and bar/comparison views only. They are instructional aids, not a BI dashboard, forecast, or agronomic model.
 
 ```mermaid

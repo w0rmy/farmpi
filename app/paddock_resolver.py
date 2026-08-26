@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 import re
 
 from .database import fetch_all
@@ -120,4 +121,20 @@ def resolve_paddock(
         if 1 <= number <= len(items):
             return PaddockResolution(reference, items[number - 1], "resolved")
         return PaddockResolution(reference, None, "paddock-out-of-range", suggestions)
+
+    # The final recovery stage is intentionally small and transparent.  It
+    # never maps a weak resemblance to a paddock; medium similarity becomes a
+    # learner-facing "Did you mean...?" prompt instead.
+    candidates = sorted(
+        ((SequenceMatcher(None, wanted, normalise_paddock_reference(item.name)).ratio(), item) for item in items),
+        key=lambda pair: pair[0],
+        reverse=True,
+    )
+    if candidates:
+        confidence, candidate = candidates[0]
+        runner_up = candidates[1][0] if len(candidates) > 1 else 0.0
+        if confidence >= 0.88 and confidence - runner_up >= 0.08:
+            return PaddockResolution(reference, candidate, "resolved-fuzzy")
+        if confidence >= 0.64:
+            return PaddockResolution(reference, None, "did-you-mean", tuple(dict.fromkeys((candidate.name, *suggestions))))
     return PaddockResolution(reference, None, "unknown-paddock", suggestions)

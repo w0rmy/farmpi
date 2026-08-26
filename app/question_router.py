@@ -48,6 +48,13 @@ _TODAY_RE = re.compile(r"\b(?:today|this\s+morning)\b", re.IGNORECASE)
 _GRAPH_RE = re.compile(r"\b(?:show\s+(?:a\s+)?graph|chart|trend\s+graph)\b", re.IGNORECASE)
 _EVIDENCE_RE = re.compile(r"\b(?:show\s+(?:the\s+)?(?:data|evidence)|why\??)\b", re.IGNORECASE)
 _INVENTORY_RE = re.compile(r"\bhow\s+many\s+(?:active\s+)?(?:paddocks?|sensor\s+nodes?)\b|\b(?:count|number)\s+of\s+(?:active\s+)?(?:paddocks?|sensor\s+nodes?)\b", re.IGNORECASE)
+_INVENTORY_LIST_RE = re.compile(
+    r"\b(?:a\s+)?(?:list|show|name)\s+(?:of\s+)?(?:all\s+)?(?:the\s+)?(?:current\s+|active\s+|monitored\s+)?paddocks?\b"
+    r"|\bwhat\s+paddocks?\s+(?:are\s+)?(?:being\s+)?(?:monitored|active)\b"
+    r"|\bwhich\s+paddocks?\s+(?:are\s+)?active\b"
+    r"|\blist\s+of\s+(?:all\s+)?(?:current\s+)?paddocks?\b",
+    re.IGNORECASE,
+)
 _PADDOCK_SUMMARY_RE = re.compile(r"\b(?:what\s+(?:stats|data|measurements?)\s+(?:are|do)\s+(?:available|we\s+have)|what\s+are\s+we\s+monitoring|tell\s+me\s+about|what\s+do\s+we\s+know\s+about)\b", re.IGNORECASE)
 _FOLLOW_UP_RE = re.compile(r"^\s*what\s+about\s+(.+?)\s*[?!.]*\s*$", re.IGNORECASE)
 _SUMMARY_TARGET_RE = re.compile(r"\b(?:tell\s+me\s+about|what\s+do\s+we\s+know\s+about)\s+([a-z][a-z0-9 '&-]{0,98}?)(?=[?!.]|$)", re.IGNORECASE)
@@ -105,6 +112,10 @@ def route_question(question: str) -> QuestionRoute:
         return QuestionRoute("rename-request", _canonical_paddock_name(rename.group(1)), new_paddock_name=" ".join(rename.group(2).split()))
     if _HELP_RE.search(question):
         return QuestionRoute("help")
+    # Farm-wide inventory must win before entity extraction.  In particular,
+    # "a list of all current paddocks being monitored" is not a paddock name.
+    if _INVENTORY_LIST_RE.search(question):
+        return QuestionRoute("farm_inventory_list")
     if _INVENTORY_RE.search(question):
         return QuestionRoute("farm_inventory_count")
     measurement = measurement_for_text(question)

@@ -149,7 +149,7 @@ VERIFIED FACTS
 
 Only the facts appropriate to the selected route are supplied to Qwen. This reduces prompt size and reduces the opportunity for the model to answer from unrelated information.
 
-The provenance of synthetic telemetry is also carried through the grounding layer. If a result contains simulated data, Qwen is explicitly told that the result includes simulated test readings.
+The provenance of synthetic telemetry is carried through the grounding layer and retained in the evidence payload. It is shown as a visual label and under **Show evidence**; routine TTS uses the API's concise spoken answer, so it does not repeat simulated-test provenance unless it is relevant or explicitly requested.
 
 ## 8. LLM instructions and orchestration — `app/app.py`
 

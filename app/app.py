@@ -118,6 +118,7 @@ class AskResponse(BaseModel):
     """Response returned to the FarmPi client."""
 
     answer: str
+    spoken_answer: str | None = None
     grounding: str = "mariadb-deterministic"
     intent: str
     timings: AskTimings
@@ -540,11 +541,12 @@ async def ask(request: AskRequest) -> AskResponse:
                 route.intent, route.measurement, route.operation, time.monotonic() + _CONVERSATION_TTL_SECONDS,
             )
 
-    def direct_action(answer: str, intent: str, confirmation_id: str | None = None, *, chart: dict[str, Any] | None = None, evidence: list[dict[str, Any]] | None = None, source_category: Literal["observational", "educational", "combined"] = "observational") -> AskResponse:
+    def direct_action(answer: str, intent: str, confirmation_id: str | None = None, *, spoken_answer: str | None = None, chart: dict[str, Any] | None = None, evidence: list[dict[str, Any]] | None = None, source_category: Literal["observational", "educational", "combined"] = "observational") -> AskResponse:
         remember_conversation()
         total_ms = (time.perf_counter() - total_start) * 1000
         return AskResponse(
             answer=answer,
+            spoken_answer=spoken_answer or answer,
             intent=intent,
             confirmation_id=confirmation_id,
             conversation_id=conversation_id,
@@ -645,9 +647,10 @@ async def ask(request: AskRequest) -> AskResponse:
     # Calculated responses and unavailable-boundary explanations are already
     # complete deterministic teaching material.  They do not need a language
     # model call, which also makes evidence/chart rendering dependable offline.
-    if route.intent in {"historical", "comparison", "summary", "unsupported", "farm_inventory_count", "paddock_summary", "paddock", "paddock-field"}:
+    if route.intent in {"historical", "comparison", "summary", "unsupported", "farm_inventory_count", "farm_inventory_list", "paddock_summary", "paddock", "paddock-field"}:
         return direct_action(
             "\n".join(grounding_data.facts), route.intent,
+            spoken_answer="\n".join(grounding_data.spoken_facts or grounding_data.facts),
             chart=grounding_data.chart,
             evidence=list(grounding_data.evidence),
         )

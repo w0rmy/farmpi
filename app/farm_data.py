@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from statistics import fmean
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .database import fetch_all, fetch_one
 from .analytics import AnalyticsResult, comparison_chart, compare_paddocks, historical_analysis
@@ -49,6 +49,7 @@ class GroundingData:
     evidence: tuple[dict[str, object], ...] = ()
     chart: dict[str, object] | None = None
     source_category: str = "observational"
+    spoken_facts: tuple[str, ...] = ()
 
 
 _SELECT_VALUES = ",\n    ".join(
@@ -136,8 +137,11 @@ def _paddock_resolution_facts(resolution: PaddockResolution) -> tuple[str, ...]:
         count = len(resolution.suggestions)  # only used to select the empty-case message below
         return (f"{resolution.reference} is outside the active configured paddock range. Try one of: {suggestions}." if count else "There are no active paddocks configured for monitoring.",)
     if resolution.status == "ambiguous-paddock":
-        return (f"{resolution.reference} is ambiguous. Try one of: {suggestions}." if suggestions else f"{resolution.reference} is ambiguous.",)
-    return (f"No active paddock matches {resolution.reference}." + (f" Try: {suggestions}." if suggestions else ""),)
+        return (f"I found more than one possible paddock for “{resolution.reference}”. Please choose one of: {suggestions}." if suggestions else f"I could not uniquely identify “{resolution.reference}”.",)
+    if resolution.status == "did-you-mean":
+        candidate = resolution.suggestions[0] if resolution.suggestions else None
+        return (f"I could not confidently identify “{resolution.reference}”. Did you mean {candidate}?" if candidate else f"I could not confidently identify “{resolution.reference}”.",)
+    return (f"I could not identify the paddock “{resolution.reference}”." + (f" Current active paddocks are: {suggestions}. Try, for example, “What is the temperature in {resolution.suggestions[0]}?”." if resolution.suggestions else ""),)
 
 
 def farm_inventory_count() -> GroundingData:
@@ -150,6 +154,52 @@ def farm_inventory_count() -> GroundingData:
     if total != len(paddocks):
         facts.append(f"Total paddock records, including inactive/historical paddocks: {total}.")
     return GroundingData("farm_inventory_count", tuple(facts))
+
+
+def farm_inventory_list() -> GroundingData:
+    """Return deterministic active paddock names without inspecting readings."""
+    paddocks = active_paddocks()
+    if not paddocks:
+        return GroundingData("farm_inventory_list", ("There are no active paddocks configured for monitoring.",))
+    names = tuple(item.name for item in paddocks)
+    joined = ", ".join(names)
+    return GroundingData(
+        "farm_inventory_list",
+        (f"Active monitored paddocks ({len(names)}): {joined}.",),
+        spoken_facts=(f"FarmPi is currently monitoring {len(names)} paddocks: {joined}.",),
+    )
+
+
+def _display_reading_time(received_at: datetime) -> str:
+    """Human-friendly freshness for the main screen; evidence keeps UTC exactly."""
+    timestamp = received_at if received_at.tzinfo else received_at.replace(tzinfo=timezone.utc)
+    elapsed_seconds = max(0, int((datetime.now(timezone.utc) - timestamp.astimezone(timezone.utc)).total_seconds()))
+    if elapsed_seconds < 60:
+        return "Updated just now."
+    if elapsed_seconds < 3600:
+        minutes = elapsed_seconds // 60
+        return f"Updated {minutes} minute{'s' if minutes != 1 else ''} ago."
+    try:
+        local = timestamp.astimezone(ZoneInfo("Pacific/Auckland"))
+    except ZoneInfoNotFoundError:
+        # Production Pi installations have the IANA zone database.  This
+        # fallback keeps an offline Windows/dev environment readable until
+        # requirements install `tzdata`; it does not affect evidence UTC.
+        local = timestamp.astimezone()
+    hour = local.hour % 12 or 12
+    meridiem = "am" if local.hour < 12 else "pm"
+    return f"Last reading: {hour}:{local.minute:02d} {meridiem} ({local.strftime('%d %b')})."
+
+
+def _current_evidence(item: PaddockEnvironment) -> tuple[dict[str, object], ...]:
+    return ({
+        "paddock": item.name,
+        "sensor_count": item.sensor_count,
+        "observed_at": item.observed_at.isoformat(),
+        "received_at": item.received_at.isoformat(),
+        "simulated": item.contains_simulated,
+        "source_category": "observational",
+    },)
 
 
 def latest_paddock_summary(paddock_name: str | None) -> GroundingData:
@@ -171,8 +221,9 @@ def latest_paddock_summary(paddock_name: str | None) -> GroundingData:
         return GroundingData("paddock_summary", (f"{resolution.paddock.name} is active, but has no current complete sensor reading yet.",))
     facts = [f"{item.name} currently has these monitored measurements:"]
     facts.extend(_measurement_fact(item, field.key) for field in MEASUREMENTS)
-    facts.extend((f"Reading time: {item.received_at.isoformat(sep=' ')} UTC.", f"Active sensor nodes for this paddock: {resolution.paddock.active_sensor_count}.", _provenance_fact([item])))
-    return GroundingData("paddock_summary", tuple(facts))
+    facts.extend((_display_reading_time(item.received_at), f"Active sensor nodes for this paddock: {resolution.paddock.active_sensor_count}.", "Available analytics include current, minimum, maximum, average, range, change, trend, and supported comparisons over a selected time window."))
+    spoken = (facts[0], facts[1], facts[2], "The screen shows the remaining current measurements. Ask Show evidence for exact timestamps and provenance.")
+    return GroundingData("paddock_summary", tuple(facts), _current_evidence(item), spoken_facts=spoken)
 
 
 def get_paddock_environment(paddock_name: str, snapshot: list[PaddockEnvironment] | None = None) -> PaddockEnvironment | None:
@@ -362,6 +413,8 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
         ))
     if intent == "farm_inventory_count":
         return farm_inventory_count()
+    if intent == "farm_inventory_list":
+        return farm_inventory_list()
     if intent == "paddock_summary":
         return latest_paddock_summary(paddock_name)
     if intent == "driest":
@@ -396,9 +449,8 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
         key = measurement_key or "soil_moisture_pct"
         if key not in BY_KEY or CURRENT not in BY_KEY[key].operations:
             return GroundingData("unsupported", ("The requested information is unavailable.",))
-        # Preserve the established concise phrasing; this timestamp is
-        # specifically received_at under the new current/freshness contract.
-        return GroundingData(intent, (_measurement_fact(item, key), f"Reading time: {item.received_at.isoformat(sep=' ')} UTC.", _provenance_fact([item])))
+        screen_facts = (_measurement_fact(item, key), _display_reading_time(item.received_at))
+        return GroundingData(intent, screen_facts, _current_evidence(item), spoken_facts=(_measurement_fact(item, key),))
     if intent == "measurement-fallback" and measurement_key in BY_KEY:
         snapshot = get_environment_snapshot()
         return GroundingData(intent, (*(_measurement_fact(item, measurement_key) for item in snapshot), _provenance_fact(snapshot)))

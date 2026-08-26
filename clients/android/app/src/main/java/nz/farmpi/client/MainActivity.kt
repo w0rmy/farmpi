@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -39,13 +40,31 @@ import javax.net.ssl.HttpsURLConnection
 private data class SpeechResult(val heard: String, val interpreted: String, val changed: Boolean)
 private data class ChartPoint(val label: String, val value: Double)
 private data class ChartPayload(val type: String, val title: String, val unit: String, val period: String, val provenance: String, val series: List<Pair<String, List<ChartPoint>>>)
-private data class AskResult(val answer: String, val suggestions: List<String>, val intent: String, val conversationId: String?, val chart: ChartPayload?, val evidence: List<String>)
+private data class AskResult(val answer: String, val spokenAnswer: String, val suggestions: List<String>, val intent: String, val conversationId: String?, val chart: ChartPayload?, val evidence: List<String>)
+
+private val FarmPiColours = darkColorScheme(
+    primary = Color(0xFF9ACBA6),
+    onPrimary = Color(0xFF12351E),
+    secondary = Color(0xFFB7C3B9),
+    onSecondary = Color(0xFF26312A),
+    background = Color(0xFF171A18),
+    onBackground = Color(0xFFE3E7E1),
+    surface = Color(0xFF202522),
+    onSurface = Color(0xFFE3E7E1),
+    surfaceVariant = Color(0xFF343A35),
+    onSurfaceVariant = Color(0xFFC4CBC4),
+)
+
+@Composable
+private fun FarmPiTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = FarmPiColours, content = content)
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { MaterialTheme { FarmPiApp() } }
+        setContent { FarmPiTheme { FarmPiApp() } }
     }
 }
 
@@ -87,7 +106,7 @@ private fun FarmPiApp() {
             question = routedQuestion
             val result = FarmPiApi.ask(routedQuestion, explanation, guidance, conversationId)
             conversationId = result.conversationId ?: conversationId
-            answer = result.answer; suggestions = result.suggestions; chart = result.chart; evidence = result.evidence; showEvidence = false; connection = "FarmPi connected"; speak(result.answer)
+            answer = result.answer; suggestions = result.suggestions; chart = result.chart; evidence = result.evidence; showEvidence = false; connection = "FarmPi connected"; speak(result.spokenAnswer)
         } catch (_: Exception) { answer = "FarmPi is unavailable. Check the local connection and certificate trust."; connection = "FarmPi is unavailable" }
         asking = false
     }
@@ -226,7 +245,7 @@ private object FarmPiApi {
     }
     suspend fun ask(question: String, explanation: String, guidance: String, conversationId: String?): AskResult = withContext(Dispatchers.IO) {
         val body = JSONObject().put("question", question).put("preferences", JSONObject().put("explanation_level", explanation).put("guidance_level", guidance)); if (conversationId != null) body.put("conversation_id", conversationId); val json = request("api/ask", "POST", body)
-        AskResult(json.getString("answer"), json.optJSONArray("suggestions").strings(), json.optString("intent"), json.optString("conversation_id").takeIf { it.isNotBlank() }, json.optJSONObject("chart")?.chart(), json.optJSONArray("evidence")?.let { evidence -> (0 until evidence.length()).map { evidence.getJSONObject(it).toString() } } ?: emptyList())
+        AskResult(json.getString("answer"), json.optString("spoken_answer", json.getString("answer")), json.optJSONArray("suggestions").strings(), json.optString("intent"), json.optString("conversation_id").takeIf { it.isNotBlank() }, json.optJSONObject("chart")?.chart(), json.optJSONArray("evidence")?.let { evidence -> (0 until evidence.length()).map { evidence.getJSONObject(it).toString() } } ?: emptyList())
     }
     private fun JSONObject.chart(): ChartPayload {
         val entries = optJSONArray("series") ?: JSONArray()

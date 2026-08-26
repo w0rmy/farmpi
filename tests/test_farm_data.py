@@ -64,8 +64,8 @@ class FarmDataTests(unittest.TestCase):
                     route.measurement,
                 )
                 self.assertIn(expected_fact, grounding.facts)
-                self.assertIn("Reading time: 2026-08-26 09:00:00 UTC.", grounding.facts)
-                self.assertIn("The result includes simulated test readings.", grounding.facts)
+                self.assertTrue(any(fact.startswith("Last reading:") for fact in grounding.facts))
+                self.assertEqual(grounding.evidence[0]["received_at"], "2026-08-26T09:00:00")
 
     @patch("app.farm_data.fetch_all")
     def test_renamed_paddock_query_resolves_current_database_name(self, fetch_all) -> None:
