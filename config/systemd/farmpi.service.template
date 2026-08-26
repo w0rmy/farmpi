@@ -1,8 +1,7 @@
 [Unit]
 Description=FarmPi farm-monitoring service
-Requires=farmpi-llm.service
 After=network-online.target farmpi-llm.service
-Wants=network-online.target
+Wants=network-online.target farmpi-llm.service
 
 [Service]
 Type=simple
