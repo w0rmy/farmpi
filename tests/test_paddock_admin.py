@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 import asyncio
 
-from app.app import AskRequest, _pending_renames, ask
+from app.app import AskRequest, SpeechInput, _pending_renames, ask
 from app.paddock_admin import RenameProposal, RenameRejected, confirm_rename, prepare_rename
 
 
@@ -45,6 +45,29 @@ class PaddockAdminTests(unittest.TestCase):
         self.assertEqual(completed.intent, "rename-confirmation")
         self.assertIn('Renamed "Paddock A" to "North Flat".', completed.answer)
         confirm.assert_called_once_with(proposal)
+
+    @patch("app.app.confirm_rename")
+    @patch("app.app.prepare_rename")
+    @patch("app.app.current_paddock_names", return_value=("Paddock A",))
+    def test_spoken_patek_rename_still_only_prepares_confirmation(self, _, prepare, confirm) -> None:
+        _pending_renames.clear()
+        proposal = RenameProposal(7, "Paddock A", "North Flat")
+        prepare.return_value = proposal
+
+        requested = asyncio.run(
+            ask(
+                AskRequest(
+                    question="Rename Patek A to North Flat",
+                    speech=SpeechInput(),
+                )
+            )
+        )
+
+        self.assertEqual(requested.intent, "rename-request")
+        self.assertIsNotNone(requested.confirmation_id)
+        self.assertEqual(requested.speech_normalization.normalized_transcript, "Rename Paddock A to North Flat")
+        prepare.assert_called_once_with("Paddock A", "North Flat")
+        confirm.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ from .farm_data import (
 from .question_router import route_question
 from .paddock_admin import RenameProposal, RenameRejected, confirm_rename, prepare_rename
 from .guidance import INITIAL_SUGGESTIONS, WELCOME_TEXT, follow_up_suggestions
+from .speech_normalizer import SpeechAlternative, SpeechNormalization, current_paddock_names, normalize_speech
 
 LLAMA_BASE_URL = os.getenv("FARMPI_LLAMA_URL", "http://127.0.0.1:8080")
 LLAMA_CHAT_URL = f"{LLAMA_BASE_URL}/v1/chat/completions"
@@ -57,6 +58,29 @@ class AskRequest(BaseModel):
 
     question: str = Field(min_length=1, max_length=1000)
     confirmation_id: str | None = Field(default=None, min_length=16, max_length=128)
+    speech: "SpeechInput | None" = None
+
+
+class SpeechInput(BaseModel):
+    """Optional browser-speech metadata; typed questions deliberately omit it."""
+
+    alternatives: list["SpeechAlternativeInput"] = Field(default_factory=list, max_length=5)
+
+
+class SpeechAlternativeInput(BaseModel):
+    transcript: str = Field(min_length=1, max_length=1000)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+
+class SpeechNormalizationResponse(BaseModel):
+    raw_transcript: str
+    normalized_transcript: str
+    correction_applied: bool
+    correction_reason: str | None
+    chosen_alternative_index: int | None
+    chosen_alternative_confidence: float | None
+    domain_score: int
+    alternative_selected: bool
 
 
 class AskTimings(BaseModel):
@@ -78,6 +102,7 @@ class AskResponse(BaseModel):
     timings: AskTimings
     confirmation_id: str | None = None
     suggestions: list[str] = []
+    speech_normalization: SpeechNormalizationResponse | None = None
 
 
 class GuidanceResponse(BaseModel):
@@ -147,6 +172,7 @@ label { display: inline-block; margin-top: 8px; }
     white-space: pre-wrap;
 }
 #status { min-height: 1.5em; margin-top: 10px; }
+#speech-transcript { min-height: 1.5em; margin-top: 8px; color: #aaa; font-size: 0.95rem; }
 </style>
 </head>
 <body>
@@ -173,6 +199,7 @@ FarmPi labels simulated results and does not provide farm advice.
 </label>
 
 <div id="status"></div>
+<div id="speech-transcript" aria-live="polite"></div>
 <div id="answer"></div>
 
 <p class="footnote">
@@ -183,13 +210,14 @@ If browser speech recognition is unavailable or denied, tap the microphone on yo
 const question = document.getElementById("question");
 const answer = document.getElementById("answer");
 const status = document.getElementById("status");
+const speechTranscript = document.getElementById("speech-transcript");
 const askButton = document.getElementById("ask");
 const guideButton = document.getElementById("guide");
 const speakButton = document.getElementById("speak");
 const speakAnswer = document.getElementById("speakAnswer");
 let pendingConfirmationId = null;
 
-async function askFarmPi() {
+async function askFarmPi(speechInput = null) {
     const text = question.value.trim();
     if (!text) {
         status.textContent = "Enter or speak a question first.";
@@ -201,12 +229,13 @@ async function askFarmPi() {
     speakButton.disabled = true;
     answer.textContent = "";
     status.textContent = "Asking FarmPi…";
+    if (!speechInput) speechTranscript.textContent = "";
 
     try {
         const response = await fetch("/api/ask", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({question: text, confirmation_id: pendingConfirmationId})
+            body: JSON.stringify({question: text, confirmation_id: pendingConfirmationId, speech: speechInput})
         });
 
         const data = await response.json();
@@ -216,6 +245,14 @@ async function askFarmPi() {
 
         answer.textContent = data.answer;
         pendingConfirmationId = data.confirmation_id || null;
+        if (data.speech_normalization &&
+                (data.speech_normalization.correction_applied || data.speech_normalization.alternative_selected)) {
+            const interpreted = data.speech_normalization.normalized_transcript;
+            speechTranscript.textContent = `Heard: “${text}” Interpreted: “${interpreted}”`;
+            question.value = interpreted;
+        } else if (speechInput) {
+            speechTranscript.textContent = "";
+        }
         if (data.suggestions && data.suggestions.length) {
             status.textContent = "Try next: " + data.suggestions[0];
         }
@@ -262,15 +299,20 @@ function startSpeech() {
     const recognition = new SpeechRecognition();
     recognition.lang = "en-NZ";
     recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
+    recognition.maxAlternatives = 5;
 
     status.textContent = "Listening…";
 
     recognition.onresult = (event) => {
-        const text = event.results[0][0].transcript;
+        const result = event.results[event.resultIndex];
+        const text = result[0].transcript;
+        const alternatives = Array.from(result, (alternative) => ({
+            transcript: alternative.transcript,
+            confidence: Number.isFinite(alternative.confidence) ? alternative.confidence : null
+        }));
         question.value = text;
         status.textContent = "Heard: " + text;
-        askFarmPi();
+        askFarmPi({alternatives});
     };
 
     recognition.onerror = (event) => {
@@ -385,6 +427,23 @@ async def ask(request: AskRequest) -> AskResponse:
     if not question_text:
         raise HTTPException(status_code=400, detail="No question supplied.")
 
+    speech_normalization: SpeechNormalizationResponse | None = None
+    if request.speech is not None:
+        try:
+            paddock_names = await asyncio.to_thread(current_paddock_names)
+        except DatabaseUnavailable:
+            # The normalizer can still handle an explicit Paddock A-style
+            # phrase.  The normal grounding request will report database
+            # unavailability through its existing path if it needs data.
+            paddock_names = ()
+        normalization: SpeechNormalization = normalize_speech(
+            question_text,
+            [SpeechAlternative(item.transcript, item.confidence) for item in request.speech.alternatives],
+            paddock_names,
+        )
+        question_text = normalization.normalized_transcript
+        speech_normalization = SpeechNormalizationResponse(**normalization.__dict__)
+
     route_start = time.perf_counter()
     route = route_question(question_text)
     routing_ms = (time.perf_counter() - route_start) * 1000
@@ -396,6 +455,7 @@ async def ask(request: AskRequest) -> AskResponse:
             intent=intent,
             confirmation_id=confirmation_id,
             suggestions=list(follow_up_suggestions(intent)),
+            speech_normalization=speech_normalization,
             timings=AskTimings(
                 routing_ms=round(routing_ms, 2),
                 database_ms=round(total_ms - routing_ms, 2),
@@ -520,5 +580,6 @@ async def ask(request: AskRequest) -> AskResponse:
         answer=answer,
         intent=route.intent,
         suggestions=list(follow_up_suggestions(route.intent, route.paddock_name, route.measurement)),
+        speech_normalization=speech_normalization,
         timings=timings,
     )

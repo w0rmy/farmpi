@@ -21,17 +21,19 @@ ESP32 sensor telemetry
         ↓
 3. MariaDB schema and constraints
         ↓
-4. deterministic question routing
+4. deterministic speech/domain normalisation (spoken input only)
         ↓
-5. approved deterministic retrieval/calculation
+5. deterministic question routing
         ↓
-6. VERIFIED FACTS grounding context
+6. approved deterministic retrieval/calculation
         ↓
-7. LLM system instructions
+7. VERIFIED FACTS grounding context
+        ↓
+8. LLM system instructions
         ↓
 Qwen natural-language response
         ↓
-8. deterministic user guidance / suggested next questions
+9. deterministic user guidance / suggested next questions
 ```
 
 These layers together are what this project informally calls the guardrails. There is no single `guardrails.conf` file.
@@ -77,7 +79,17 @@ MariaDB is another validation boundary, not merely storage. `config/database/sch
 
 This means an invalid measurement should be rejected both by the API model and by the database constraint layer.
 
-## 4. Deterministic question routing — `app/question_router.py`
+## 4. Speech/domain normalisation — `app/speech_normalizer.py`
+
+Browser speech recognition runs on the user's device and returns text to the FarmPi UI. For spoken input only, FarmPi asks the browser for up to five alternatives and sends them to `app/speech_normalizer.py` before the router sees the question. The module uses the reviewed aliases in `app/measurements.py`, plus current active paddock names fetched from MariaDB, as its small domain vocabulary.
+
+It uses explainable scores rather than an LLM, a cloud speech provider, or a fuzzy-matching framework. An alternative must score strictly better than the browser's top result before it is selected; a tie stays unchanged. The explicit `Patek` → `paddock` correction is applied only when other farm context is present, so unrelated proper-name use such as a Patek watch is retained. The browser's phrase/context biasing support is inconsistent, which is why FarmPi treats this deterministic layer as the reliable correction boundary.
+
+The response contains the raw and interpreted transcript when a change occurs, allowing the interface to display **Heard** and **Interpreted**. This records the observed `Patek`/`paddock` phone-dictation issue as an evaluation finding rather than hiding it.
+
+Typed questions bypass this layer. Normalisation may make a spoken rename routeable, but it does not execute it: the normal deterministic confirmation boundary below still applies.
+
+## 5. Deterministic question routing — `app/question_router.py`
 
 `app/question_router.py` interprets the user's wording and selects an approved application operation before Qwen receives any farm facts.
 
@@ -98,7 +110,7 @@ The router does **not** generate SQL and does not ask the LLM to decide which da
 
 A useful alpha failure occurred when the phrase `which paddock is driest` could fall through an earlier recogniser and the generic paddock regex interpreted the word `is` as a paddock identifier, producing `Paddock IS`. The router now contains paddock stop-words and regression tests so ordinary grammar cannot be treated as a paddock name.
 
-## 5. Deterministic retrieval and calculation — `app/farm_data.py`
+## 6. Deterministic retrieval and calculation — `app/farm_data.py`
 
 `app/farm_data.py` is the main factual-authority layer.
 
@@ -123,7 +135,7 @@ Paddock A air temperature: 16.50 °C.
 
 Qwen is not asked to calculate or infer that value.
 
-## 6. Grounding context — `app/farm_data.py`
+## 7. Grounding context — `app/farm_data.py`
 
 The deterministic result is converted to a compact context headed:
 
@@ -135,7 +147,7 @@ Only the facts appropriate to the selected route are supplied to Qwen. This redu
 
 The provenance of synthetic telemetry is also carried through the grounding layer. If a result contains simulated data, Qwen is explicitly told that the result includes simulated test readings.
 
-## 7. LLM instructions and orchestration — `app/app.py`
+## 8. LLM instructions and orchestration — `app/app.py`
 
 `app/app.py` orchestrates the full question path:
 
@@ -157,7 +169,7 @@ Its system prompt tells Qwen to:
 
 The prompt is therefore one guardrail, but it is deliberately the final guardrail rather than the only one.
 
-## 8. User guidance — `app/guidance.py`
+## 9. User guidance — `app/guidance.py`
 
 The first Flexible Learning scaffold is kept deterministic as well.
 

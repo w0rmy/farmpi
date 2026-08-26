@@ -18,6 +18,20 @@ question/action router → reviewed deterministic operation → verified facts
                                           Qwen: concise language only
 ```
 
+Spoken questions have one additional deterministic step before the question/action router:
+
+```text
+browser speech-to-text (en-NZ, up to five alternatives)
+        ↓
+FarmPi domain normaliser (measurement vocabulary + active paddock names)
+        ↓
+deterministic router/action layer → grounding → Qwen language response
+```
+
+The browser remains responsible for speech recognition. Browser phrase/context biasing is inconsistent across devices and browsers, so FarmPi does not rely on it for correctness. `app/speech_normalizer.py` instead performs a small, explainable correction pass without using Qwen. It can choose a clearly more farm-consistent browser alternative and fixes the observed `Patek` → `paddock` transcription only when the surrounding wording is farm-related. Typed text bypasses this step unchanged.
+
+The first usability finding was that phone dictation sometimes heard *paddock* as *Patek*, leading to poor routing and irrelevant responses. When FarmPi changes a spoken transcript, the interface shows both **Heard** and **Interpreted** text. This makes speech-engine errors distinguishable from FarmPi's deterministic interpretation during evaluation.
+
 Qwen never receives database access, SQL, raw calculation responsibility, or authority to rename a paddock. It is a language interface, not the factual authority.
 
 app/measurements.py is the reviewed measurement catalogue: canonical keys, labels, units, aliases, ranges, and permitted operations. The fields are:
@@ -74,6 +88,7 @@ The implementation and evidence are documented in:
 - [database layer and migration](docs/database-layer.md)
 - [grounding and guardrails](docs/grounding-and-guardrails.md)
 - [Flexible Learning guidance](docs/flexible-learning.md)
+- [speech recognition and domain normalisation](docs/flexible-learning.md#speech)
 - [paddock administration](docs/paddock-admin.md)
 - [firmware guide](firmware/esp32-sensor/README.md)
 - [latency method](docs/latency-optimization.md)

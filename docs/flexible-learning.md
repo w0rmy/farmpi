@@ -63,7 +63,27 @@ After a user asks about one paddock, FarmPi can suggest other supported measurem
 
 The existing browser text-to-speech option remains enabled by default. A normal FarmPi answer, including the response to **Guide me**, can therefore be spoken on the user's phone or browser device.
 
-Speech recognition remains browser/device-side. FarmPi receives text, performs deterministic grounding, and returns text; the phone/browser handles speech recognition and speech synthesis.
+Speech recognition remains browser/device-side. The browser requests up to five final alternatives in `en-NZ`, including the confidence value when the browser exposes one. FarmPi does not replace that service with a cloud recogniser or ask Qwen to guess what was said.
+
+Instead, spoken input follows this deterministic path:
+
+```text
+browser STT
+        ↓
+app/speech_normalizer.py
+        ↓
+deterministic router/action layer
+        ↓
+grounding and approved database operation
+        ↓
+Qwen language response
+```
+
+The normaliser uses aliases from the central measurement catalogue and the active MariaDB paddock display names as a small farm vocabulary. It can prefer a clearly better browser alternative and applies a short, contextual list of known corrections. The initial real usability finding is `Patek` being transcribed for `paddock`; for example, “What is the moisture in Patek C?” becomes “What is the moisture in Paddock C?” Browser phrase/context biasing is inconsistent across browsers, so this reviewed deterministic layer is the reliable FarmPi behaviour.
+
+Corrections are deliberately cautious. A sentence about a Patek watch is not changed, and an ambiguous alternative keeps the browser's top transcript. When a correction or alternative selection occurs, the UI displays **Heard** and **Interpreted** text. That makes evaluation practical: a tester can identify whether an error originated in speech recognition or FarmPi's interpretation. Typed input bypasses the normaliser unchanged.
+
+Speech-normalised rename requests still only create a five-minute confirmation proposal. They cannot bypass the existing explicit confirmation or mutate MariaDB directly.
 
 ## Scope of the first stage
 
