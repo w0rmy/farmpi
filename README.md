@@ -1,12 +1,21 @@
 # FarmPi
 
+## Repository structure
+
+- `app/` — Raspberry Pi/FastAPI application, deterministic logic, and API layer.
+- `firmware/` — embedded ESP32 sensor/simulator firmware.
+- `clients/android/` — native Kotlin/Jetpack Compose user client.
+- `config/`, `tests/`, `docs/`, and `scripts/` — deployment configuration, validation, evidence, and repeatable operational helpers.
+
+See [the time-sync contract](docs/time-sync-telemetry.md), [NZ synthetic simulation](docs/nz-synthetic-simulation.md), and [Android architecture](docs/android-client.md).
+
 FarmPi is a local farm-monitoring alpha and capstone technical medium for Artificial Intelligence/Data Science and Flexible Learning. It deliberately produces a rich, believable **synthetic** dataset while keeping factual queries, calculations, and administration deterministic.
 
 ## Alpha stage: 16 virtual paddocks
 
 One physical ESP32 now simulates Paddocks A–P. Each has its own registered sensor UID (test-moisture-a … test-moisture-p) and persistent per-paddock characteristics. It sends one complete node sample every 18.75 seconds; after 16 staggered HTTPS posts, one five-minute simulation round has elapsed. The synthetic day/weather model advances once per round, never once per post.
 
-The generator includes a shared light/day cycle, rainfall events, pressure and wind, plus stable paddock differences (wetter/drier, warmer/cooler, shade, pH/EC, and pasture growth). Rain affects humidity, soil moisture, light, air temperature, leaf wetness, and pressure. Occasional pasture drops simulate grazing/cutting. This is useful test telemetry, **not an agronomic model** and not farming advice.
+The generator includes a synchronized real-time Waikato/NZ seasonal daylight cycle, monthly climate baselines, rainfall events, pressure and wind, plus stable paddock differences (wetter/drier, warmer/cooler, shade, pH/EC, and pasture growth). Rain affects humidity, soil moisture, light, air temperature, leaf wetness, and pressure. Occasional pasture drops simulate grazing/cutting. This is useful test telemetry, **not an agronomic model** and not farming advice.
 
 ## Architecture and guardrails
 

@@ -21,7 +21,8 @@ class PaddockEnvironment:
     id: int
     name: str
     values: dict[str, float]
-    recorded_at: datetime
+    received_at: datetime
+    observed_at: datetime
     sensor_count: int
     contains_simulated: bool
 
@@ -29,6 +30,11 @@ class PaddockEnvironment:
         if key in BY_KEY:
             return self.values[key]
         raise AttributeError(key)
+
+    @property
+    def recorded_at(self) -> datetime:
+        """Compatibility alias; current/freshness uses received_at."""
+        return self.received_at
 
 
 @dataclass(frozen=True)
@@ -48,7 +54,8 @@ SELECT
     p.id,
     p.name,
     {_SELECT_VALUES},
-    MAX(r.recorded_at) AS recorded_at,
+    MAX(r.received_at) AS received_at,
+    MAX(r.observed_at) AS observed_at,
     COUNT(*) AS sensor_count,
     MAX(CASE WHEN r.simulated = 1 THEN 1 ELSE 0 END) AS contains_simulated
 FROM paddocks AS p
@@ -57,7 +64,7 @@ JOIN readings AS r ON r.id = (
     SELECT r2.id FROM readings AS r2
     WHERE r2.sensor_node_id = s.id
           AND {_COMPLETE_PREDICATE}
-    ORDER BY r2.recorded_at DESC, r2.id DESC LIMIT 1
+    ORDER BY r2.received_at DESC, r2.id DESC LIMIT 1
 )
 WHERE p.active = 1
 GROUP BY p.id, p.name
@@ -69,14 +76,18 @@ def get_environment_snapshot() -> list[PaddockEnvironment]:
     """Return the latest complete row for each active paddock."""
     snapshot: list[PaddockEnvironment] = []
     for row in fetch_all(LATEST_PADDOCK_ENVIRONMENT_SQL):
-        recorded_at = row["recorded_at"]
-        if not isinstance(recorded_at, datetime):
+        # The fallback only supports callers/tests against the alpha projection;
+        # the schema migration backfills both new columns before deployment.
+        received_at = row.get("received_at", row.get("recorded_at"))
+        observed_at = row.get("observed_at", received_at)
+        if not isinstance(received_at, datetime) or not isinstance(observed_at, datetime):
             raise NoFarmData("A current reading has an invalid timestamp.")
         snapshot.append(PaddockEnvironment(
             id=int(row["id"]),
             name=str(row["name"]),
             values={item.key: float(row[item.key]) for item in MEASUREMENTS},
-            recorded_at=recorded_at,
+            received_at=received_at,
+            observed_at=observed_at,
             sensor_count=int(row["sensor_count"]),
             contains_simulated=bool(row["contains_simulated"]),
         ))
@@ -148,7 +159,8 @@ def _historical_rows(key: str, minutes: int, paddock_name: str | None) -> tuple[
     if key not in BY_KEY:
         raise ValueError("Unknown measurement.")
     params: list[object] = [minutes]
-    where = ["r.recorded_at >= UTC_TIMESTAMP() - INTERVAL %s MINUTE", f"r.{key} IS NOT NULL"]
+    analysis_time = "CASE WHEN r.clock_valid = 1 AND r.clock_out_of_tolerance = 0 THEN r.observed_at ELSE r.received_at END"
+    where = [f"{analysis_time} >= UTC_TIMESTAMP() - INTERVAL %s MINUTE", f"r.{key} IS NOT NULL"]
     resolved_name = None
     if paddock_name:
         target = resolve_paddock(paddock_name)
@@ -158,12 +170,12 @@ def _historical_rows(key: str, minutes: int, paddock_name: str | None) -> tuple[
         params.append(target.id)
         resolved_name = target.name
     sql = f"""
-SELECT p.name, r.{key} AS value, r.recorded_at, r.simulated
+SELECT p.name, r.{key} AS value, {analysis_time} AS analysis_at, r.simulated
 FROM readings AS r
 JOIN sensor_nodes AS s ON s.id = r.sensor_node_id
 JOIN paddocks AS p ON p.id = s.paddock_id
 WHERE {" AND ".join(where)}
-ORDER BY r.recorded_at ASC, r.id ASC
+ORDER BY {analysis_time} ASC, r.id ASC
 """
     return fetch_all(sql, tuple(params)), resolved_name
 
@@ -237,7 +249,9 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
         key = measurement_key or "soil_moisture_pct"
         if key not in BY_KEY or CURRENT not in BY_KEY[key].operations:
             return GroundingData("unsupported", ("The requested information is unavailable.",))
-        return GroundingData(intent, (_measurement_fact(item, key), f"Reading time: {item.recorded_at.isoformat(sep=' ')} UTC.", _provenance_fact([item])))
+        # Preserve the established concise phrasing; this timestamp is
+        # specifically received_at under the new current/freshness contract.
+        return GroundingData(intent, (_measurement_fact(item, key), f"Reading time: {item.received_at.isoformat(sep=' ')} UTC.", _provenance_fact([item])))
     if intent == "measurement-fallback" and measurement_key in BY_KEY:
         snapshot = get_environment_snapshot()
         return GroundingData(intent, (*(_measurement_fact(item, measurement_key) for item in snapshot), _provenance_fact(snapshot)))

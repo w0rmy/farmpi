@@ -23,7 +23,18 @@ class StoredReading:
     paddock_name: str
     values: dict[str, float]
     simulated: bool
-    recorded_at: datetime
+    observed_at: datetime
+    received_at: datetime
+    clock_valid: bool
+    clock_offset_seconds: float | None
+    clock_out_of_tolerance: bool
+    sample_seq: int | None
+    deduplicated: bool = False
+
+    @property
+    def recorded_at(self) -> datetime:
+        """Compatibility alias for callers from the server-timestamped alpha."""
+        return self.received_at
 
     def __getattr__(self, key: str) -> float:
         """Keep convenient attribute access for each catalogued measurement."""
@@ -47,10 +58,32 @@ INSERT INTO readings (
     sensor_node_id,
     {_COLUMNS},
     simulated,
-    recorded_at
+    observed_at,
+    received_at,
+    recorded_at,
+    clock_valid,
+    clock_offset_seconds,
+    clock_out_of_tolerance,
+    sample_seq,
+    protocol_version
 )
-VALUES (%s, {_PLACEHOLDERS}, %s, %s)
+VALUES (%s, {_PLACEHOLDERS}, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
+
+DUPLICATE_READING_SQL = f"""
+SELECT id, {_COLUMNS}, simulated, observed_at, received_at, clock_valid,
+       clock_offset_seconds, clock_out_of_tolerance, sample_seq
+FROM readings
+WHERE sensor_node_id = %s AND sample_seq = %s
+LIMIT 1
+"""
+
+
+def _utc_datetime(value: Any) -> datetime:
+    """Treat MariaDB DATETIME values as the documented UTC convention."""
+    if not isinstance(value, datetime):
+        raise ValueError("Stored reading has an invalid timestamp.")
+    return value.replace(tzinfo=timezone.utc)
 
 
 def validate_reading_values(values: dict[str, float]) -> dict[str, float]:
@@ -66,16 +99,60 @@ def validate_reading_values(values: dict[str, float]) -> dict[str, float]:
     return result
 
 
-def store_sensor_reading(sensor_uid: str, simulated: bool, **values: Any) -> StoredReading:
-    """Validate a registered sensor and store one server-timestamped reading."""
+def store_sensor_reading(
+    sensor_uid: str,
+    simulated: bool,
+    *,
+    observed_at: datetime | None = None,
+    received_at: datetime | None = None,
+    clock_valid: bool = False,
+    clock_offset_seconds: float | None = None,
+    clock_out_of_tolerance: bool = True,
+    sample_seq: int | None = None,
+    protocol_version: int = 1,
+    **values: Any,
+) -> StoredReading:
+    """Store a validated sample with explicit device and FarmPi time semantics.
+
+    ``received_at`` is always FarmPi UTC.  An unset node clock never creates a
+    1970 observation: it is represented by the receive time plus ``clock_valid``
+    false.  A supplied sequence makes retries idempotent per sensor node.
+    """
     sensor = fetch_one(SENSOR_LOOKUP_SQL, (sensor_uid,))
     if sensor is None:
         raise UnknownSensor(f"Unknown or inactive sensor: {sensor_uid}")
     validated = validate_reading_values({key: float(value) for key, value in values.items()})
-    recorded_at_utc = datetime.now(timezone.utc)
-    recorded_at_db = recorded_at_utc.replace(tzinfo=None)
+    received_at_utc = (received_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    effective_clock_valid = bool(clock_valid and observed_at is not None)
+    observed_at_utc = observed_at.astimezone(timezone.utc) if effective_clock_valid else received_at_utc
+
+    if sample_seq is not None:
+        duplicate = fetch_one(DUPLICATE_READING_SQL, (int(sensor["sensor_node_id"]), sample_seq))
+        if duplicate is not None:
+            return StoredReading(
+                int(duplicate["id"]), str(sensor["node_uid"]), str(sensor["paddock_name"]),
+                {item.key: float(duplicate[item.key]) for item in MEASUREMENTS}, bool(duplicate["simulated"]),
+                _utc_datetime(duplicate["observed_at"]), _utc_datetime(duplicate["received_at"]),
+                bool(duplicate["clock_valid"]),
+                float(duplicate["clock_offset_seconds"]) if duplicate["clock_offset_seconds"] is not None else None,
+                bool(duplicate["clock_out_of_tolerance"]),
+                int(duplicate["sample_seq"]) if duplicate["sample_seq"] is not None else None,
+                True,
+            )
+
+    received_at_db = received_at_utc.replace(tzinfo=None)
+    observed_at_db = observed_at_utc.replace(tzinfo=None)
     reading_id = execute(
         INSERT_READING_SQL,
-        (int(sensor["sensor_node_id"]), *(validated[item.key] for item in MEASUREMENTS), bool(simulated), recorded_at_db),
+        (
+            int(sensor["sensor_node_id"]), *(validated[item.key] for item in MEASUREMENTS), bool(simulated),
+            observed_at_db, received_at_db, received_at_db, effective_clock_valid,
+            round(clock_offset_seconds, 3) if clock_offset_seconds is not None else None,
+            bool(clock_out_of_tolerance), sample_seq, protocol_version,
+        ),
     )
-    return StoredReading(reading_id, str(sensor["node_uid"]), str(sensor["paddock_name"]), validated, bool(simulated), recorded_at_utc)
+    return StoredReading(
+        reading_id, str(sensor["node_uid"]), str(sensor["paddock_name"]), validated, bool(simulated),
+        observed_at_utc, received_at_utc, effective_clock_valid, clock_offset_seconds,
+        bool(clock_out_of_tolerance), sample_seq,
+    )

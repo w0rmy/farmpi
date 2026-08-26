@@ -1,6 +1,6 @@
 # Sensor ingest and synthetic-farm simulation
 
-POST /api/ingest accepts one complete virtual-node sample over HTTPS. Authentication remains a single local alpha bearer token held only in /etc/farmpi/farmpi.env. FastAPI validates every value against app/measurements.py and assigns the UTC server timestamp; ESP32s do not need a real-time clock.
+POST /api/ingest accepts one complete virtual-node sample over HTTPS. Authentication remains a single local alpha bearer token held only in /etc/farmpi/farmpi.env. FastAPI validates every value against app/measurements.py. FarmPi owns UTC time; nodes use its normal acknowledgement exchange, never Internet NTP. The definitive payload/ACK semantics are in [time-sync-telemetry.md](time-sync-telemetry.md).
 
 The required payload has sensor, simulated, and these instantaneous values: soil_moisture_pct (0–100), soil_temperature_c (-10–60°C), air_temperature_c (-30–60°C), relative_humidity_pct (0–100), soil_ph (0–14), soil_ec_ms_cm (0–20 mS/cm), light_lux (0–200,000), rainfall_mm (0–100 per sample interval), barometric_pressure_hpa (850–1100), wind_speed_kmh (0–250), wind_direction_deg (0–360), pasture_height_cm (0–300), and leaf_wetness_pct (0–100).
 
@@ -12,7 +12,7 @@ Existing four-node installations are expanded by the normal `./update` database 
 
 The generator has shared weather and persistent per-paddock state. Rainfall events raise humidity, moisture, and leaf wetness; they reduce light and air temperature and bring pressure downward. Paddocks retain stable moisture, shade, temperature, pH, EC and growth differences. Pasture grows slowly and rarely drops sharply. The result is correlated synthetic test telemetry, not a prediction or agronomic model.
 
-The global clock is advanced only immediately before Paddock A begins a new 16-post round. This avoids the earlier conceptual error of advancing an entire day after every HTTP request.
+Persistent simulation state advances only immediately before Paddock A begins a new 16-post round. The real synchronized date/time controls season and daylight, avoiding both an entire day after every POST and the previous synthetic 288-sample day.
 
 ## TLS/SNI and timestamp lessons
 

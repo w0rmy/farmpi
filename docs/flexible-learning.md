@@ -96,7 +96,7 @@ This stage is deliberately modest. It demonstrates:
 - spoken responses;
 - separation of learning guidance from factual authority.
 
-It does not yet implement a persistent learner profile.
+The native Android milestone now keeps a local explanation-depth (`simple`/`normal`/`technical`) and guidance-frequency (`more`/`normal`/`less`) preference and sends it with a request. FarmPi changes only phrasing/token budget and the number of deterministic suggestions; it never changes verified facts or allowed operations. Its Learn tab starts with short teach-by-doing tasks rather than static training material. It does not yet implement a persistent learner profile.
 
 ## Planned adaptive-learning layer
 

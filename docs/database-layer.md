@@ -4,7 +4,7 @@ The model has no MariaDB credentials or SQL path. app/database.py is the connect
 
 ## Data model and migration
 
-paddocks holds mutable display names, sensor_nodes assigns a stable UID to a paddock, and readings holds timestamped telemetry. Readings always reference sensor_nodes.id, which references paddocks.id. Renaming a display name never rewrites history.
+paddocks holds mutable display names, sensor_nodes assigns a stable UID to a paddock, and readings holds timestamped telemetry. Readings always reference sensor_nodes.id, which references paddocks.id. Renaming a display name never rewrites history. The readings migration now separates `observed_at`, `received_at`, and `created_at`; see [time-sync-telemetry.md](time-sync-telemetry.md) for the deliberate current/historical query choice and sequence deduplication.
 
 schema.sql is additive for existing alpha installs: new readings columns are nullable so older five-field rows remain valid, while new API writes are complete. New installations receive range CHECK constraints; schema reapplication adds missing columns and checks where MariaDB supports idempotent ADD CONSTRAINT IF NOT EXISTS.
 
@@ -14,7 +14,7 @@ paddock_admin_audit records paddock_id, old_name, new_name, action, and created_
 
 ## Deterministic operations
 
-The latest-complete reading query is used for current values. It keeps current moisture driest/wettest/average and permitted current rankings. Historical queries are intentionally small: a bounded 5-minute-to-7-day window can provide permitted sum, minimum, maximum, average or last-minus-first change. Rainfall sum and pasture-height change are the initial useful examples.
+The latest-complete reading query uses `received_at` for current values/freshness. Historical queries deliberately use valid, in-tolerance `observed_at`, falling back to `received_at` for invalid/drifted clocks. They remain intentionally small: a bounded 5-minute-to-7-day window can provide permitted sum, minimum, maximum, average or last-minus-first change.
 
 Derived daylight counts each five-minute historical light sample at or above 1,000 lux. It is documented approximation, not a stored field and not an LLM calculation.
 

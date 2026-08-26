@@ -19,3 +19,8 @@
 // It sends exactly one virtual node at a time, every 18.75 seconds.
 #define VIRTUAL_PADDOCK_COUNT 16
 #define SIMULATION_ROUND_MS 300000UL
+
+// Default is a Waikato/Hamilton dairy-farming reference profile. These are
+// compile-time profile settings only; the ESP32 never makes weather web calls.
+#define NZ_SIMULATION_LATITUDE -37.7870f
+#define NZ_SIMULATION_LONGITUDE 175.2793f

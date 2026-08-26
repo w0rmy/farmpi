@@ -62,7 +62,7 @@ The endpoint also applies the deliberately lightweight prototype bearer token. T
 
 `app/sensor_ingest.py` checks that the submitted `sensor` UID exists, is active, and belongs to an active paddock. Unknown or inactive sensor nodes are rejected.
 
-FarmPi, rather than the ESP32, assigns the authoritative `recorded_at` timestamp in UTC. This was chosen so the prototype sensor node does not require its own real-time clock and so one time convention controls ordering of readings.
+FarmPi is the authoritative UTC clock. It records both node `observed_at` and FarmPi `received_at`, checks a 30-second drift threshold, and owns all sync/deduplication rules. Qwen never participates in time synchronisation, SQL, calculation, retry handling, or mutations; [the telemetry contract](time-sync-telemetry.md) documents the detail.
 
 The timestamp decision became important during testing. An early fixed seed timestamp appeared newer than a genuinely later ingest value because the seed effectively used local time while ingest used UTC. That caused the deterministic latest-reading query to select the wrong row. The seed was corrected to an intentionally old UTC baseline.
 

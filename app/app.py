@@ -9,7 +9,7 @@ import os
 import re
 import secrets
 import time
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Literal
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -59,6 +59,7 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
     confirmation_id: str | None = Field(default=None, min_length=16, max_length=128)
     speech: "SpeechInput | None" = None
+    preferences: "ClientPreferences | None" = None
 
 
 class SpeechInput(BaseModel):
@@ -83,6 +84,20 @@ class SpeechNormalizationResponse(BaseModel):
     alternative_selected: bool
 
 
+class ClientPreferences(BaseModel):
+    """Presentation-only learning preferences; verified facts never vary."""
+
+    explanation_level: Literal["simple", "normal", "technical"] = "normal"
+    guidance_level: Literal["more", "normal", "less"] = "normal"
+
+
+class SpeechNormalizeRequest(BaseModel):
+    """Native clients can normalise STT before showing/routing a question."""
+
+    transcript: str = Field(min_length=1, max_length=1000)
+    alternatives: list["SpeechAlternativeInput"] = Field(default_factory=list, max_length=5)
+
+
 class AskTimings(BaseModel):
     """Alpha performance timings for one FarmPi question."""
 
@@ -103,6 +118,7 @@ class AskResponse(BaseModel):
     confirmation_id: str | None = None
     suggestions: list[str] = []
     speech_normalization: SpeechNormalizationResponse | None = None
+    preferences: ClientPreferences = ClientPreferences()
 
 
 class GuidanceResponse(BaseModel):
@@ -376,9 +392,25 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/api/guidance", response_model=GuidanceResponse)
-async def guidance() -> GuidanceResponse:
+async def guidance(guidance_level: Literal["more", "normal", "less"] = "normal") -> GuidanceResponse:
     """Return deterministic onboarding text and example questions."""
-    return GuidanceResponse(welcome=WELCOME_TEXT, suggestions=list(INITIAL_SUGGESTIONS))
+    count = 4 if guidance_level == "more" else 1 if guidance_level == "less" else 3
+    return GuidanceResponse(welcome=WELCOME_TEXT, suggestions=list(INITIAL_SUGGESTIONS[:count]))
+
+
+@app.post("/api/speech/normalize", response_model=SpeechNormalizationResponse)
+async def normalise_speech(request: SpeechNormalizeRequest) -> SpeechNormalizationResponse:
+    """Apply the reviewed server-side domain correction without asking Qwen."""
+    try:
+        paddock_names = await asyncio.to_thread(current_paddock_names)
+    except DatabaseUnavailable:
+        paddock_names = ()
+    normalization = normalize_speech(
+        request.transcript,
+        [SpeechAlternative(item.transcript, item.confidence) for item in request.alternatives],
+        paddock_names,
+    )
+    return SpeechNormalizationResponse(**normalization.__dict__)
 
 
 @app.get("/api/status")
@@ -427,6 +459,7 @@ async def ask(request: AskRequest) -> AskResponse:
     if not question_text:
         raise HTTPException(status_code=400, detail="No question supplied.")
 
+    preferences = request.preferences or ClientPreferences()
     speech_normalization: SpeechNormalizationResponse | None = None
     if request.speech is not None:
         try:
@@ -454,8 +487,9 @@ async def ask(request: AskRequest) -> AskResponse:
             answer=answer,
             intent=intent,
             confirmation_id=confirmation_id,
-            suggestions=list(follow_up_suggestions(intent)),
+            suggestions=list(follow_up_suggestions(intent)[:4 if preferences.guidance_level == "more" else 1 if preferences.guidance_level == "less" else 3]),
             speech_normalization=speech_normalization,
+            preferences=preferences,
             timings=AskTimings(
                 routing_ms=round(routing_ms, 2),
                 database_ms=round(total_ms - routing_ms, 2),
@@ -528,11 +562,12 @@ async def ask(request: AskRequest) -> AskResponse:
         "model": "Qwen3-0.6B",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": f"Explain verified facts at a {preferences.explanation_level} level. Do not add facts, calculations, advice, or causes."},
             {"role": "system", "content": verified_farm_data},
             {"role": "user", "content": question_text},
         ],
         "temperature": 0.1,
-        "max_tokens": 40,
+        "max_tokens": {"simple": 30, "normal": 40, "technical": 70}[preferences.explanation_level],
         "stream": False,
     }
     context_ms = (time.perf_counter() - context_start) * 1000
@@ -579,7 +614,8 @@ async def ask(request: AskRequest) -> AskResponse:
     return AskResponse(
         answer=answer,
         intent=route.intent,
-        suggestions=list(follow_up_suggestions(route.intent, route.paddock_name, route.measurement)),
+        suggestions=list(follow_up_suggestions(route.intent, route.paddock_name, route.measurement)[:4 if preferences.guidance_level == "more" else 1 if preferences.guidance_level == "less" else 3]),
         speech_normalization=speech_normalization,
+        preferences=preferences,
         timings=timings,
     )

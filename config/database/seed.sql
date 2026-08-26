@@ -73,11 +73,15 @@ INSERT INTO readings (
  sensor_node_id, soil_moisture_pct, soil_temperature_c, air_temperature_c,
  relative_humidity_pct, soil_ph, soil_ec_ms_cm, light_lux, rainfall_mm,
  barometric_pressure_hpa, wind_speed_kmh, wind_direction_deg,
- pasture_height_cm, leaf_wetness_pct, simulated, recorded_at
+ pasture_height_cm, leaf_wetness_pct, simulated, observed_at, received_at,
+ recorded_at, clock_valid, clock_offset_seconds, clock_out_of_tolerance,
+ sample_seq, protocol_version
 )
 SELECT s.id, v.moisture, v.soil_temp, v.air_temp, v.humidity, v.ph, v.ec,
        v.lux, v.rain, v.pressure, v.wind_speed, v.wind_direction,
-       v.height, v.leaf_wetness, TRUE, '2026-01-01 00:00:00.000000'
+       v.height, v.leaf_wetness, TRUE,
+       '2026-01-01 00:00:00.000000', '2026-01-01 00:00:00.000000',
+       '2026-01-01 00:00:00.000000', FALSE, NULL, TRUE, NULL, 1
 FROM sensor_nodes AS s
 JOIN (
  SELECT 'a' suffix, 18.0 moisture, 13.2 soil_temp, 16.5 air_temp, 74.0 humidity, 6.2 ph, 0.42 ec, 12000 lux, 0.0 rain, 1015.2 pressure, 9.0 wind_speed, 225 wind_direction, 10.5 height, 8.0 leaf_wetness UNION ALL
@@ -104,4 +108,7 @@ ON DUPLICATE KEY UPDATE
  rainfall_mm=VALUES(rainfall_mm), barometric_pressure_hpa=VALUES(barometric_pressure_hpa),
  wind_speed_kmh=VALUES(wind_speed_kmh), wind_direction_deg=VALUES(wind_direction_deg),
  pasture_height_cm=VALUES(pasture_height_cm), leaf_wetness_pct=VALUES(leaf_wetness_pct),
- simulated=VALUES(simulated);
+ simulated=VALUES(simulated), observed_at=VALUES(observed_at),
+ received_at=VALUES(received_at), clock_valid=VALUES(clock_valid),
+ clock_offset_seconds=VALUES(clock_offset_seconds),
+ clock_out_of_tolerance=VALUES(clock_out_of_tolerance), protocol_version=VALUES(protocol_version);

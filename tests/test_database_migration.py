@@ -29,6 +29,12 @@ class DatabaseMigrationTests(unittest.TestCase):
         self.assertIn('mariadb --protocol=socket farmpi < "${seed_file}"', helper)
         self.assertIn('scripts/apply-database-schema', update)
 
+    def test_schema_has_observation_receive_and_sequence_contract(self) -> None:
+        schema = (PROJECT_ROOT / "config/database/schema.sql").read_text(encoding="utf-8")
+        for column in ("observed_at", "received_at", "clock_offset_seconds", "clock_out_of_tolerance", "sample_seq", "protocol_version"):
+            self.assertIn(column, schema)
+        self.assertIn("uq_readings_sensor_sample_seq", schema)
+
 
 if __name__ == "__main__":
     unittest.main()

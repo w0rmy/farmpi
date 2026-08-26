@@ -38,11 +38,23 @@ CREATE TABLE IF NOT EXISTS readings (
     pasture_height_cm DECIMAL(5,1) NULL,
     leaf_wetness_pct DECIMAL(5,1) NULL,
     simulated BOOLEAN NOT NULL DEFAULT FALSE,
+    -- All DATETIME values use the FarmPi application UTC convention.
+    -- recorded_at remains as an alpha compatibility/audit alias for received_at.
+    observed_at DATETIME(6) NOT NULL,
+    received_at DATETIME(6) NOT NULL,
     recorded_at DATETIME(6) NOT NULL,
+    clock_valid BOOLEAN NOT NULL DEFAULT FALSE,
+    clock_offset_seconds DECIMAL(10,3) NULL,
+    clock_out_of_tolerance BOOLEAN NOT NULL DEFAULT TRUE,
+    sample_seq BIGINT UNSIGNED NULL,
+    protocol_version SMALLINT UNSIGNED NOT NULL DEFAULT 1,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_readings_sensor_time (sensor_node_id, recorded_at),
+    UNIQUE KEY uq_readings_sensor_sample_seq (sensor_node_id, sample_seq),
     KEY idx_readings_sensor_recorded (sensor_node_id, recorded_at),
+    KEY idx_readings_sensor_received (sensor_node_id, received_at),
+    KEY idx_readings_sensor_observed (sensor_node_id, observed_at),
     CONSTRAINT fk_readings_sensor_node FOREIGN KEY (sensor_node_id) REFERENCES sensor_nodes(id)
         ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT chk_readings_soil_moisture CHECK (soil_moisture_pct IS NULL OR soil_moisture_pct BETWEEN 0 AND 100),
@@ -75,6 +87,24 @@ ALTER TABLE readings ADD COLUMN IF NOT EXISTS wind_speed_kmh DECIMAL(5,1) NULL A
 ALTER TABLE readings ADD COLUMN IF NOT EXISTS wind_direction_deg DECIMAL(5,0) NULL AFTER wind_speed_kmh;
 ALTER TABLE readings ADD COLUMN IF NOT EXISTS pasture_height_cm DECIMAL(5,1) NULL AFTER wind_direction_deg;
 ALTER TABLE readings ADD COLUMN IF NOT EXISTS leaf_wetness_pct DECIMAL(5,1) NULL AFTER pasture_height_cm;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS observed_at DATETIME(6) NULL AFTER simulated;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS received_at DATETIME(6) NULL AFTER observed_at;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS clock_valid BOOLEAN NOT NULL DEFAULT FALSE AFTER received_at;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS clock_offset_seconds DECIMAL(10,3) NULL AFTER clock_valid;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS clock_out_of_tolerance BOOLEAN NOT NULL DEFAULT TRUE AFTER clock_offset_seconds;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS sample_seq BIGINT UNSIGNED NULL AFTER clock_out_of_tolerance;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS protocol_version SMALLINT UNSIGNED NOT NULL DEFAULT 1 AFTER sample_seq;
+
+-- Safe backfill for alpha rows. Their old server timestamp is both the
+-- receive time and the only trustworthy observation-time fallback.
+UPDATE readings
+SET observed_at = COALESCE(observed_at, recorded_at),
+    received_at = COALESCE(received_at, recorded_at)
+WHERE observed_at IS NULL OR received_at IS NULL;
+
+ALTER TABLE readings ADD UNIQUE INDEX IF NOT EXISTS uq_readings_sensor_sample_seq (sensor_node_id, sample_seq);
+ALTER TABLE readings ADD INDEX IF NOT EXISTS idx_readings_sensor_received (sensor_node_id, received_at);
+ALTER TABLE readings ADD INDEX IF NOT EXISTS idx_readings_sensor_observed (sensor_node_id, observed_at);
 
 -- MariaDB 10.5+ accepts IF NOT EXISTS for constraints. If a much older
 -- installation rejects this syntax, the harmless fallback is to retain API

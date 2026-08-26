@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import os
 import unittest
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from app.ingest_api import SensorReadingRequest, _require_ingest_token
+from app.ingest_api import SensorReadingRequest, TIME_SYNC_THRESHOLD_SECONDS, _device_observation, _require_ingest_token
 from app.measurements import MEASUREMENTS
 
 
@@ -28,6 +29,22 @@ class SensorIngestTests(unittest.TestCase):
         request = SensorReadingRequest(**VALID)
         self.assertEqual(request.sensor, "test-moisture-a")
         self.assertTrue(request.simulated)
+
+    def test_invalid_clock_requests_sync_without_a_1970_observation(self) -> None:
+        request = SensorReadingRequest(**(VALID | {"clock_valid": False, "device_time_unix": 0, "sample_seq": 9}))
+        observed, valid, offset, sync = _device_observation(request, datetime(2026, 8, 27, tzinfo=timezone.utc))
+        self.assertIsNone(observed)
+        self.assertFalse(valid)
+        self.assertIsNone(offset)
+        self.assertTrue(sync)
+
+    def test_large_clock_offset_requests_sync(self) -> None:
+        received = datetime(2026, 8, 27, tzinfo=timezone.utc)
+        request = SensorReadingRequest(**(VALID | {"clock_valid": True, "device_time_unix": int(received.timestamp()) - TIME_SYNC_THRESHOLD_SECONDS - 1}))
+        _, valid, offset, sync = _device_observation(request, received)
+        self.assertTrue(valid)
+        self.assertEqual(offset, TIME_SYNC_THRESHOLD_SECONDS + 1)
+        self.assertTrue(sync)
 
     def test_catalogue_ranges_are_validated(self) -> None:
         for item in MEASUREMENTS:

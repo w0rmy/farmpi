@@ -34,7 +34,19 @@ class SensorStorageTests(unittest.TestCase):
         self.assertEqual(stored.wind_direction_deg, 226.0)
         self.assertTrue(stored.simulated)
         execute.assert_called_once()
-        self.assertEqual(len(execute.call_args.args[1]), len(MEASUREMENTS) + 3)
+        self.assertEqual(len(execute.call_args.args[1]), len(MEASUREMENTS) + 10)
+
+    @patch("app.sensor_ingest.execute")
+    @patch("app.sensor_ingest.fetch_one")
+    def test_retry_sequence_returns_existing_row_without_second_insert(self, fetch_one, execute) -> None:
+        fetch_one.side_effect = [
+            {"sensor_node_id": 7, "node_uid": "test-moisture-a", "paddock_name": "Paddock A"},
+            {"id": 41, **VALUES, "simulated": True, "observed_at": __import__("datetime").datetime(2026, 1, 1), "received_at": __import__("datetime").datetime(2026, 1, 1), "clock_valid": True, "clock_offset_seconds": 1.0, "clock_out_of_tolerance": False, "sample_seq": 123},
+        ]
+        stored = store_sensor_reading("test-moisture-a", True, sample_seq=123, **VALUES)
+        self.assertTrue(stored.deduplicated)
+        self.assertEqual(stored.reading_id, 41)
+        execute.assert_not_called()
 
     def test_catalogue_validates_every_field(self) -> None:
         invalid = VALUES | {"pasture_height_cm": 301.0}
