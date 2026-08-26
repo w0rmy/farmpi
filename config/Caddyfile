@@ -1,5 +1,6 @@
-# FarmPi is available on the local network over HTTP.
-:80 {
+farmpi.local {
+	tls internal
+
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:8000
 }
