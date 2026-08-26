@@ -41,6 +41,12 @@ class FarmDataTests(unittest.TestCase):
         self.assertIn("Paddock A air temperature: 16.50 °C.", grounding.facts)
         self.assertIn("The result includes simulated test readings.", grounding.facts)
 
+    def test_help_grounding_uses_declared_capabilities_without_database(self) -> None:
+        grounding = get_grounding_data("help")
+        self.assertEqual(grounding.intent, "help")
+        self.assertTrue(any("air temperature" in fact for fact in grounding.facts))
+        self.assertTrue(any("does not currently provide" in fact for fact in grounding.facts))
+
 
 if __name__ == "__main__":
     unittest.main()
