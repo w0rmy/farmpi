@@ -27,7 +27,7 @@ From that snapshot Python can calculate:
 - the driest paddock: lowest current paddock moisture value;
 - the wettest paddock: highest current paddock moisture value;
 - the farm average: arithmetic mean of the current paddock values;
-- the current verified moisture value for a named paddock.
+- the current verified environmental value for a named paddock.
 
 These calculations live in `app/farm_data.py`, including the explicit `get_driest_paddock()` function.
 
@@ -35,6 +35,7 @@ These calculations live in `app/farm_data.py`, including the explicit `get_dries
 
 `app/question_router.py` performs a small rule-based classification before any LLM context is constructed. It currently recognises requests for:
 
+- help/onboarding;
 - driest paddock;
 - wettest paddock;
 - farm average soil moisture;
@@ -44,6 +45,30 @@ These calculations live in `app/farm_data.py`, including the explicit `get_dries
 - broader soil-moisture questions, which use a deterministic fallback snapshot.
 
 The router selects approved application operations. It does not generate SQL and Qwen does not decide which database query to run.
+
+## Layered guardrail relationship
+
+The MariaDB/data layer is only one part of FarmPi's wider control architecture:
+
+```text
+incoming telemetry validation
+      ↓
+sensor identity/storage validation
+      ↓
+MariaDB constraints
+      ↓
+deterministic question routing
+      ↓
+app/farm_data.py retrieval/calculation
+      ↓
+VERIFIED FACTS
+      ↓
+Qwen system prompt
+```
+
+The database therefore contributes factual integrity, but it does not by itself define what the AI may answer. That policy is shared across the router, deterministic data functions, grounding context, and final LLM instructions.
+
+The full architecture is documented in [grounding-and-guardrails.md](grounding-and-guardrails.md).
 
 ## Grounding path
 
@@ -80,7 +105,7 @@ For common questions FarmPi supplies only the minimum verified facts needed for 
 | Paddock C | `test-moisture-c` | 29% | 18.1°C | 64% | 6.7 | 16,200 lux |
 | Paddock D | `test-moisture-d` | 21% | 15.7°C | 78% | 6.1 | 9,800 lux |
 
-The seed is repeatable and uses a fixed timestamp so rerunning database setup does not create duplicate readings. These rows are test data and are marked as simulated.
+The seed is repeatable and uses a fixed old UTC baseline timestamp so rerunning database setup does not create duplicate readings and newly ingested values sort later. These rows are test data and are marked as simulated.
 
 ## Sensor ingest
 
@@ -89,6 +114,12 @@ The seed is repeatable and uses a fixed timestamp so rerunning database setup do
 The endpoint uses a lightweight FarmPi-wide bearer token stored in `/etc/farmpi/farmpi.env`. This is intentionally sufficient for the alpha/test network without introducing per-device PKI or a full provisioning system.
 
 The ingest design and ESP32 test path are documented in [sensor-ingest.md](sensor-ingest.md).
+
+## Guided help and Flexible Learning
+
+FarmPi now has a deterministic `help` route. Capability facts and suggested next questions live in `app/guidance.py`. Qwen may explain those capabilities naturally, but it is not allowed to invent new capabilities.
+
+This begins the Flexible Learning layer without weakening factual control. See [flexible-learning.md](flexible-learning.md).
 
 ## Database credentials
 
@@ -106,4 +137,4 @@ The current database-backed prototype supports current soil moisture, air temper
 
 ## Next database work
 
-Once the synthetic ESP32 ingest path is proven end to end, additional farm-database features are not a priority for the capstone. Historical queries, sensor freshness rules, anomaly handling, and additional measurement types can be added only if they directly support the AI/Data Science or Flexible Learning outcomes. The main development emphasis should then move to the adaptive learning/user-profile layer.
+Once the synthetic ESP32 ingest path is proven end to end, additional farm-database features are not a priority for the capstone. Historical queries, sensor freshness rules, anomaly handling, and additional measurement types can be added only if they directly support the AI/Data Science or Flexible Learning outcomes. The main development emphasis should now move to the adaptive learning/user-profile layer.
