@@ -85,15 +85,34 @@ static bool postReading(float moisturePct) {
   // work while the synthetic sensor path is being proven.
   client.setInsecure();
   client.setTimeout(10000);
+  client.setHandshakeTimeout(10);
+
+  const String tlsHost = String(FARMPI_MDNS_HOST) + ".local";
 
   Serial.printf(
-    "Connecting to FarmPi %s:%u...\n",
+    "Connecting to FarmPi %s:%u using TLS hostname %s...\n",
     farmPiAddress.toString().c_str(),
-    FARMPI_HTTPS_PORT
+    FARMPI_HTTPS_PORT,
+    tlsHost.c_str()
   );
 
-  if (!client.connect(farmPiAddress, FARMPI_HTTPS_PORT)) {
-    Serial.println("HTTPS connection to FarmPi failed.");
+  // Connect to the address obtained through mDNS, but also supply farmpi.local
+  // as the TLS hostname. Caddy selects the correct certificate/site using SNI;
+  // connecting by IP alone does not provide that hostname during the handshake.
+  if (!client.connect(
+        farmPiAddress,
+        FARMPI_HTTPS_PORT,
+        tlsHost.c_str(),
+        nullptr,
+        nullptr,
+        nullptr)) {
+    char errorBuffer[160] = {0};
+    const int errorCode = client.lastError(errorBuffer, sizeof(errorBuffer));
+    Serial.printf(
+      "HTTPS connection to FarmPi failed (TLS error %d: %s).\n",
+      errorCode,
+      errorBuffer
+    );
     farmPiAddress = IPAddress();
     return false;
   }
@@ -106,8 +125,8 @@ static bool postReading(float moisturePct) {
 
   client.print("POST /api/ingest HTTP/1.1\r\n");
   client.print("Host: ");
-  client.print(FARMPI_MDNS_HOST);
-  client.print(".local\r\n");
+  client.print(tlsHost);
+  client.print("\r\n");
   client.print("Authorization: Bearer ");
   client.print(FARMPI_INGEST_TOKEN);
   client.print("\r\n");
