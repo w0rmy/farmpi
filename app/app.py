@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
+import logging
 import os
-from typing import Any
+import time
+from typing import Any, AsyncIterator
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -12,21 +15,36 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from .database import DatabaseUnavailable, ping_database
-from .farm_data import NoFarmData, build_verified_moisture_context
-
-app = FastAPI(title="FarmPi", version="0.3.0")
+from .farm_data import (
+    NoFarmData,
+    format_grounding_context,
+    get_grounding_data,
+)
+from .question_router import route_question
 
 LLAMA_BASE_URL = os.getenv("FARMPI_LLAMA_URL", "http://127.0.0.1:8080")
 LLAMA_CHAT_URL = f"{LLAMA_BASE_URL}/v1/chat/completions"
 LLAMA_HEALTH_URL = f"{LLAMA_BASE_URL}/health"
+LLAMA_TIMEOUT = httpx.Timeout(connect=3.0, read=120.0, write=10.0, pool=3.0)
 
-SYSTEM_PROMPT = """You are FarmPi's language interface.
-The current FarmPi prototype supports verified soil-moisture information only.
-Use only the verified farm information supplied by FarmPi.
-Do not invent measurements, causes, recommendations, or conclusions.
-Do not perform new calculations; use only results FarmPi marks as verified.
-Answer the user's question directly and concisely.
-If the supplied information cannot answer the question, say that the information is unavailable.
+logger = logging.getLogger("uvicorn.error")
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    """Keep one HTTP client open for local llama-server requests."""
+    async with httpx.AsyncClient(timeout=LLAMA_TIMEOUT) as client:
+        application.state.http_client = client
+        yield
+
+
+app = FastAPI(title="FarmPi", version="0.4.0", lifespan=lifespan)
+
+SYSTEM_PROMPT = """You are FarmPi.
+Use only VERIFIED FACTS supplied by FarmPi.
+Never calculate or invent facts, causes, or recommendations.
+If the answer is absent, say it is unavailable.
+Answer briefly.
 """
 
 
@@ -36,11 +54,23 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
 
 
+class AskTimings(BaseModel):
+    """Alpha performance timings for one FarmPi question."""
+
+    routing_ms: float
+    database_ms: float
+    context_ms: float
+    llm_ms: float
+    total_ms: float
+
+
 class AskResponse(BaseModel):
     """Response returned to the FarmPi client."""
 
     answer: str
     grounding: str = "mariadb-deterministic"
+    intent: str
+    timings: AskTimings
 
 
 PAGE = r"""<!doctype html>
@@ -103,7 +133,7 @@ label { display: inline-block; margin-top: 8px; }
 <p class="hint">Ask the local farm-monitoring assistant a question.</p>
 
 <div class="warning">
-<strong>Prototype:</strong> soil-moisture readings are now retrieved from MariaDB.
+<strong>Prototype:</strong> soil-moisture readings are retrieved from MariaDB.
 The current rows are seeded test data until physical sensors are connected.
 </div>
 
@@ -160,7 +190,14 @@ async function askFarmPi() {
         }
 
         answer.textContent = data.answer;
-        status.textContent = "Response received.";
+        if (data.timings) {
+            const totalSeconds = (data.timings.total_ms / 1000).toFixed(2);
+            const llmSeconds = (data.timings.llm_ms / 1000).toFixed(2);
+            status.textContent =
+                `Response received in ${totalSeconds}s (LLM ${llmSeconds}s, route ${data.intent}).`;
+        } else {
+            status.textContent = "Response received.";
+        }
 
         if (speakAnswer.checked && "speechSynthesis" in window) {
             window.speechSynthesis.cancel();
@@ -272,9 +309,8 @@ async def status() -> dict[str, Any]:
     llm_detail = "unavailable"
 
     try:
-        timeout = httpx.Timeout(3.0)
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.get(LLAMA_HEALTH_URL)
+        client: httpx.AsyncClient = app.state.http_client
+        response = await client.get(LLAMA_HEALTH_URL, timeout=3.0)
         llm_ok = response.is_success
         llm_detail = "ok" if llm_ok else f"http-{response.status_code}"
     except httpx.HTTPError:
@@ -306,13 +342,23 @@ async def status() -> dict[str, Any]:
 
 @app.post("/api/ask", response_model=AskResponse)
 async def ask(request: AskRequest) -> AskResponse:
-    """Answer a question using deterministic MariaDB-derived farm facts."""
+    """Answer a question using the smallest suitable deterministic grounding context."""
+    total_start = time.perf_counter()
     question_text = request.question.strip()
     if not question_text:
         raise HTTPException(status_code=400, detail="No question supplied.")
 
+    route_start = time.perf_counter()
+    route = route_question(question_text)
+    routing_ms = (time.perf_counter() - route_start) * 1000
+
+    database_start = time.perf_counter()
     try:
-        verified_farm_data = await asyncio.to_thread(build_verified_moisture_context)
+        grounding_data = await asyncio.to_thread(
+            get_grounding_data,
+            route.intent,
+            route.paddock_name,
+        )
     except DatabaseUnavailable as exc:
         raise HTTPException(
             status_code=503,
@@ -323,7 +369,10 @@ async def ask(request: AskRequest) -> AskResponse:
             status_code=503,
             detail="No current soil-moisture readings are available.",
         ) from exc
+    database_ms = (time.perf_counter() - database_start) * 1000
 
+    context_start = time.perf_counter()
+    verified_farm_data = format_grounding_context(grounding_data)
     payload = {
         "model": "Qwen3-0.6B",
         "messages": [
@@ -332,14 +381,15 @@ async def ask(request: AskRequest) -> AskResponse:
             {"role": "user", "content": question_text},
         ],
         "temperature": 0.1,
-        "max_tokens": 80,
+        "max_tokens": 40,
         "stream": False,
     }
+    context_ms = (time.perf_counter() - context_start) * 1000
 
+    llm_start = time.perf_counter()
     try:
-        timeout = httpx.Timeout(connect=3.0, read=120.0, write=10.0, pool=3.0)
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(LLAMA_CHAT_URL, json=payload)
+        client: httpx.AsyncClient = app.state.http_client
+        response = await client.post(LLAMA_CHAT_URL, json=payload)
         response.raise_for_status()
         result = response.json()
         answer = result["choices"][0]["message"]["content"].strip()
@@ -348,6 +398,7 @@ async def ask(request: AskRequest) -> AskResponse:
             status_code=503,
             detail="The local language model is unavailable or returned an invalid response.",
         ) from exc
+    llm_ms = (time.perf_counter() - llm_start) * 1000
 
     if not answer:
         raise HTTPException(
@@ -355,4 +406,27 @@ async def ask(request: AskRequest) -> AskResponse:
             detail="The local language model returned an empty response.",
         )
 
-    return AskResponse(answer=answer)
+    total_ms = (time.perf_counter() - total_start) * 1000
+    timings = AskTimings(
+        routing_ms=round(routing_ms, 2),
+        database_ms=round(database_ms, 2),
+        context_ms=round(context_ms, 2),
+        llm_ms=round(llm_ms, 2),
+        total_ms=round(total_ms, 2),
+    )
+
+    logger.info(
+        "FarmPi ask intent=%s routing=%.2fms database=%.2fms context=%.2fms llm=%.2fms total=%.2fms",
+        route.intent,
+        routing_ms,
+        database_ms,
+        context_ms,
+        llm_ms,
+        total_ms,
+    )
+
+    return AskResponse(
+        answer=answer,
+        intent=route.intent,
+        timings=timings,
+    )
