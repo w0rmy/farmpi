@@ -2,18 +2,50 @@
 
 FarmPi is the local farm-monitoring service intended to run on the Raspberry Pi. It keeps application logic, deployment configuration, and project notes in one version-controlled place.
 
-## Current starter service
+## Current alpha architecture
 
-The application currently provides a small FastAPI service with a health endpoint. It is deliberately minimal: this establishes a repeatable way to deploy and update the Pi before sensor, database, and local-LLM functionality is added.
+The current prototype now includes the local AI interaction path:
+
+```text
+Phone / browser
+    ↓
+Caddy HTTPS :443
+    ↓
+FastAPI / Uvicorn 127.0.0.1:8000
+    ↓
+Grounding and application logic
+    ↓
+llama-server 127.0.0.1:8080
+    ↓
+Qwen3 0.6B
+```
+
+Caddy is the only application-facing service exposed to the local network. FastAPI and llama-server listen only on localhost.
+
+The FastAPI application currently provides a mobile-friendly AI page, a grounded question API, lightweight health checks, and an LLM dependency status check.
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /` | Confirms that the FarmPi service is running. |
-| `GET /health` | Health check for the service or a reverse proxy. |
+| `GET /` | Mobile-friendly FarmPi AI interface. |
+| `GET /health` | Cheap FarmPi application health check. |
+| `GET /api/status` | Shows FarmPi and local LLM availability. |
+| `POST /api/ask` | Sends a grounded question to the local Qwen model. |
+
+## Grounding model
+
+The current proof of concept deliberately separates deterministic application data from language generation. The LLM is instructed to use only verified information supplied by FarmPi and to avoid inventing measurements, causes, recommendations, or conclusions.
+
+For now, `app/app.py` contains hard-coded soil-moisture test data and verified results. This is temporary test data. The intended next stage is to replace it with deterministic MariaDB-backed retrieval and calculations while keeping the same application-to-LLM interface.
+
+## Speech input and output
+
+The web page supports browser speech recognition where the browser permits it and uses `en-NZ`. Because browser microphone APIs require a secure context, the production-facing local URL is HTTPS through Caddy.
+
+If browser speech recognition is unavailable or denied, the user can use the microphone on the Android keyboard to dictate into the question field. Browser text-to-speech can read FarmPi responses aloud on the phone.
 
 ## First-time installation on the Raspberry Pi
 
-These commands assume Raspberry Pi OS Lite 64-bit, a clone in the `pi` user's home directory, and a working internet connection for Python dependencies.
+These commands assume Raspberry Pi OS Lite 64-bit, a clone in the user's home directory, and a working internet connection for Python dependencies.
 
 ```bash
 sudo apt update
@@ -34,9 +66,17 @@ cd ~/farmpi
 
 The updater intentionally stops if there are local uncommitted files. Commit or stash those changes before pulling an update so that remote changes cannot silently overwrite work done directly on the Pi.
 
-## Optional web proxy
+## HTTPS and Caddy
 
-The service listens only on `127.0.0.1:8000`. To expose it on the local network through Caddy, install Caddy, copy `config/Caddyfile` to `/etc/caddy/Caddyfile`, and reload Caddy. The updater automatically validates and reloads that file when a `caddy.service` is already installed.
+The repository Caddy configuration serves `https://farmpi.local` using Caddy's internal certificate authority and reverse-proxies to FastAPI on `127.0.0.1:8000`.
+
+The Caddy root CA must be trusted by client devices before browsers will consider the local HTTPS site fully trusted. For Android, install the Caddy root CA certificate from:
+
+```text
+/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
+```
+
+The updater automatically validates and reloads the repository Caddyfile when `caddy.service` is installed.
 
 ## Project layout
 
@@ -57,4 +97,4 @@ pip install -r app/requirements.txt
 uvicorn app.app:app --reload
 ```
 
-The Raspberry Pi findings are recorded in [docs/llm-testing.md](docs/llm-testing.md).
+The Raspberry Pi LLM findings are recorded in [docs/llm-testing.md](docs/llm-testing.md).
