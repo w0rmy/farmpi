@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Install and configure the local MariaDB database used by FarmPi.
+set -Eeuo pipefail
+
+if [[ ${EUID} -ne 0 ]]; then
+  echo "Run this helper through sudo: sudo ./scripts/setup-database" >&2
+  exit 1
+fi
+
+service_user=${SUDO_USER:-}
+if [[ -z ${service_user} || ${service_user} == root ]]; then
+  echo "Run this script through sudo as the regular FarmPi user, not directly as root." >&2
+  exit 1
+fi
+
+project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+service_group=$(id -gn "${service_user}")
+env_dir=/etc/farmpi
+env_file=${env_dir}/farmpi.env
+schema_file=${project_dir}/config/database/schema.sql
+seed_file=${project_dir}/config/database/seed.sql
+
+for required_file in "${schema_file}" "${seed_file}"; do
+  if [[ ! -f ${required_file} ]]; then
+    echo "Required database file not found: ${required_file}" >&2
+    exit 1
+  fi
+done
+
+echo "Installing MariaDB..."
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-server openssl
+systemctl enable --now mariadb.service
+
+mkdir -p "${env_dir}"
+
+existing_password=""
+if [[ -f ${env_file} ]]; then
+  existing_password=$(sed -n 's/^FARMPI_DB_PASSWORD=//p' "${env_file}" | head -n 1)
+fi
+
+if [[ -n ${existing_password} ]]; then
+  db_password=${existing_password}
+else
+  db_password=$(openssl rand -hex 24)
+fi
+
+cat > "${env_file}" <<EOF_ENV
+FARMPI_DB_HOST=127.0.0.1
+FARMPI_DB_PORT=3306
+FARMPI_DB_NAME=farmpi
+FARMPI_DB_USER=farmpi
+FARMPI_DB_PASSWORD=${db_password}
+EOF_ENV
+chown root:"${service_group}" "${env_file}"
+chmod 0640 "${env_file}"
+
+echo "Creating the FarmPi database and application user..."
+mariadb --protocol=socket <<EOF_SQL
+CREATE DATABASE IF NOT EXISTS farmpi
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'farmpi'@'127.0.0.1' IDENTIFIED BY '${db_password}';
+ALTER USER 'farmpi'@'127.0.0.1' IDENTIFIED BY '${db_password}';
+GRANT SELECT, INSERT, UPDATE, DELETE ON farmpi.* TO 'farmpi'@'127.0.0.1';
+FLUSH PRIVILEGES;
+EOF_SQL
+
+echo "Applying the FarmPi schema..."
+mariadb --protocol=socket farmpi < "${schema_file}"
+
+echo "Loading repeatable prototype readings..."
+mariadb --protocol=socket farmpi < "${seed_file}"
+
+if systemctl list-unit-files farmpi.service --no-legend 2>/dev/null | grep -q '^farmpi.service'; then
+  echo "Restarting FarmPi so it loads the database environment..."
+  systemctl restart farmpi.service
+fi
+
+echo "FarmPi MariaDB setup complete."
+echo "Configuration: ${env_file}"
+echo "Database: farmpi"
+echo "Application user: farmpi@127.0.0.1"
