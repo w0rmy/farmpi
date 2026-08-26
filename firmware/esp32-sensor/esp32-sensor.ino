@@ -6,8 +6,21 @@
 #include "config.h"
 
 static float syntheticMoisture = SYNTHETIC_START_MOISTURE;
+static float syntheticTemperatureBase = SYNTHETIC_START_AIR_TEMPERATURE_C;
+static float syntheticHumidity = SYNTHETIC_START_RELATIVE_HUMIDITY_PCT;
+static float syntheticSoilPh = SYNTHETIC_START_SOIL_PH;
+static float syntheticLightOffset = 0.0f;
 static unsigned long lastSendMs = 0;
 static IPAddress farmPiAddress;
+static unsigned long sampleNumber = 0;
+
+struct SyntheticReading {
+  float soilMoisturePct;
+  float airTemperatureC;
+  float relativeHumidityPct;
+  float soilPh;
+  float lightLux;
+};
 
 static void connectWiFi() {
   if (WiFi.status() == WL_CONNECTED) {
@@ -58,22 +71,41 @@ static bool resolveFarmPi() {
   return true;
 }
 
-static float nextSyntheticMoisture() {
-  // Small random walk: +/- 0.40 percentage points per sample.
-  const int stepHundredths = random(-40, 41);
-  syntheticMoisture += static_cast<float>(stepHundredths) / 100.0f;
-
-  if (syntheticMoisture < SYNTHETIC_MIN_MOISTURE) {
-    syntheticMoisture = SYNTHETIC_MIN_MOISTURE;
-  }
-  if (syntheticMoisture > SYNTHETIC_MAX_MOISTURE) {
-    syntheticMoisture = SYNTHETIC_MAX_MOISTURE;
-  }
-
-  return syntheticMoisture;
+static float clampFloat(float value, float minimum, float maximum) {
+  return min(max(value, minimum), maximum);
 }
 
-static bool postReading(float moisturePct) {
+static float nextBoundedWalk(float current, float minimum, float maximum, float maxStep) {
+  const float step = static_cast<float>(random(-1000, 1001)) / 1000.0f * maxStep;
+  return clampFloat(current + step, minimum, maximum);
+}
+
+static SyntheticReading nextSyntheticReading() {
+  // 288 five-minute samples make one gentle synthetic 24-hour cycle. It is a
+  // test pattern only; the ESP32 does not need a real-time clock in this stage.
+  const float phase = 2.0f * PI * static_cast<float>(sampleNumber % 288UL) / 288.0f;
+  const float daylight = max(0.0f, sinf(phase - PI / 2.0f));
+  sampleNumber++;
+
+  syntheticMoisture = nextBoundedWalk(
+    syntheticMoisture, SYNTHETIC_MIN_MOISTURE, SYNTHETIC_MAX_MOISTURE, 0.40f
+  );
+  syntheticTemperatureBase = nextBoundedWalk(syntheticTemperatureBase, 8.0f, 22.0f, 0.20f);
+  syntheticHumidity = nextBoundedWalk(syntheticHumidity, 35.0f, 95.0f, 1.20f);
+  syntheticSoilPh = nextBoundedWalk(syntheticSoilPh, 5.5f, 7.5f, 0.03f);
+  syntheticLightOffset = nextBoundedWalk(syntheticLightOffset, -4000.0f, 4000.0f, 600.0f);
+
+  SyntheticReading reading = {
+    syntheticMoisture,
+    clampFloat(syntheticTemperatureBase + 4.0f * sinf(phase - PI / 2.0f), 2.0f, 30.0f),
+    syntheticHumidity,
+    syntheticSoilPh,
+    clampFloat(65000.0f * daylight + syntheticLightOffset, 0.0f, 70000.0f),
+  };
+  return reading;
+}
+
+static bool postReading(const SyntheticReading& reading) {
   if (!resolveFarmPi()) {
     return false;
   }
@@ -120,7 +152,15 @@ static bool postReading(float moisturePct) {
   String payload = "{\"sensor\":\"";
   payload += SENSOR_UID;
   payload += "\",\"soil_moisture_pct\":";
-  payload += String(moisturePct, 2);
+  payload += String(reading.soilMoisturePct, 2);
+  payload += ",\"air_temperature_c\":";
+  payload += String(reading.airTemperatureC, 2);
+  payload += ",\"relative_humidity_pct\":";
+  payload += String(reading.relativeHumidityPct, 2);
+  payload += ",\"soil_ph\":";
+  payload += String(reading.soilPh, 2);
+  payload += ",\"light_lux\":";
+  payload += String(reading.lightLux, 2);
   payload += ",\"simulated\":true}";
 
   client.print("POST /api/ingest HTTP/1.1\r\n");
@@ -181,14 +221,18 @@ void loop() {
   if (WiFi.status() == WL_CONNECTED && millis() - lastSendMs >= SEND_INTERVAL_MS) {
     lastSendMs = millis();
 
-    const float moisture = nextSyntheticMoisture();
+    const SyntheticReading reading = nextSyntheticReading();
     Serial.printf(
-      "Synthetic reading: %.2f%% soil moisture (RSSI %d dBm)\n",
-      moisture,
+      "Synthetic reading: moisture %.2f%%, air %.2fC, humidity %.2f%%, pH %.2f, light %.0f lux (RSSI %d dBm)\n",
+      reading.soilMoisturePct,
+      reading.airTemperatureC,
+      reading.relativeHumidityPct,
+      reading.soilPh,
+      reading.lightLux,
       WiFi.RSSI()
     );
 
-    if (postReading(moisture)) {
+    if (postReading(reading)) {
       Serial.println("Reading accepted by FarmPi.");
     } else {
       Serial.println("Reading was not accepted; will try again next interval.");

@@ -43,30 +43,58 @@ WHERE s.node_uid IN (
 )
 AND r.recorded_at = '2026-08-26 18:00:00.000000';
 
-INSERT INTO readings (sensor_node_id, soil_moisture_pct, simulated, recorded_at)
-SELECT id, 18.00, TRUE, '2026-01-01 00:00:00.000000'
+INSERT INTO readings (
+    sensor_node_id, soil_moisture_pct, air_temperature_c,
+    relative_humidity_pct, soil_ph, light_lux, simulated, recorded_at
+)
+SELECT id, 18.00, 16.50, 74.00, 6.20, 12000.00, TRUE, '2026-01-01 00:00:00.000000'
 FROM sensor_nodes WHERE node_uid = 'test-moisture-a'
 ON DUPLICATE KEY UPDATE
     soil_moisture_pct = VALUES(soil_moisture_pct),
+    air_temperature_c = VALUES(air_temperature_c),
+    relative_humidity_pct = VALUES(relative_humidity_pct),
+    soil_ph = VALUES(soil_ph),
+    light_lux = VALUES(light_lux),
     simulated = VALUES(simulated);
 
-INSERT INTO readings (sensor_node_id, soil_moisture_pct, simulated, recorded_at)
-SELECT id, 24.00, TRUE, '2026-01-01 00:00:00.000000'
+INSERT INTO readings (
+    sensor_node_id, soil_moisture_pct, air_temperature_c,
+    relative_humidity_pct, soil_ph, light_lux, simulated, recorded_at
+)
+SELECT id, 24.00, 17.20, 69.00, 6.50, 14500.00, TRUE, '2026-01-01 00:00:00.000000'
 FROM sensor_nodes WHERE node_uid = 'test-moisture-b'
 ON DUPLICATE KEY UPDATE
     soil_moisture_pct = VALUES(soil_moisture_pct),
+    air_temperature_c = VALUES(air_temperature_c),
+    relative_humidity_pct = VALUES(relative_humidity_pct),
+    soil_ph = VALUES(soil_ph),
+    light_lux = VALUES(light_lux),
     simulated = VALUES(simulated);
 
-INSERT INTO readings (sensor_node_id, soil_moisture_pct, simulated, recorded_at)
-SELECT id, 29.00, TRUE, '2026-01-01 00:00:00.000000'
+INSERT INTO readings (
+    sensor_node_id, soil_moisture_pct, air_temperature_c,
+    relative_humidity_pct, soil_ph, light_lux, simulated, recorded_at
+)
+SELECT id, 29.00, 18.10, 64.00, 6.70, 16200.00, TRUE, '2026-01-01 00:00:00.000000'
 FROM sensor_nodes WHERE node_uid = 'test-moisture-c'
 ON DUPLICATE KEY UPDATE
     soil_moisture_pct = VALUES(soil_moisture_pct),
+    air_temperature_c = VALUES(air_temperature_c),
+    relative_humidity_pct = VALUES(relative_humidity_pct),
+    soil_ph = VALUES(soil_ph),
+    light_lux = VALUES(light_lux),
     simulated = VALUES(simulated);
 
-INSERT INTO readings (sensor_node_id, soil_moisture_pct, simulated, recorded_at)
-SELECT id, 21.00, TRUE, '2026-01-01 00:00:00.000000'
+INSERT INTO readings (
+    sensor_node_id, soil_moisture_pct, air_temperature_c,
+    relative_humidity_pct, soil_ph, light_lux, simulated, recorded_at
+)
+SELECT id, 21.00, 15.70, 78.00, 6.10, 9800.00, TRUE, '2026-01-01 00:00:00.000000'
 FROM sensor_nodes WHERE node_uid = 'test-moisture-d'
 ON DUPLICATE KEY UPDATE
     soil_moisture_pct = VALUES(soil_moisture_pct),
+    air_temperature_c = VALUES(air_temperature_c),
+    relative_humidity_pct = VALUES(relative_humidity_pct),
+    soil_ph = VALUES(soil_ph),
+    light_lux = VALUES(light_lux),
     simulated = VALUES(simulated);

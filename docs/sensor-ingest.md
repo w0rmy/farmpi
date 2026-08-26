@@ -8,7 +8,7 @@ The ESP32 behaves as though it were a real field sensor node:
 
 ```text
 ESP32
-  ↓ synthetic soil-moisture value
+  ↓ synthetic environmental reading
 Wi-Fi
   ↓ HTTPS POST /api/ingest
 FastAPI validation and lightweight bearer-token authentication
@@ -36,11 +36,15 @@ Example body:
 {
   "sensor": "test-moisture-a",
   "soil_moisture_pct": 17.82,
+  "air_temperature_c": 16.50,
+  "relative_humidity_pct": 72.00,
+  "soil_ph": 6.30,
+  "light_lux": 12345.00,
   "simulated": true
 }
 ```
 
-The `sensor` value must match an active `sensor_nodes.node_uid`. Soil moisture is validated as a numeric value from 0 through 100 inclusive. FarmPi timestamps the reading on the server in UTC so the prototype ESP32 does not need a real-time clock.
+The `sensor` value must match an active `sensor_nodes.node_uid`. Every payload includes five instantaneous measurements: soil moisture (0–100%), air temperature (-30–60°C), relative humidity (0–100%), soil pH (0–14), and light (0–200,000 lux). FarmPi validates these limits and timestamps the reading on the server in UTC, so the prototype ESP32 does not need a real-time clock.
 
 A successful submission returns HTTP `201 Created` with the stored reading id, sensor, paddock, value, simulation flag, and timestamp.
 
@@ -88,13 +92,18 @@ The test firmware:
 
 - joins Wi-Fi;
 - resolves `farmpi.local` using mDNS;
-- produces a small random-walk moisture value;
-- sends every 30 seconds;
+- produces bounded random-walk values for soil moisture, air temperature, relative humidity, soil pH, and light;
+- uses a gentle synthetic light/temperature day cycle over 288 five-minute samples;
+- sends every five minutes by default;
 - marks the value as simulated;
 - retries after Wi-Fi or server failure;
 - prints status information over serial.
 
-The random walk is intentionally more realistic than an unrelated random value on every sample. Its purpose is only to generate changing telemetry for the data path.
+The random walks are intentionally more realistic than unrelated random values on every sample. Their purpose is only to generate changing telemetry for the data path; they do not model agronomy.
+
+## Daylight-hours boundary
+
+`daylight_hours` is deliberately not an ingest field. It is an aggregate over a time period, not an instantaneous sensor observation. If it becomes useful later, FarmPi should derive it deterministically from historical `light_lux` readings using an explicit threshold and defined time window. That future calculation must remain in application code, never in the LLM.
 
 ## TLS scope
 
@@ -113,9 +122,9 @@ After deploying the server changes and flashing the ESP32:
 1. Confirm the serial console reports HTTP `201 Created`.
 2. Confirm a new row appears in MariaDB with `simulated = 1`.
 3. Confirm the new row has a later UTC `recorded_at` value than the baseline seed.
-4. Ask FarmPi for the named paddock's current soil moisture.
+4. Ask FarmPi for a named paddock's current soil moisture, air temperature, relative humidity, soil pH, or light value.
 5. Ask `Which paddock is driest?` and verify the answer changes when the synthetic reading changes enough to alter the deterministic result.
-6. Confirm unsupported questions still return unavailable information rather than fabricated values.
+6. Confirm daylight-hours and agronomic-recommendation questions still return unavailable information rather than fabricated values.
 
 This demonstrates a complete chain from a physical networked device to a grounded AI response while keeping the farm functionality deliberately minimal.
 

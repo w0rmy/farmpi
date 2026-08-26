@@ -358,6 +358,7 @@ async def ask(request: AskRequest) -> AskResponse:
             get_grounding_data,
             route.intent,
             route.paddock_name,
+            route.measurement,
         )
     except DatabaseUnavailable as exc:
         raise HTTPException(

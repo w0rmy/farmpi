@@ -8,7 +8,7 @@ The capstone focus remains **Artificial Intelligence and Data Science** plus **D
 
 FarmPi has reached a known-good local-AI proof-of-concept milestone on the Raspberry Pi 4. Android/browser access over Caddy HTTPS with its internal CA, FastAPI grounding and control, MariaDB-backed deterministic farm data, and Qwen3 0.6B through `llama-server` work together. Browser speech input (`en-NZ`) and text-to-speech output work, and unsupported information is rejected rather than invented.
 
-The current development stage adds a real ESP32-over-Wi-Fi ingest path using **synthetic** soil-moisture data. This proves the device-to-database-to-grounded-AI path before any effort is spent on final physical sensor hardware.
+The current development stage adds a real ESP32-over-Wi-Fi ingest path using **synthetic** environmental data: soil moisture, air temperature, relative humidity, soil pH, and light. This proves the device-to-database-to-grounded-AI path before any effort is spent on final physical sensor hardware.
 
 ## Current alpha architecture
 
@@ -51,12 +51,14 @@ Caddy is the application-facing HTTPS service. FastAPI, MariaDB, and llama-serve
 The LLM does not query MariaDB directly and does not calculate farm statistics. `app/database.py` provides the database boundary, `app/question_router.py` selects an approved deterministic operation, and `app/farm_data.py` provides functions such as:
 
 - `get_moisture_snapshot()`
+- `get_environment_snapshot()`
 - `get_driest_paddock()`
 - `get_wettest_paddock()`
 - `get_average_soil_moisture()`
+- `get_paddock_environment()`
 - `get_paddock_moisture()`
 
-For common questions, Qwen receives only the verified facts required for that request. Broader soil-moisture questions retain a deterministic full-snapshot fallback. Qwen remains the language interface rather than the factual authority.
+For common questions, Qwen receives only the verified facts required for that request. Broader soil-moisture questions retain a deterministic full-snapshot fallback, while named paddock questions can retrieve the other current environmental fields. Qwen remains the language interface rather than the factual authority and does not calculate facts.
 
 The `readings.simulated` flag is carried through the deterministic layer so synthetic ESP32 data is not silently presented as a real farm observation.
 
@@ -68,11 +70,15 @@ The ESP32 sends a small JSON payload such as:
 {
   "sensor": "test-moisture-a",
   "soil_moisture_pct": 17.82,
+  "air_temperature_c": 16.50,
+  "relative_humidity_pct": 72.00,
+  "soil_ph": 6.30,
+  "light_lux": 12345.00,
   "simulated": true
 }
 ```
 
-FarmPi validates the sensor UID and moisture range, timestamps the reading in UTC, and stores it in MariaDB. The endpoint uses a deliberately simple FarmPi-wide bearer token for the alpha/test network.
+FarmPi validates the sensor UID and each measurement range, timestamps the reading in UTC, and stores it in MariaDB. The endpoint uses a deliberately simple FarmPi-wide bearer token for the alpha/test network.
 
 The token is stored locally in `/etc/farmpi/farmpi.env` as `FARMPI_INGEST_TOKEN` and is never committed to GitHub.
 
@@ -86,7 +92,9 @@ The project uses a monorepo. Embedded source lives under:
 firmware/esp32-sensor/
 ```
 
-The current Arduino sketch joins Wi-Fi, resolves `farmpi.local` by mDNS, generates a small random-walk synthetic moisture value, and submits it approximately every 30 seconds.
+The current Arduino sketch joins Wi-Fi, resolves `farmpi.local` by mDNS, generates bounded random-walk synthetic values for all five fields (with a gentle light/temperature cycle), and submits them together every five minutes by default.
+
+`daylight_hours` is deliberately not a sensor payload field. It is an aggregate that can later be derived deterministically from historical `light_lux` readings using a documented rule; it is not an instantaneous reading and Qwen must not calculate it.
 
 Copy:
 
@@ -154,19 +162,21 @@ sudo grep '^FARMPI_INGEST_TOKEN=' /etc/farmpi/farmpi.env
 
 The seed creates four test nodes:
 
-| Paddock | Sensor UID | Initial soil moisture |
-| --- | --- | ---: |
-| Paddock A | `test-moisture-a` | 18% |
-| Paddock B | `test-moisture-b` | 24% |
-| Paddock C | `test-moisture-c` | 29% |
-| Paddock D | `test-moisture-d` | 21% |
+| Paddock | Sensor UID | Initial moisture | Air | Humidity | Soil pH | Light |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Paddock A | `test-moisture-a` | 18% | 16.5°C | 74% | 6.2 | 12,000 lux |
+| Paddock B | `test-moisture-b` | 24% | 17.2°C | 69% | 6.5 | 14,500 lux |
+| Paddock C | `test-moisture-c` | 29% | 18.1°C | 64% | 6.7 | 16,200 lux |
+| Paddock D | `test-moisture-d` | 21% | 15.7°C | 78% | 6.1 | 9,800 lux |
 
 Useful validation questions include:
 
 - `Which paddock is driest?`
 - `Which paddock is wettest?`
 - `What is Paddock B's soil moisture?`
-- `What is Paddock B's soil temperature?` — this should report that the information is unavailable.
+- `What is Paddock B's air temperature?`
+- `What is Paddock C's soil pH?`
+- `How many daylight hours were there?` — this should report that the information is unavailable.
 
 ## HTTPS and speech
 

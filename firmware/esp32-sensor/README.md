@@ -7,8 +7,8 @@ The ESP32:
 1. joins Wi-Fi;
 2. resolves `farmpi.local` by mDNS;
 3. identifies itself with a registered `sensor_nodes.node_uid`;
-4. generates a slowly changing synthetic soil-moisture value;
-5. sends the value to `POST /api/ingest` over HTTPS every 30 seconds;
+4. generates slowly changing synthetic soil moisture, air temperature, relative humidity, soil pH, and light values;
+5. sends the complete reading to `POST /api/ingest` over HTTPS every five minutes by default;
 6. marks every reading as `simulated: true`;
 7. prints connection and HTTP status information to the serial console.
 
@@ -66,9 +66,11 @@ Connecting to Wi-Fi SSID '...'
 Wi-Fi connected: 192.168.x.x, RSSI -48 dBm
 Resolving farmpi.local via mDNS...
 FarmPi resolved to 192.168.x.x
-Synthetic reading: 17.82% soil moisture (RSSI -48 dBm)
+Synthetic reading: moisture 17.82%, air 16.50C, humidity 72.00%, pH 6.30, light 12345 lux (RSSI -48 dBm)
 FarmPi response: HTTP/1.1 201 Created
 Reading accepted by FarmPi.
 ```
 
-Once a reading is accepted, the existing deterministic FarmPi queries use it automatically because it becomes the latest reading for that sensor.
+Once a reading is accepted, the deterministic FarmPi queries use it automatically because it becomes the latest complete environmental reading for that sensor. The sketch uses bounded random walks and a gentle 24-hour synthetic light/temperature cycle; it is test telemetry, not an agronomic model.
+
+`daylight_hours` is intentionally absent from the payload. It is an aggregate that should later be calculated deterministically from historical `light_lux` readings, rather than reported by one instantaneous sensor sample.

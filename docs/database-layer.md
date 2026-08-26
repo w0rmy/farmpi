@@ -12,7 +12,7 @@ The first version intentionally uses only three tables:
 
 - `paddocks` — logical farm areas;
 - `sensor_nodes` — physical or simulated sensor nodes assigned to a paddock;
-- `readings` — timestamped sensor values. The current schema contains soil moisture only.
+- `readings` — timestamped sensor values: soil moisture, air temperature, relative humidity, soil pH, and light in lux.
 
 The `readings` table also records whether a value is simulated. This allows seed data and synthetic ESP32 telemetry to remain clearly distinguishable from future physical sensor measurements.
 
@@ -20,7 +20,7 @@ The schema is in `config/database/schema.sql`.
 
 ## Current deterministic rule
 
-For each active sensor node, FarmPi selects its latest valid soil-moisture reading. If a paddock has more than one active sensor, FarmPi averages those latest sensor values to produce the paddock's current moisture value.
+For each active sensor node, FarmPi selects its latest complete environmental reading. If a paddock has more than one active sensor, FarmPi averages the matching latest values to produce the paddock's current environmental snapshot. Soil-moisture rankings and averages remain explicit deterministic functions; the other measurements are currently retrieved as current values only.
 
 From that snapshot Python can calculate:
 
@@ -38,8 +38,9 @@ These calculations live in `app/farm_data.py`, including the explicit `get_dries
 - driest paddock;
 - wettest paddock;
 - farm average soil moisture;
-- one named paddock's moisture;
-- unsupported measurement types;
+- one named paddock's supported measurement;
+- a current environmental-measurement snapshot when no paddock is named;
+- unsupported aggregates, recommendation requests, and measurement types;
 - broader soil-moisture questions, which use a deterministic fallback snapshot.
 
 The router selects approved application operations. It does not generate SQL and Qwen does not decide which database query to run.
@@ -70,20 +71,20 @@ For common questions FarmPi supplies only the minimum verified facts needed for 
 
 ## Prototype seed data
 
-`config/database/seed.sql` creates four prototype paddocks and one simulated moisture sensor per paddock:
+`config/database/seed.sql` creates four prototype paddocks and one simulated environmental sensor per paddock:
 
-| Paddock | Sensor UID | Soil moisture |
-| --- | --- | ---: |
-| Paddock A | `test-moisture-a` | 18% |
-| Paddock B | `test-moisture-b` | 24% |
-| Paddock C | `test-moisture-c` | 29% |
-| Paddock D | `test-moisture-d` | 21% |
+| Paddock | Sensor UID | Moisture | Air | Humidity | Soil pH | Light |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Paddock A | `test-moisture-a` | 18% | 16.5°C | 74% | 6.2 | 12,000 lux |
+| Paddock B | `test-moisture-b` | 24% | 17.2°C | 69% | 6.5 | 14,500 lux |
+| Paddock C | `test-moisture-c` | 29% | 18.1°C | 64% | 6.7 | 16,200 lux |
+| Paddock D | `test-moisture-d` | 21% | 15.7°C | 78% | 6.1 | 9,800 lux |
 
 The seed is repeatable and uses a fixed timestamp so rerunning database setup does not create duplicate readings. These rows are test data and are marked as simulated.
 
 ## Sensor ingest
 
-`POST /api/ingest` now accepts validated soil-moisture readings from registered ESP32 sensor nodes. The server timestamps each reading in UTC, stores the simulation flag, and rejects unknown sensors or moisture values outside 0–100%.
+`POST /api/ingest` accepts one validated five-field environmental reading from a registered ESP32 sensor node. The server timestamps each reading in UTC, stores the simulation flag, and rejects unknown sensors or values outside the documented bounds.
 
 The endpoint uses a lightweight FarmPi-wide bearer token stored in `/etc/farmpi/farmpi.env`. This is intentionally sufficient for the alpha/test network without introducing per-device PKI or a full provisioning system.
 
@@ -101,7 +102,7 @@ The optimisation design and test method are documented in [latency-optimization.
 
 ## Current scope
 
-The current database-backed prototype supports soil moisture only. Temperature, pH, weather, irrigation decisions, and agronomic recommendations remain deliberately unavailable. A question requiring unsupported data should therefore result in an unavailable-information response rather than an invented value.
+The current database-backed prototype supports current soil moisture, air temperature, relative humidity, soil pH, and light values. It does not provide weather, irrigation decisions, daylight-hour aggregates, or agronomic recommendations. Daylight hours should later be derived deterministically from historical `light_lux` readings, not directly ingested or calculated by Qwen. A question requiring unsupported data results in unavailable information rather than an invented value.
 
 ## Next database work
 

@@ -14,11 +14,15 @@ class NoFarmData(RuntimeError):
 
 
 @dataclass(frozen=True)
-class PaddockMoisture:
-    """Current deterministic soil-moisture value for one paddock."""
+class PaddockEnvironment:
+    """Current deterministic environmental values for one paddock."""
 
     name: str
     soil_moisture_pct: float
+    air_temperature_c: float
+    relative_humidity_pct: float
+    soil_ph: float
+    light_lux: float
     recorded_at: datetime
     sensor_count: int
     contains_simulated: bool
@@ -32,10 +36,14 @@ class GroundingData:
     facts: tuple[str, ...]
 
 
-LATEST_PADDOCK_MOISTURE_SQL = """
+LATEST_PADDOCK_ENVIRONMENT_SQL = """
 SELECT
     p.name,
     ROUND(AVG(r.soil_moisture_pct), 2) AS soil_moisture_pct,
+    ROUND(AVG(r.air_temperature_c), 2) AS air_temperature_c,
+    ROUND(AVG(r.relative_humidity_pct), 2) AS relative_humidity_pct,
+    ROUND(AVG(r.soil_ph), 2) AS soil_ph,
+    ROUND(AVG(r.light_lux), 2) AS light_lux,
     MAX(r.recorded_at) AS recorded_at,
     COUNT(*) AS sensor_count,
     MAX(CASE WHEN r.simulated = 1 THEN 1 ELSE 0 END) AS contains_simulated
@@ -49,6 +57,10 @@ JOIN readings AS r
         FROM readings AS r2
         WHERE r2.sensor_node_id = s.id
           AND r2.soil_moisture_pct IS NOT NULL
+          AND r2.air_temperature_c IS NOT NULL
+          AND r2.relative_humidity_pct IS NOT NULL
+          AND r2.soil_ph IS NOT NULL
+          AND r2.light_lux IS NOT NULL
         ORDER BY r2.recorded_at DESC, r2.id DESC
         LIMIT 1
     )
@@ -58,20 +70,24 @@ ORDER BY p.name
 """
 
 
-def get_moisture_snapshot() -> list[PaddockMoisture]:
-    """Return the latest deterministic soil-moisture value for each active paddock."""
-    rows = fetch_all(LATEST_PADDOCK_MOISTURE_SQL)
+def get_environment_snapshot() -> list[PaddockEnvironment]:
+    """Return the latest complete environmental reading for each active paddock."""
+    rows = fetch_all(LATEST_PADDOCK_ENVIRONMENT_SQL)
 
-    snapshot: list[PaddockMoisture] = []
+    snapshot: list[PaddockEnvironment] = []
     for row in rows:
         recorded_at = row["recorded_at"]
         if not isinstance(recorded_at, datetime):
             raise NoFarmData("A moisture reading has an invalid timestamp.")
 
         snapshot.append(
-            PaddockMoisture(
+            PaddockEnvironment(
                 name=str(row["name"]),
                 soil_moisture_pct=float(row["soil_moisture_pct"]),
+                air_temperature_c=float(row["air_temperature_c"]),
+                relative_humidity_pct=float(row["relative_humidity_pct"]),
+                soil_ph=float(row["soil_ph"]),
+                light_lux=float(row["light_lux"]),
                 recorded_at=recorded_at,
                 sensor_count=int(row["sensor_count"]),
                 contains_simulated=bool(row["contains_simulated"]),
@@ -79,14 +95,19 @@ def get_moisture_snapshot() -> list[PaddockMoisture]:
         )
 
     if not snapshot:
-        raise NoFarmData("No current soil-moisture readings are available.")
+        raise NoFarmData("No current complete environmental readings are available.")
 
     return snapshot
 
 
+def get_moisture_snapshot() -> list[PaddockEnvironment]:
+    """Return the environmental snapshot used by the moisture operations."""
+    return get_environment_snapshot()
+
+
 def get_driest_paddock(
-    snapshot: list[PaddockMoisture] | None = None,
-) -> PaddockMoisture:
+    snapshot: list[PaddockEnvironment] | None = None,
+) -> PaddockEnvironment:
     """Return the paddock with the lowest current soil-moisture value."""
     values = snapshot if snapshot is not None else get_moisture_snapshot()
     if not values:
@@ -95,8 +116,8 @@ def get_driest_paddock(
 
 
 def get_wettest_paddock(
-    snapshot: list[PaddockMoisture] | None = None,
-) -> PaddockMoisture:
+    snapshot: list[PaddockEnvironment] | None = None,
+) -> PaddockEnvironment:
     """Return the paddock with the highest current soil-moisture value."""
     values = snapshot if snapshot is not None else get_moisture_snapshot()
     if not values:
@@ -105,7 +126,7 @@ def get_wettest_paddock(
 
 
 def get_average_soil_moisture(
-    snapshot: list[PaddockMoisture] | None = None,
+    snapshot: list[PaddockEnvironment] | None = None,
 ) -> float:
     """Return the mean of the current paddock soil-moisture values."""
     values = snapshot if snapshot is not None else get_moisture_snapshot()
@@ -114,12 +135,12 @@ def get_average_soil_moisture(
     return round(fmean(item.soil_moisture_pct for item in values), 2)
 
 
-def get_paddock_moisture(
+def get_paddock_environment(
     paddock_name: str,
-    snapshot: list[PaddockMoisture] | None = None,
-) -> PaddockMoisture | None:
-    """Return the current moisture value for one named paddock, if present."""
-    values = snapshot if snapshot is not None else get_moisture_snapshot()
+    snapshot: list[PaddockEnvironment] | None = None,
+) -> PaddockEnvironment | None:
+    """Return the current environmental reading for one named paddock, if present."""
+    values = snapshot if snapshot is not None else get_environment_snapshot()
     wanted = paddock_name.casefold()
     for item in values:
         if item.name.casefold() == wanted:
@@ -127,20 +148,50 @@ def get_paddock_moisture(
     return None
 
 
-def _provenance_fact(items: list[PaddockMoisture]) -> str:
+def get_paddock_moisture(
+    paddock_name: str,
+    snapshot: list[PaddockEnvironment] | None = None,
+) -> PaddockEnvironment | None:
+    """Compatibility helper for the existing soil-moisture query path."""
+    return get_paddock_environment(paddock_name, snapshot)
+
+
+def _provenance_fact(items: list[PaddockEnvironment]) -> str:
     if any(item.contains_simulated for item in items):
         return "The result includes simulated test readings."
     return "The result uses non-simulated sensor readings."
 
 
-def get_grounding_data(intent: str, paddock_name: str | None = None) -> GroundingData:
+MEASUREMENT_DETAILS = {
+    "soil_moisture_pct": ("soil moisture", "%", 2),
+    "air_temperature_c": ("air temperature", "°C", 2),
+    "relative_humidity_pct": ("relative humidity", "%", 2),
+    "soil_ph": ("soil pH", "", 2),
+    "light_lux": ("light", "lux", 0),
+}
+
+
+def _measurement_fact(item: PaddockEnvironment, measurement: str) -> str:
+    """Format one already-retrieved instantaneous measurement as a fact."""
+    label, unit, places = MEASUREMENT_DETAILS[measurement]
+    value = getattr(item, measurement)
+    suffix = unit if unit == "%" else f" {unit}" if unit else ""
+    return f"{item.name} {label}: {value:.{places}f}{suffix}."
+
+
+def get_grounding_data(
+    intent: str,
+    paddock_name: str | None = None,
+    measurement: str | None = None,
+) -> GroundingData:
     """Return only the deterministic facts needed for the selected question route."""
     if intent == "unsupported":
         return GroundingData(
             intent=intent,
             facts=(
                 "The requested information is unavailable.",
-                "FarmPi currently has verified soil-moisture data only.",
+                "FarmPi supports current soil moisture, air temperature, relative humidity, soil pH, and light readings only.",
+                "Daylight hours are not directly ingested; they should later be derived deterministically from historical light readings.",
             ),
         )
 
@@ -177,27 +228,49 @@ def get_grounding_data(intent: str, paddock_name: str | None = None) -> Groundin
             ),
         )
 
-    if intent == "paddock":
+    if intent in {"paddock", "paddock-field"}:
         if not paddock_name:
             return GroundingData(
                 intent=intent,
                 facts=("The requested paddock was not identified.",),
             )
 
-        snapshot = get_moisture_snapshot()
-        item = get_paddock_moisture(paddock_name, snapshot)
+        snapshot = get_environment_snapshot()
+        item = get_paddock_environment(paddock_name, snapshot)
         if item is None:
             return GroundingData(
                 intent=intent,
-                facts=(f"No verified soil-moisture reading is available for {paddock_name}.",),
+                facts=(f"No verified environmental reading is available for {paddock_name}.",),
+            )
+
+        selected_measurement = measurement if intent == "paddock-field" else "soil_moisture_pct"
+        if selected_measurement not in MEASUREMENT_DETAILS:
+            return GroundingData(
+                intent="unsupported",
+                facts=("The requested information is unavailable.",),
             )
 
         return GroundingData(
             intent=intent,
             facts=(
-                f"{item.name} soil moisture: {item.soil_moisture_pct:.2f}%.",
+                _measurement_fact(item, selected_measurement),
                 f"Reading time: {item.recorded_at.isoformat(sep=' ')} UTC.",
                 _provenance_fact([item]),
+            ),
+        )
+
+    if intent == "measurement-fallback":
+        if measurement not in MEASUREMENT_DETAILS:
+            return GroundingData(
+                intent="unsupported",
+                facts=("The requested information is unavailable.",),
+            )
+        snapshot = get_environment_snapshot()
+        return GroundingData(
+            intent=intent,
+            facts=(
+                *(_measurement_fact(item, measurement) for item in snapshot),
+                _provenance_fact(snapshot),
             ),
         )
 

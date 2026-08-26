@@ -31,12 +31,19 @@ class QuestionRouterTests(unittest.TestCase):
         self.assertEqual(route.intent, "paddock")
         self.assertEqual(route.paddock_name, "Paddock B")
 
-    def test_unsupported_measurement_wins_over_paddock(self) -> None:
-        route = route_question("What is Paddock B's soil temperature?")
-        self.assertEqual(route.intent, "unsupported")
+    def test_named_paddock_environment_measurement(self) -> None:
+        route = route_question("What is Paddock B's air temperature?")
+        self.assertEqual(route.intent, "paddock-field")
+        self.assertEqual(route.paddock_name, "Paddock B")
+        self.assertEqual(route.measurement, "air_temperature_c")
+
+    def test_environment_measurement_fallback(self) -> None:
+        route = route_question("What is the relative humidity?")
+        self.assertEqual(route.intent, "measurement-fallback")
+        self.assertEqual(route.measurement, "relative_humidity_pct")
 
     def test_ph_is_matched_as_a_word_not_inside_a_name(self) -> None:
-        self.assertEqual(route_question("What is the pH?").intent, "unsupported")
+        self.assertEqual(route_question("What is the pH?").measurement, "soil_ph")
         route = route_question("What is Paddock Alpha's soil moisture?")
         self.assertEqual(route.intent, "paddock")
         self.assertEqual(route.paddock_name, "Paddock Alpha")
@@ -49,6 +56,11 @@ class QuestionRouterTests(unittest.TestCase):
         route = route_question("Which paddock is currently the most dry?")
         self.assertEqual(route.intent, "moisture-fallback")
         self.assertIsNone(route.paddock_name)
+
+    def test_daylight_hours_and_non_moisture_rankings_are_unsupported(self) -> None:
+        self.assertEqual(route_question("How many daylight hours were there?").intent, "unsupported")
+        self.assertEqual(route_question("Which paddock is hottest?").intent, "unsupported")
+        self.assertEqual(route_question("Which paddock is most humid?").intent, "unsupported")
 
 
 if __name__ == "__main__":

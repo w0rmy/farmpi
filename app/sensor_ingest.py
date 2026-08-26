@@ -20,6 +20,10 @@ class StoredReading:
     sensor_uid: str
     paddock_name: str
     soil_moisture_pct: float
+    air_temperature_c: float
+    relative_humidity_pct: float
+    soil_ph: float
+    light_lux: float
     simulated: bool
     recorded_at: datetime
 
@@ -41,16 +45,24 @@ INSERT_READING_SQL = """
 INSERT INTO readings (
     sensor_node_id,
     soil_moisture_pct,
+    air_temperature_c,
+    relative_humidity_pct,
+    soil_ph,
+    light_lux,
     simulated,
     recorded_at
 )
-VALUES (%s, %s, %s, %s)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 
-def store_soil_moisture_reading(
+def store_sensor_reading(
     sensor_uid: str,
     soil_moisture_pct: float,
+    air_temperature_c: float,
+    relative_humidity_pct: float,
+    soil_ph: float,
+    light_lux: float,
     simulated: bool,
 ) -> StoredReading:
     """Validate a registered sensor and store one server-timestamped reading."""
@@ -68,6 +80,10 @@ def store_soil_moisture_reading(
         (
             int(sensor["sensor_node_id"]),
             round(float(soil_moisture_pct), 2),
+            round(float(air_temperature_c), 2),
+            round(float(relative_humidity_pct), 2),
+            round(float(soil_ph), 2),
+            round(float(light_lux), 2),
             bool(simulated),
             recorded_at_db,
         ),
@@ -78,6 +94,10 @@ def store_soil_moisture_reading(
         sensor_uid=str(sensor["node_uid"]),
         paddock_name=str(sensor["paddock_name"]),
         soil_moisture_pct=round(float(soil_moisture_pct), 2),
+        air_temperature_c=round(float(air_temperature_c), 2),
+        relative_humidity_pct=round(float(relative_humidity_pct), 2),
+        soil_ph=round(float(soil_ph), 2),
+        light_lux=round(float(light_lux), 2),
         simulated=bool(simulated),
         recorded_at=recorded_at_utc,
     )

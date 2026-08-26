@@ -10,7 +10,7 @@ from fastapi import APIRouter, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
 from .database import DatabaseUnavailable
-from .sensor_ingest import UnknownSensor, store_soil_moisture_reading
+from .sensor_ingest import UnknownSensor, store_sensor_reading
 
 router = APIRouter(prefix="/api", tags=["sensor-ingest"])
 
@@ -24,6 +24,10 @@ class SensorReadingRequest(BaseModel):
         pattern=r"^[A-Za-z0-9._-]+$",
     )
     soil_moisture_pct: float = Field(ge=0.0, le=100.0)
+    air_temperature_c: float = Field(ge=-30.0, le=60.0)
+    relative_humidity_pct: float = Field(ge=0.0, le=100.0)
+    soil_ph: float = Field(ge=0.0, le=14.0)
+    light_lux: float = Field(ge=0.0, le=200000.0)
     simulated: bool = True
 
 
@@ -35,6 +39,10 @@ class SensorReadingResponse(BaseModel):
     sensor: str
     paddock: str
     soil_moisture_pct: float
+    air_temperature_c: float
+    relative_humidity_pct: float
+    soil_ph: float
+    light_lux: float
     simulated: bool
     recorded_at: str
 
@@ -77,9 +85,13 @@ async def ingest_sensor_reading(
 
     try:
         stored = await asyncio.to_thread(
-            store_soil_moisture_reading,
+            store_sensor_reading,
             request.sensor,
             request.soil_moisture_pct,
+            request.air_temperature_c,
+            request.relative_humidity_pct,
+            request.soil_ph,
+            request.light_lux,
             request.simulated,
         )
     except UnknownSensor as exc:
@@ -98,6 +110,10 @@ async def ingest_sensor_reading(
         sensor=stored.sensor_uid,
         paddock=stored.paddock_name,
         soil_moisture_pct=stored.soil_moisture_pct,
+        air_temperature_c=stored.air_temperature_c,
+        relative_humidity_pct=stored.relative_humidity_pct,
+        soil_ph=stored.soil_ph,
+        light_lux=stored.light_lux,
         simulated=stored.simulated,
         recorded_at=stored.recorded_at.isoformat(),
     )
