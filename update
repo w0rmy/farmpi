@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pull, install, apply system configuration, and restart FarmPi.
+# Pull, install, validate, apply system configuration, and restart FarmPi.
 set -Eeuo pipefail
 
 project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
@@ -25,6 +25,10 @@ if [[ ! -x .venv/bin/python ]]; then
 fi
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -r app/requirements.txt
+
+echo "Validating FarmPi Python code..."
+.venv/bin/python -m compileall -q app tests
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 
 echo "Installing the FarmPi services..."
 sudo "${project_dir}/scripts/install-service" "${project_dir}"
