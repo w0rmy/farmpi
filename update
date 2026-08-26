@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Pull, install, apply system configuration, and restart FarmPi.
+set -Eeuo pipefail
+
+project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+cd "${project_dir}"
+
+if [[ -n $(git status --porcelain) ]]; then
+  echo "Update stopped: this checkout has local changes. Commit or stash them first." >&2
+  exit 1
+fi
+
+branch=$(git branch --show-current)
+if [[ -z ${branch} ]]; then
+  echo "Update stopped: this checkout is not on a branch." >&2
+  exit 1
+fi
+
+echo "Fetching the latest ${branch} branch..."
+git pull --ff-only origin "${branch}"
+
+echo "Preparing the Python environment..."
+if [[ ! -x .venv/bin/python ]]; then
+  python3 -m venv .venv
+fi
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r app/requirements.txt
+
+echo "Installing the FarmPi service..."
+sudo "${project_dir}/scripts/install-service" "${project_dir}"
+
+if systemctl list-unit-files caddy.service --no-legend 2>/dev/null | grep -q '^caddy.service'; then
+  echo "Applying Caddy configuration..."
+  sudo install -m 0644 config/Caddyfile /etc/caddy/Caddyfile
+  sudo caddy validate --config /etc/caddy/Caddyfile
+  sudo systemctl reload caddy.service
+fi
+
+echo "Restarting FarmPi..."
+sudo systemctl restart farmpi.service
+sudo systemctl --no-pager --full status farmpi.service
