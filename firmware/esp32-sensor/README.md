@@ -1,6 +1,6 @@
 # FarmPi ESP32 synthetic sensor
 
-This firmware is a deliberately small test node for the FarmPi capstone. It proves the real device-to-server data path without requiring the final physical soil-moisture sensor yet.
+This firmware is a deliberately small test node for the FarmPi capstone. It proves the real device-to-server data path without requiring the final physical sensors yet.
 
 The ESP32:
 
@@ -37,10 +37,15 @@ sudo grep '^FARMPI_INGEST_TOKEN=' /etc/farmpi/farmpi.env
 
 Copy only the token value into `config.h`. `config.h` is ignored by Git.
 
-Existing `config.h` files from the earlier moisture-only sketch remain valid:
-the new air-temperature, humidity, and pH starting values have safe firmware
-defaults. You may add the optional values from `config.example.h` if you want
-to tune the synthetic starting point.
+Existing `config.h` files are not overwritten by Git updates because they contain local credentials. If a test node was configured when the send interval was still shorter, update its local setting manually before reflashing:
+
+```cpp
+#define SEND_INTERVAL_MS 300000UL
+```
+
+Five minutes gives 288 readings per sensor per day, which is sufficient for the capstone's synthetic history and usability testing without creating unnecessary rows.
+
+Existing `config.h` files from the earlier moisture-only sketch remain valid otherwise: the new air-temperature, humidity, and pH starting values have safe firmware defaults. You may add the optional values from `config.example.h` if you want to tune the synthetic starting point.
 
 ## Build
 
