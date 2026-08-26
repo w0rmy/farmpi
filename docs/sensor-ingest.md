@@ -44,6 +44,14 @@ The `sensor` value must match an active `sensor_nodes.node_uid`. Soil moisture i
 
 A successful submission returns HTTP `201 Created` with the stored reading id, sensor, paddock, value, simulation flag, and timestamp.
 
+## Timestamp convention
+
+FarmPi stores application-generated `readings.recorded_at` values as UTC in the MariaDB `DATETIME(6)` column. The value is timezone-naive in MariaDB, so the application convention is important: all new readings written through `/api/ingest` are UTC.
+
+An early alpha seed used `2026-08-26 18:00:00` as a fixed baseline timestamp. Because that seed looked like local New Zealand time while ingest values were stored as UTC, the seed could sort later than a newly ingested reading on the same date. This caused the deterministic "latest reading" query to keep selecting the seed value even though the ingest endpoint had accepted a newer measurement.
+
+The seed has been corrected to an intentionally old UTC baseline timestamp (`2026-01-01 00:00:00`) and the seed script removes the original `2026-08-26 18:00:00` rows on existing alpha installations. This preserves the intended rule: any subsequently ingested sensor reading supersedes the baseline seed.
+
 ## Prototype authentication
 
 The endpoint uses one FarmPi-wide bearer token:
@@ -100,9 +108,10 @@ After deploying the server changes and flashing the ESP32:
 
 1. Confirm the serial console reports HTTP `201 Created`.
 2. Confirm a new row appears in MariaDB with `simulated = 1`.
-3. Ask FarmPi for the named paddock's current soil moisture.
-4. Ask `Which paddock is driest?` and verify the answer changes when the synthetic reading changes enough to alter the deterministic result.
-5. Confirm unsupported questions still return unavailable information rather than fabricated values.
+3. Confirm the new row has a later UTC `recorded_at` value than the baseline seed.
+4. Ask FarmPi for the named paddock's current soil moisture.
+5. Ask `Which paddock is driest?` and verify the answer changes when the synthetic reading changes enough to alter the deterministic result.
+6. Confirm unsupported questions still return unavailable information rather than fabricated values.
 
 This demonstrates a complete chain from a physical networked device to a grounded AI response while keeping the farm functionality deliberately minimal.
 
