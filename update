@@ -33,6 +33,10 @@ echo "Validating FarmPi Python code..."
 echo "Installing the FarmPi services..."
 sudo "${project_dir}/scripts/install-service" "${project_dir}"
 
+if [[ -f /etc/farmpi/farmpi.env ]] && systemctl list-unit-files mariadb.service --no-legend 2>/dev/null | grep -q '^mariadb.service'; then
+  sudo "${project_dir}/scripts/apply-database-schema"
+fi
+
 if systemctl list-unit-files caddy.service --no-legend 2>/dev/null | grep -q '^caddy.service'; then
   echo "Applying Caddy configuration..."
   sudo install -m 0644 config/Caddyfile /etc/caddy/Caddyfile
@@ -49,4 +53,8 @@ if [[ ! -f /etc/farmpi/farmpi.env ]]; then
   echo
   echo "MariaDB grounding is not configured yet."
   echo "Run: sudo bash ${project_dir}/scripts/setup-database"
+elif ! grep -q '^FARMPI_INGEST_TOKEN=' /etc/farmpi/farmpi.env; then
+  echo
+  echo "Sensor ingest authentication is not configured yet."
+  echo "Run once: sudo bash ${project_dir}/scripts/setup-database"
 fi
