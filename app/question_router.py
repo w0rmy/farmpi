@@ -15,16 +15,9 @@ class QuestionRoute:
 
 
 _PADDOCK_RE = re.compile(r"\bpaddock\s+([a-z0-9_-]+)\b", re.IGNORECASE)
-
-_UNSUPPORTED_TERMS = (
-    "temperature",
-    " temp ",
-    "ph",
-    "humidity",
-    "weather",
-    "rain",
-    "rainfall",
-    "irrigation",
+_UNSUPPORTED_RE = re.compile(
+    r"\b(?:temperature|temp|ph|humidity|weather|rain|rainfall|irrigation)\b",
+    re.IGNORECASE,
 )
 
 _DRIEST_TERMS = (
@@ -64,7 +57,7 @@ def route_question(question: str) -> QuestionRoute:
     # Unsupported measurement types are handled before moisture keywords so a
     # question such as "temperature of the driest paddock" cannot accidentally
     # be answered with a soil-moisture result.
-    if any(term in normalized for term in _UNSUPPORTED_TERMS):
+    if _UNSUPPORTED_RE.search(question):
         return QuestionRoute(intent="unsupported")
 
     if any(term in normalized for term in _DRIEST_TERMS):
@@ -76,13 +69,13 @@ def route_question(question: str) -> QuestionRoute:
     if any(term in normalized for term in _AVERAGE_TERMS):
         return QuestionRoute(intent="average")
 
-    paddock_match = _PADDOCK_RE.search(question)
-    if paddock_match:
+    paddock_matches = _PADDOCK_RE.findall(question)
+    if len(paddock_matches) == 1:
         return QuestionRoute(
             intent="paddock",
-            paddock_name=_canonical_paddock_name(paddock_match.group(1)),
+            paddock_name=_canonical_paddock_name(paddock_matches[0]),
         )
 
-    # The fallback deliberately preserves broader soil-moisture Q&A while the
-    # router is small. It receives the full deterministic moisture snapshot.
+    # The fallback deliberately preserves broader soil-moisture Q&A, including
+    # comparisons involving multiple named paddocks, while the router is small.
     return QuestionRoute(intent="moisture-fallback")
