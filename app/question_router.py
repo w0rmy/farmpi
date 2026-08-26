@@ -20,6 +20,10 @@ _UNSUPPORTED_RE = re.compile(
     r"\b(?:daylight\s+hours?|weather|rain|rainfall|irrigation|recommend(?:ation|ed)?|should\s+i|hottest|coldest)\b",
     re.IGNORECASE,
 )
+_HELP_RE = re.compile(
+    r"\b(?:help|guide\s+me|what\s+can\s+(?:i|we)\s+ask|what\s+can\s+you\s+do|how\s+do\s+i\s+use\s+farmpi|show\s+me\s+what\s+farmpi\s+can\s+do)\b",
+    re.IGNORECASE,
+)
 _MEASUREMENT_PATTERNS = (
     ("soil_moisture_pct", re.compile(r"\b(?:soil\s+)?moisture\b", re.IGNORECASE)),
     ("air_temperature_c", re.compile(r"\b(?:air\s+)?temp(?:erature)?\b", re.IGNORECASE)),
@@ -88,6 +92,12 @@ def route_question(question: str) -> QuestionRoute:
     """Route a question without asking the LLM to select or execute database logic."""
     if _UNSUPPORTED_RE.search(question):
         return QuestionRoute(intent="unsupported")
+
+    # Help/onboarding is an approved deterministic route. Qwen is allowed to
+    # explain FarmPi's known capabilities, but the capability list itself comes
+    # from application facts rather than model memory.
+    if _HELP_RE.search(question):
+        return QuestionRoute(intent="help")
 
     measurement = _measurement_for_question(question)
 
