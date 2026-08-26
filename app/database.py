@@ -81,6 +81,33 @@ def fetch_all(sql: str, params: Sequence[Any] | None = None) -> list[dict[str, A
         connection.close()
 
 
+def fetch_one(sql: str, params: Sequence[Any] | None = None) -> dict[str, Any] | None:
+    """Run a read-only query and return one row, if present."""
+    connection = _connect()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            row = cursor.fetchone()
+            return dict(row) if row is not None else None
+    except pymysql.MySQLError as exc:
+        raise DatabaseUnavailable("FarmPi database query failed.") from exc
+    finally:
+        connection.close()
+
+
+def execute(sql: str, params: Sequence[Any] | None = None) -> int:
+    """Run a small write query and return the inserted row id when available."""
+    connection = _connect()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            return int(cursor.lastrowid or 0)
+    except pymysql.MySQLError as exc:
+        raise DatabaseUnavailable("FarmPi database write failed.") from exc
+    finally:
+        connection.close()
+
+
 def ping_database() -> bool:
     """Return True when MariaDB is reachable and the FarmPi database can be selected."""
     connection = _connect()
