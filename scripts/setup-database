@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 if [[ ${EUID} -ne 0 ]]; then
-  echo "Run this helper through sudo: sudo ./scripts/setup-database" >&2
+  echo "Run this helper through sudo: sudo bash ./scripts/setup-database" >&2
   exit 1
 fi
 
@@ -19,6 +19,7 @@ env_dir=/etc/farmpi
 env_file=${env_dir}/farmpi.env
 schema_file=${project_dir}/config/database/schema.sql
 seed_file=${project_dir}/config/database/seed.sql
+mariadb_bind_file=/etc/mysql/mariadb.conf.d/60-farmpi.cnf
 
 for required_file in "${schema_file}" "${seed_file}"; do
   if [[ ! -f ${required_file} ]]; then
@@ -30,7 +31,14 @@ done
 echo "Installing MariaDB..."
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-server openssl
-systemctl enable --now mariadb.service
+
+cat > "${mariadb_bind_file}" <<'EOF_MARIADB'
+[mysqld]
+bind-address = 127.0.0.1
+EOF_MARIADB
+
+systemctl enable mariadb.service
+systemctl restart mariadb.service
 
 mkdir -p "${env_dir}"
 
