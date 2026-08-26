@@ -19,28 +19,43 @@ _UNSUPPORTED_RE = re.compile(
     r"\b(?:temperature|temp|ph|humidity|weather|rain|rainfall|irrigation)\b",
     re.IGNORECASE,
 )
-
-_DRIEST_TERMS = (
-    "driest",
-    "lowest moisture",
-    "least moisture",
-    "lowest soil moisture",
-    "least soil moisture",
+_DRIEST_RE = re.compile(
+    r"\b(?:driest|dryest)\b|\b(?:lowest|least)\s+(?:soil\s+)?moisture\b",
+    re.IGNORECASE,
+)
+_WETTEST_RE = re.compile(
+    r"\bwettest\b|\b(?:highest|most)\s+(?:soil\s+)?moisture\b",
+    re.IGNORECASE,
+)
+_AVERAGE_RE = re.compile(
+    r"\baverage\b|\bmean\s+(?:soil\s+)?moisture\b",
+    re.IGNORECASE,
 )
 
-_WETTEST_TERMS = (
-    "wettest",
-    "highest moisture",
-    "most moisture",
-    "highest soil moisture",
-    "most soil moisture",
-)
-
-_AVERAGE_TERMS = (
-    "average",
-    "mean moisture",
-    "mean soil moisture",
-)
+# Words that commonly follow "paddock" in ordinary questions but are not
+# paddock identifiers. Without this guard a phrase such as "which paddock is"
+# can be misread as a request for a paddock literally named "Paddock IS" if an
+# earlier intent recogniser does not match the user's wording.
+_PADDOCK_STOPWORDS = {
+    "a",
+    "an",
+    "are",
+    "can",
+    "could",
+    "do",
+    "does",
+    "has",
+    "have",
+    "is",
+    "should",
+    "that",
+    "the",
+    "was",
+    "were",
+    "which",
+    "with",
+    "would",
+}
 
 
 def _canonical_paddock_name(token: str) -> str:
@@ -52,24 +67,26 @@ def _canonical_paddock_name(token: str) -> str:
 
 def route_question(question: str) -> QuestionRoute:
     """Route a question without asking the LLM to select or execute database logic."""
-    normalized = " " + " ".join(question.casefold().split()) + " "
-
     # Unsupported measurement types are handled before moisture keywords so a
     # question such as "temperature of the driest paddock" cannot accidentally
     # be answered with a soil-moisture result.
     if _UNSUPPORTED_RE.search(question):
         return QuestionRoute(intent="unsupported")
 
-    if any(term in normalized for term in _DRIEST_TERMS):
+    if _DRIEST_RE.search(question):
         return QuestionRoute(intent="driest")
 
-    if any(term in normalized for term in _WETTEST_TERMS):
+    if _WETTEST_RE.search(question):
         return QuestionRoute(intent="wettest")
 
-    if any(term in normalized for term in _AVERAGE_TERMS):
+    if _AVERAGE_RE.search(question):
         return QuestionRoute(intent="average")
 
-    paddock_matches = _PADDOCK_RE.findall(question)
+    paddock_matches = [
+        token
+        for token in _PADDOCK_RE.findall(question)
+        if token.casefold() not in _PADDOCK_STOPWORDS
+    ]
     if len(paddock_matches) == 1:
         return QuestionRoute(
             intent="paddock",
@@ -77,5 +94,7 @@ def route_question(question: str) -> QuestionRoute:
         )
 
     # The fallback deliberately preserves broader soil-moisture Q&A, including
-    # comparisons involving multiple named paddocks, while the router is small.
+    # comparisons and conversational wording the small router does not classify
+    # more narrowly. Importantly, it is safer to use the verified full snapshot
+    # than to invent a paddock name from grammar such as "paddock is".
     return QuestionRoute(intent="moisture-fallback")
