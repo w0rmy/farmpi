@@ -10,6 +10,8 @@ from app.question_router import route_question
 class QuestionRouterTests(unittest.TestCase):
     def test_driest(self) -> None:
         self.assertEqual(route_question("Which paddock is driest?").intent, "driest")
+        self.assertEqual(route_question("Which paddock is the driest?").intent, "driest")
+        self.assertEqual(route_question("Which paddock is dryest?").intent, "driest")
         self.assertEqual(
             route_question("Which has the lowest soil moisture?").intent,
             "driest",
@@ -42,6 +44,11 @@ class QuestionRouterTests(unittest.TestCase):
     def test_multiple_paddocks_use_broad_fallback(self) -> None:
         route = route_question("Compare Paddock A and Paddock B.")
         self.assertEqual(route.intent, "moisture-fallback")
+
+    def test_conversational_paddock_word_is_not_treated_as_name(self) -> None:
+        route = route_question("Which paddock is currently the most dry?")
+        self.assertEqual(route.intent, "moisture-fallback")
+        self.assertIsNone(route.paddock_name)
 
 
 if __name__ == "__main__":
