@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Any
 
@@ -10,33 +11,22 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="FarmPi", version="0.2.0")
+from .database import DatabaseUnavailable, ping_database
+from .farm_data import NoFarmData, build_verified_moisture_context
+
+app = FastAPI(title="FarmPi", version="0.3.0")
 
 LLAMA_BASE_URL = os.getenv("FARMPI_LLAMA_URL", "http://127.0.0.1:8080")
 LLAMA_CHAT_URL = f"{LLAMA_BASE_URL}/v1/chat/completions"
 LLAMA_HEALTH_URL = f"{LLAMA_BASE_URL}/health"
 
 SYSTEM_PROMPT = """You are FarmPi's language interface.
+The current FarmPi prototype supports verified soil-moisture information only.
 Use only the verified farm information supplied by FarmPi.
 Do not invent measurements, causes, recommendations, or conclusions.
 Do not perform new calculations; use only results FarmPi marks as verified.
 Answer the user's question directly and concisely.
 If the supplied information cannot answer the question, say that the information is unavailable.
-"""
-
-# Proof-of-concept data only. This will later be replaced by deterministic
-# application logic backed by MariaDB and live sensor readings.
-VERIFIED_FARM_DATA = """VERIFIED FARM INFORMATION
-Soil moisture:
-- Paddock A: 18%
-- Paddock B: 24%
-- Paddock C: 29%
-- Paddock D: 21%
-
-Verified results:
-- Farm average soil moisture: 23%
-- Driest paddock: Paddock A
-- Wettest paddock: Paddock C
 """
 
 
@@ -50,7 +40,7 @@ class AskResponse(BaseModel):
     """Response returned to the FarmPi client."""
 
     answer: str
-    grounding: str = "hard-coded-test-data"
+    grounding: str = "mariadb-deterministic"
 
 
 PAGE = r"""<!doctype html>
@@ -113,7 +103,8 @@ label { display: inline-block; margin-top: 8px; }
 <p class="hint">Ask the local farm-monitoring assistant a question.</p>
 
 <div class="warning">
-<strong>Prototype:</strong> answers are currently grounded in hard-coded test data, not live farm sensors.
+<strong>Prototype:</strong> soil-moisture readings are now retrieved from MariaDB.
+The current rows are seeded test data until physical sensors are connected.
 </div>
 
 <textarea id="question" autocomplete="off"
@@ -243,9 +234,13 @@ async function checkFarmPiStatus() {
     try {
         const response = await fetch("/api/status");
         const data = await response.json();
-        status.textContent = data.llm && data.llm.available
-            ? "Local AI ready."
-            : "FarmPi is running, but the local AI is unavailable.";
+        if (data.llm && data.llm.available && data.database && data.database.available) {
+            status.textContent = "Local AI and farm database ready.";
+        } else if (!data.database || !data.database.available) {
+            status.textContent = "FarmPi is running, but the farm database is unavailable.";
+        } else {
+            status.textContent = "FarmPi is running, but the local AI is unavailable.";
+        }
     } catch {
         status.textContent = "Unable to check FarmPi status.";
     }
@@ -272,7 +267,7 @@ async def health() -> dict[str, str]:
 
 @app.get("/api/status")
 async def status() -> dict[str, Any]:
-    """Report application and local LLM dependency status."""
+    """Report application, database, and local LLM dependency status."""
     llm_ok = False
     llm_detail = "unavailable"
 
@@ -285,6 +280,14 @@ async def status() -> dict[str, Any]:
     except httpx.HTTPError:
         pass
 
+    database_ok = False
+    database_detail = "unavailable"
+    try:
+        database_ok = await asyncio.to_thread(ping_database)
+        database_detail = "ok" if database_ok else "unavailable"
+    except DatabaseUnavailable:
+        pass
+
     return {
         "service": "FarmPi",
         "status": "running",
@@ -293,22 +296,39 @@ async def status() -> dict[str, Any]:
             "status": llm_detail,
             "url": LLAMA_BASE_URL,
         },
-        "grounding": "hard-coded-test-data",
+        "database": {
+            "available": database_ok,
+            "status": database_detail,
+        },
+        "grounding": "mariadb-deterministic",
     }
 
 
 @app.post("/api/ask", response_model=AskResponse)
 async def ask(request: AskRequest) -> AskResponse:
-    """Send a grounded, constrained question to the local Qwen model."""
+    """Answer a question using deterministic MariaDB-derived farm facts."""
     question_text = request.question.strip()
     if not question_text:
         raise HTTPException(status_code=400, detail="No question supplied.")
+
+    try:
+        verified_farm_data = await asyncio.to_thread(build_verified_moisture_context)
+    except DatabaseUnavailable as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="The FarmPi database is unavailable.",
+        ) from exc
+    except NoFarmData as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="No current soil-moisture readings are available.",
+        ) from exc
 
     payload = {
         "model": "Qwen3-0.6B",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "system", "content": VERIFIED_FARM_DATA},
+            {"role": "system", "content": verified_farm_data},
             {"role": "user", "content": question_text},
         ],
         "temperature": 0.1,
