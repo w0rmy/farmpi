@@ -4,9 +4,9 @@ FarmPi is the local farm-monitoring service intended to run on the Raspberry Pi.
 
 ## Known-good alpha milestone — 26 August 2026
 
-FarmPi has reached a known-good local-AI proof-of-concept milestone on the Raspberry Pi 4. Android/browser access over Caddy HTTPS with its internal CA, FastAPI grounding and control, and Qwen3 0.6B through `llama-server` work together. Both FarmPi and the LLM run through systemd; browser speech input (`en-NZ`) and text-to-speech output work; and unsupported information is rejected rather than invented.
+FarmPi has reached a known-good local-AI proof-of-concept milestone on the Raspberry Pi 4. Android/browser access over Caddy HTTPS with its internal CA, FastAPI grounding and control, MariaDB-backed deterministic farm data, and Qwen3 0.6B through `llama-server` work together. Both FarmPi and the LLM run through systemd; browser speech input (`en-NZ`) and text-to-speech output work; and unsupported information is rejected rather than invented.
 
-The next milestone is now being implemented: the original hard-coded moisture facts are being replaced by a deterministic MariaDB-backed data layer.
+The current optimisation pass adds deterministic question routing, smaller per-question grounding contexts, per-stage latency measurement, a shorter generation budget, and a persistent HTTP connection to `llama-server`. These changes preserve the same grounding model while reducing unnecessary work on the Raspberry Pi 4.
 
 ## Current alpha architecture
 
@@ -17,12 +17,14 @@ Caddy HTTPS :443
     ↓
 FastAPI / Uvicorn 127.0.0.1:8000
     ↓
+Deterministic question router
+    ↓
 Grounding and application logic
     ├──→ MariaDB 127.0.0.1:3306
     │      ↓
     │   deterministic farm-data functions
     │      ↓
-    │   verified compact context
+    │   minimal verified result
     │
     └──→ llama-server 127.0.0.1:8080
               ↓
@@ -36,22 +38,37 @@ Caddy is the only application-facing service exposed to the local network. FastA
 | `GET /` | Mobile-friendly FarmPi AI interface. |
 | `GET /health` | Cheap FastAPI health check for systemd/Caddy. |
 | `GET /api/status` | Shows FastAPI, MariaDB, and local LLM availability. |
-| `POST /api/ask` | Answers a grounded question using deterministic MariaDB-derived facts. |
+| `POST /api/ask` | Answers a grounded question using deterministic MariaDB-derived facts and returns alpha timing measurements. |
 
 ## Deterministic grounding model
 
-The LLM does not query MariaDB directly and does not calculate farm statistics. `app/database.py` provides the small database access layer and `app/farm_data.py` provides deterministic functions such as:
+The LLM does not query MariaDB directly and does not calculate farm statistics. `app/database.py` provides the small database access layer, `app/question_router.py` selects an approved deterministic operation, and `app/farm_data.py` provides functions such as:
 
 - `get_moisture_snapshot()`
 - `get_driest_paddock()`
 - `get_wettest_paddock()`
 - `get_average_soil_moisture()`
+- `get_paddock_moisture()`
 
-The current rule selects the latest valid moisture reading from each active sensor. If a paddock has multiple active sensors, their latest values are averaged to produce the paddock's current moisture value. Python then determines the driest paddock, wettest paddock, and farm average before anything is sent to Qwen.
+The current rule selects the latest valid moisture reading from each active sensor. If a paddock has multiple active sensors, their latest values are averaged to produce the paddock's current moisture value. Python then determines the requested result before anything is sent to Qwen.
 
-Qwen receives only this compact verified context plus the user question. It remains the language interface rather than the factual authority.
+For common questions, Qwen receives only the verified facts required for that request plus the user question. Broader or unclassified soil-moisture questions retain a deterministic full-snapshot fallback. Qwen remains the language interface rather than the factual authority.
 
 The current MariaDB rows are repeatable prototype seed data. They are not live sensor readings yet. See [docs/database-layer.md](docs/database-layer.md).
+
+## Latency instrumentation
+
+During alpha testing `POST /api/ask` returns:
+
+- `routing_ms`
+- `database_ms`
+- `context_ms`
+- `llm_ms`
+- `total_ms`
+
+The web page displays total response time and LLM time after each answer, and the same measurements are written to the FarmPi/Uvicorn log. This is intended to support measured before-and-after evaluation rather than relying on subjective impressions of speed.
+
+The optimisation design and recommended test method are documented in [docs/latency-optimization.md](docs/latency-optimization.md).
 
 ## First-time installation on the Raspberry Pi
 
@@ -111,8 +128,10 @@ Useful validation questions are:
 
 - `Which paddock is driest?`
 - `Which paddock is wettest?`
+- `What is the average soil moisture?`
 - `What is Paddock B's soil moisture?`
 - `What is Paddock B's soil temperature?` — this should report that the information is unavailable.
+- `Compare Paddock A and Paddock B.` — this exercises the broader deterministic fallback.
 
 ## Speech input and output
 
@@ -135,7 +154,7 @@ The updater automatically validates and reloads the repository Caddyfile when `c
 ## Project layout
 
 ```text
-app/                     FastAPI service, DB access, deterministic farm logic
+app/                     FastAPI service, DB access, router, deterministic farm logic
 config/Caddyfile          HTTPS reverse-proxy configuration
 config/database/          MariaDB schema and repeatable prototype seed data
 config/systemd/           FarmPi and llama-server service templates
@@ -156,4 +175,4 @@ uvicorn app.app:app --reload
 
 A local development shell must provide the same `FARMPI_DB_*` environment variables used by the service if database-backed routes are to be exercised.
 
-The Raspberry Pi LLM findings are recorded in [docs/llm-testing.md](docs/llm-testing.md), and the database design is described in [docs/database-layer.md](docs/database-layer.md).
+The Raspberry Pi LLM findings are recorded in [docs/llm-testing.md](docs/llm-testing.md), the database design is described in [docs/database-layer.md](docs/database-layer.md), and the latency optimisation is documented in [docs/latency-optimization.md](docs/latency-optimization.md).
