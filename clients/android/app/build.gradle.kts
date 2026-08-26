@@ -1,12 +1,11 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
     namespace = "nz.farmpi.client"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "nz.farmpi.client"

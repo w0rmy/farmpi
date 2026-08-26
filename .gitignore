@@ -14,3 +14,8 @@ firmware/esp32-sensor/config.h
 .vscode/
 .idea/
 .DS_Store
+
+# Local Android Studio state and generated Android build outputs
+clients/android/.gradle/
+clients/android/build/
+clients/android/local.properties
