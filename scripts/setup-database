@@ -43,8 +43,10 @@ systemctl restart mariadb.service
 mkdir -p "${env_dir}"
 
 existing_password=""
+existing_ingest_token=""
 if [[ -f ${env_file} ]]; then
   existing_password=$(sed -n 's/^FARMPI_DB_PASSWORD=//p' "${env_file}" | head -n 1)
+  existing_ingest_token=$(sed -n 's/^FARMPI_INGEST_TOKEN=//p' "${env_file}" | head -n 1)
 fi
 
 if [[ -n ${existing_password} ]]; then
@@ -53,12 +55,21 @@ else
   db_password=$(openssl rand -hex 24)
 fi
 
+if [[ -n ${existing_ingest_token} ]]; then
+  ingest_token=${existing_ingest_token}
+else
+  # Prototype authentication only: enough to stop accidental unauthorised
+  # writes on the test network without introducing device-PKI complexity.
+  ingest_token=$(openssl rand -hex 16)
+fi
+
 cat > "${env_file}" <<EOF_ENV
 FARMPI_DB_HOST=127.0.0.1
 FARMPI_DB_PORT=3306
 FARMPI_DB_NAME=farmpi
 FARMPI_DB_USER=farmpi
 FARMPI_DB_PASSWORD=${db_password}
+FARMPI_INGEST_TOKEN=${ingest_token}
 EOF_ENV
 chown root:"${service_group}" "${env_file}"
 chmod 0640 "${env_file}"
@@ -89,3 +100,5 @@ echo "FarmPi MariaDB setup complete."
 echo "Configuration: ${env_file}"
 echo "Database: farmpi"
 echo "Application user: farmpi@127.0.0.1"
+echo "Sensor ingest token is stored in ${env_file}."
+echo "View it with: sudo grep '^FARMPI_INGEST_TOKEN=' ${env_file}"
