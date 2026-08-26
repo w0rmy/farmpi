@@ -25,4 +25,6 @@
 #define SYNTHETIC_START_AIR_TEMPERATURE_C 16.0f
 #define SYNTHETIC_START_RELATIVE_HUMIDITY_PCT 72.0f
 #define SYNTHETIC_START_SOIL_PH 6.3f
+
+// Five minutes: 288 synthetic readings per sensor per day.
 #define SEND_INTERVAL_MS 300000UL
