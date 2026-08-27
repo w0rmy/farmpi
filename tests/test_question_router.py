@@ -115,6 +115,11 @@ class QuestionRouterTests(unittest.TestCase):
         self.assertEqual(route_question("Can you help me make sense of this farm data?").intent, "conversation")
         self.assertEqual(route_question("Explain refill point and field capacity.").education_key, "irrigation_decision")
 
+    def test_farm_wide_field_paraphrase_uses_semantic_path(self) -> None:
+        route = route_question("What's the mean temperature over all the fields please?")
+        self.assertEqual(route.intent, "conversation")
+        self.assertEqual(route.measurement, "air_temperature_c")
+
 
 if __name__ == "__main__":
     unittest.main()
