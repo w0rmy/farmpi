@@ -2,6 +2,8 @@
 
 These Mermaid source files are the maintainable architecture diagrams for the capstone. Render them in a Mermaid-capable Markdown viewer or export SVG/PNG from the `.mmd` source when inserting a portable formal document. Exported images are intentionally not checked in until a formal document needs a fixed rendition; this prevents stale image copies from diverging from the implementation.
 
+The diagram set covers the system architecture, layered responsibilities, ask/answer grounding, ingest/time-sync acknowledgement, database ERD, NZ simulator, repository structure, Android client, Flexible Learning, chart/evidence flow, and rename/audit confirmation. Update the relevant `.mmd` source whenever a change materially alters a component boundary, data flow, sequence, or learner interaction; see [the current-state index](../current-state.md) for the matching source modules.
+
 | Diagram | What it explains |
 | --- | --- |
 | [System architecture](system-architecture.mmd) | Pi/ESP32/clients/data/model flow |

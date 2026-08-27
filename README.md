@@ -7,7 +7,7 @@
 - `clients/android/` — native Kotlin/Jetpack Compose user client.
 - `config/`, `tests/`, `docs/`, and `scripts/` — deployment configuration, validation, evidence, and repeatable operational helpers.
 
-See [the time-sync contract](docs/time-sync-telemetry.md), [NZ synthetic simulation](docs/nz-synthetic-simulation.md), [deterministic analytics and graphs](docs/analytics-and-graphing.md), [educational grounding](docs/educational-grounding.md), [structured requests](docs/structured-requests.md), and [Android architecture](docs/android-client.md). Editable Mermaid diagram sources are in [docs/diagrams](docs/diagrams/).
+Start with [the current implementation state](docs/current-state.md), then see [the time-sync contract](docs/time-sync-telemetry.md), [NZ synthetic simulation](docs/nz-synthetic-simulation.md), [deterministic analytics and graphs](docs/analytics-and-graphing.md), [educational grounding](docs/educational-grounding.md), [structured requests](docs/structured-requests.md), and [Android architecture](docs/android-client.md). Editable Mermaid diagram sources are in [docs/diagrams](docs/diagrams/).
 
 FarmPi is a local farm-monitoring alpha and capstone technical medium for Artificial Intelligence/Data Science and Flexible Learning. It deliberately produces a rich, believable **synthetic** dataset while keeping factual queries, calculations, and administration deterministic.
 

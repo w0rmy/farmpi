@@ -14,7 +14,7 @@ The same response includes bounded `evidence`: paddock, sensor UID where availab
 
 ## Screen, voice, and evidence
 
-Current-value responses use human-readable freshness on screen (for example, `Updated 2 minutes ago` or `Last reading: 9:42 am`). Their evidence payload retains full `observed_at` and `received_at` values plus sensor and simulated provenance. The API also provides a concise `spoken_answer`; Android and browser clients use it for normal TTS, so exact timestamps and routine simulated-data labels are available visually or through **Show evidence**, rather than adding avoidable spoken cognitive load.
+Current-value responses use human-readable freshness on screen (for example, `Updated 2 minutes ago` or `Last reading: 9:42 am`). Their evidence payload retains full `observed_at` and `received_at` values plus sensor and simulated provenance. The API also provides a concise `spoken_answer`; the native Android client uses it for normal TTS, so exact timestamps and routine simulated-data labels are available visually or through **Show evidence**, rather than adding avoidable spoken cognitive load. The built-in browser page is a diagnostic/fallback client and currently speaks the detailed `answer`.
 
 Charts are deliberately modest: line/time views and bar/comparison views only. They are instructional aids, not a BI dashboard, forecast, or agronomic model.
 
