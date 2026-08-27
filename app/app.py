@@ -1,16 +1,16 @@
-"""FarmPi grounded local-LLM web service."""
+"""FarmPi grounded agricultural learning web service."""
 
 from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, replace
 import logging
 import os
 import re
 import secrets
 import time
 from typing import Any, AsyncIterator, Literal
-from dataclasses import dataclass, replace
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from .database import DatabaseUnavailable, ping_database
 from .farm_data import (
+    GroundingData,
     NoFarmData,
     analytics_grounding,
     format_grounding_context,
@@ -26,36 +27,57 @@ from .farm_data import (
     paddock_summary,
 )
 from .education import CONCEPTS, concept_for_measurement, render_concept
-from .learning import activity_payload
-from .question_router import route_question
-from .paddock_admin import RenameProposal, RenameRejected, confirm_rename, prepare_rename
 from .guidance import INITIAL_SUGGESTIONS, WELCOME_TEXT, follow_up_suggestions
+from .knowledge_sources import format_source_context, provenance_for_sources
+from .learning import activity_payload
+from .paddock_admin import RenameProposal, RenameRejected, confirm_rename, prepare_rename
+from .question_router import route_question
+from .semantic_interpreter import (
+    build_interpretation_payload,
+    needs_semantic_interpretation,
+    parse_semantic_interpretation,
+    route_from_interpretation,
+)
 from .speech_normalizer import SpeechAlternative, SpeechNormalization, current_paddock_names, normalize_speech
 
 LLAMA_BASE_URL = os.getenv("FARMPI_LLAMA_URL", "http://127.0.0.1:8080")
 LLAMA_CHAT_URL = f"{LLAMA_BASE_URL}/v1/chat/completions"
 LLAMA_HEALTH_URL = f"{LLAMA_BASE_URL}/health"
 LLAMA_TIMEOUT = httpx.Timeout(connect=3.0, read=120.0, write=10.0, pool=3.0)
+LLM_MODEL = os.getenv("FARMPI_LLM_MODEL", "Qwen3-1.7B")
 
 logger = logging.getLogger("uvicorn.error")
 
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-    """Keep one HTTP client open for local llama-server requests."""
+    """Keep one HTTP client open for the configured LLM service."""
     async with httpx.AsyncClient(timeout=LLAMA_TIMEOUT) as client:
         application.state.http_client = client
         yield
 
 
-app = FastAPI(title="FarmPi", version="0.6.0", lifespan=lifespan)
+app = FastAPI(title="FarmPi", version="0.7.0", lifespan=lifespan)
 
-SYSTEM_PROMPT = """You are FarmPi, a concise teaching assistant for farm monitoring.
-FARM-SPECIFIC VERIFIED FACTS supplied by FarmPi are authoritative: never invent, calculate, alter, or infer farm measurements, causes, forecasts, or decisions.
-You may use APPROVED LEARNING MATERIAL for general educational explanations, but do not turn it into a claim about this farm.
-If FarmPi cannot support an operational decision, explain what is known, what other factors matter, and offer one useful next learning step; never recommend an action.
-Use the supplied context only. Answer in 1–3 short sentences and at most one follow-up question. Give deeper detail only when asked.
+SYSTEM_PROMPT = """You are FarmPi, an open conversational agricultural learning assistant focused on practical New Zealand farming and the learner's FarmPi data.
+Talk naturally and adapt to the learner's wording, background and requested explanation level. Questions about dairy farming, cows, sheep, pasture, soils, irrigation, weather, effluent, animal health, farm systems and related agriculture are legitimate learning questions.
+FARMPI VERIFIED FACTS are authoritative for this farm: never invent, alter or replace sensor/database facts. DETERMINISTIC CALCULATIONS supplied by FarmPi are authoritative calculations over those facts; do not recalculate them.
+CURATED NEW ZEALAND SOURCE material may be attributed to the named source only when a reviewed claim is supplied. Never claim that a source was searched live unless the context explicitly says live retrieval occurred.
+You may use general agricultural knowledge to explain and teach. Clearly keep general knowledge separate from claims about this particular farm and from official NZ recommendations.
+Do not make unsupported farm-specific diagnoses or operational decisions. Instead explain what is known, what factors are relevant, what is uncertain, and one useful next learning step.
+Answer in 1–3 short sentences and at most one follow-up question unless the learner asks for more detail.
 """
+
+
+SourceCategory = Literal[
+    "observational",
+    "calculated",
+    "educational",
+    "authoritative",
+    "researched",
+    "general",
+    "combined",
+]
 
 
 class AskRequest(BaseModel):
@@ -108,6 +130,7 @@ class AskTimings(BaseModel):
     """Alpha performance timings for one FarmPi question."""
 
     routing_ms: float
+    interpretation_ms: float = 0.0
     database_ms: float
     context_ms: float
     llm_ms: float
@@ -119,17 +142,19 @@ class AskResponse(BaseModel):
 
     answer: str
     spoken_answer: str | None = None
-    grounding: str = "mariadb-deterministic"
+    grounding: str = "hybrid-provenance"
     intent: str
     timings: AskTimings
     confirmation_id: str | None = None
     conversation_id: str | None = None
-    suggestions: list[str] = []
+    suggestions: list[str] = Field(default_factory=list)
     speech_normalization: SpeechNormalizationResponse | None = None
     preferences: ClientPreferences = ClientPreferences()
     chart: dict[str, Any] | None = None
-    evidence: list[dict[str, Any]] = []
-    source_category: Literal["observational", "educational", "combined"] = "observational"
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    source_category: SourceCategory = "observational"
+    provenance: list[dict[str, Any]] = Field(default_factory=list)
+    semantic_interpretation: dict[str, Any] | None = None
 
 
 class GuidanceResponse(BaseModel):
@@ -164,6 +189,17 @@ class ConversationState:
 
 _conversation_states: dict[str, ConversationState] = {}
 _CONVERSATION_TTL_SECONDS = 30 * 60
+
+
+def _grounding_provenance(grounding: GroundingData, intent: str) -> list[dict[str, str]]:
+    entries: list[dict[str, str]] = []
+    if grounding.evidence:
+        entries.append({"kind": "farm-observation", "source": "FarmPi validated telemetry / MariaDB"})
+    if intent in {"driest", "wettest", "average", "farm-average", "ranking", "historical", "comparison", "summary"}:
+        entries.append({"kind": "deterministic-calculation", "source": "FarmPi application layer"})
+    if grounding.source_category == "educational":
+        entries.append({"kind": "curated-learning", "source": "FarmPi reviewed educational material"})
+    return entries
 
 
 PAGE = r"""<!doctype html>
@@ -224,15 +260,15 @@ label { display: inline-block; margin-top: 8px; }
 </head>
 <body>
 <h1>FarmPi</h1>
-<p class="hint">Ask the local farm-monitoring assistant a question.</p>
+<p class="hint">Ask about your farm data or practical farming in your own words.</p>
 
 <div class="warning">
 <strong>Prototype:</strong> MariaDB holds simulated 16-paddock telemetry.
-FarmPi labels simulated results and does not provide farm advice.
+FarmPi labels simulated results and does not provide unsupported farm advice.
 </div>
 
 <textarea id="question" autocomplete="off"
-    placeholder="For example: Which paddock is driest?"></textarea>
+    placeholder="For example: Why does soil moisture matter for pasture?"></textarea>
 
 <div class="controls">
     <button id="ask" type="button">Ask FarmPi</button>
@@ -316,7 +352,7 @@ async function askFarmPi(speechInput = null) {
 
         if (speakAnswer.checked && "speechSynthesis" in window) {
             window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(data.answer);
+            const utterance = new SpeechSynthesisUtterance(data.spoken_answer || data.answer);
             utterance.lang = "en-NZ";
             window.speechSynthesis.speak(utterance);
         }
@@ -394,11 +430,11 @@ async function checkFarmPiStatus() {
         const response = await fetch("/api/status");
         const data = await response.json();
         if (data.llm && data.llm.available && data.database && data.database.available) {
-            status.textContent = "Local AI and farm database ready.";
+            status.textContent = "AI and farm database ready.";
         } else if (!data.database || !data.database.available) {
             status.textContent = "FarmPi is running, but the farm database is unavailable.";
         } else {
-            status.textContent = "FarmPi is running, but the local AI is unavailable.";
+            status.textContent = "FarmPi is running, but the configured AI is unavailable.";
         }
     } catch {
         status.textContent = "Unable to check FarmPi status.";
@@ -448,7 +484,7 @@ async def normalise_speech(request: SpeechNormalizeRequest) -> SpeechNormalizati
 
 @app.get("/api/status")
 async def status() -> dict[str, Any]:
-    """Report application, database, and local LLM dependency status."""
+    """Report application, database, and configured LLM dependency status."""
     llm_ok = False
     llm_detail = "unavailable"
 
@@ -475,18 +511,19 @@ async def status() -> dict[str, Any]:
             "available": llm_ok,
             "status": llm_detail,
             "url": LLAMA_BASE_URL,
+            "model": LLM_MODEL,
         },
         "database": {
             "available": database_ok,
             "status": database_detail,
         },
-        "grounding": "mariadb-deterministic",
+        "grounding": "hybrid-provenance",
     }
 
 
 @app.post("/api/ask", response_model=AskResponse)
 async def ask(request: AskRequest) -> AskResponse:
-    """Answer a question using the smallest suitable deterministic grounding context."""
+    """Interpret learner language, then use controlled FarmPi tools and learning context."""
     total_start = time.perf_counter()
     question_text = request.question.strip()
     if not question_text:
@@ -494,13 +531,12 @@ async def ask(request: AskRequest) -> AskResponse:
 
     preferences = request.preferences or ClientPreferences()
     speech_normalization: SpeechNormalizationResponse | None = None
+    semantic_interpretation: dict[str, Any] | None = None
+    interpretation_ms = 0.0
     if request.speech is not None:
         try:
             paddock_names = await asyncio.to_thread(current_paddock_names)
         except DatabaseUnavailable:
-            # The normalizer can still handle an explicit Paddock A-style
-            # phrase.  The normal grounding request will report database
-            # unavailability through its existing path if it needs data.
             paddock_names = ()
         normalization: SpeechNormalization = normalize_speech(
             question_text,
@@ -541,9 +577,20 @@ async def ask(request: AskRequest) -> AskResponse:
                 route.intent, route.measurement, route.operation, time.monotonic() + _CONVERSATION_TTL_SECONDS,
             )
 
-    def direct_action(answer: str, intent: str, confirmation_id: str | None = None, *, spoken_answer: str | None = None, chart: dict[str, Any] | None = None, evidence: list[dict[str, Any]] | None = None, source_category: Literal["observational", "educational", "combined"] = "observational") -> AskResponse:
+    def direct_action(
+        answer: str,
+        intent: str,
+        confirmation_id: str | None = None,
+        *,
+        spoken_answer: str | None = None,
+        chart: dict[str, Any] | None = None,
+        evidence: list[dict[str, Any]] | None = None,
+        source_category: SourceCategory = "observational",
+        provenance: list[dict[str, Any]] | None = None,
+    ) -> AskResponse:
         remember_conversation()
         total_ms = (time.perf_counter() - total_start) * 1000
+        database_ms = max(0.0, total_ms - routing_ms - interpretation_ms)
         return AskResponse(
             answer=answer,
             spoken_answer=spoken_answer or answer,
@@ -556,17 +603,21 @@ async def ask(request: AskRequest) -> AskResponse:
             chart=chart,
             evidence=evidence or [],
             source_category=source_category,
+            provenance=provenance or [],
+            semantic_interpretation=semantic_interpretation,
             timings=AskTimings(
                 routing_ms=round(routing_ms, 2),
-                database_ms=round(total_ms - routing_ms, 2),
+                interpretation_ms=round(interpretation_ms, 2),
+                database_ms=round(database_ms, 2),
                 context_ms=0.0,
                 llm_ms=0.0,
                 total_ms=round(total_ms, 2),
             ),
         )
 
-    # Confirmation is an explicit deterministic mutation boundary. Qwen is not
-    # called to interpret, authorise, or execute the database update.
+    # Confirmation remains an explicit deterministic mutation boundary. The
+    # semantic model may interpret a rename request, but it never authorises or
+    # executes the update.
     for token, (_, expires_at) in tuple(_pending_renames.items()):
         if expires_at <= now:
             del _pending_renames[token]
@@ -584,7 +635,30 @@ async def ask(request: AskRequest) -> AskResponse:
         return direct_action(
             f'Renamed "{confirmed.old_name}" to "{confirmed.new_name}". Historical readings remain linked to this paddock.',
             "rename-confirmation",
+            provenance=[{"kind": "deterministic-action", "source": "FarmPi paddock administration"}],
         )
+
+    # The regex router is now a fast path, not the learner-language gatekeeper.
+    # Ambiguous/open wording is interpreted semantically into a reviewed route.
+    if needs_semantic_interpretation(question_text, route):
+        interpretation_start = time.perf_counter()
+        try:
+            try:
+                known_paddocks = await asyncio.to_thread(current_paddock_names)
+            except DatabaseUnavailable:
+                known_paddocks = ()
+            payload = build_interpretation_payload(question_text, tuple(known_paddocks))
+            payload["model"] = LLM_MODEL
+            client: httpx.AsyncClient = app.state.http_client
+            interpreted_response = await client.post(LLAMA_CHAT_URL, json=payload)
+            interpreted_response.raise_for_status()
+            interpreted_result = interpreted_response.json()
+            interpretation = parse_semantic_interpretation(interpreted_result["choices"][0]["message"]["content"])
+            semantic_interpretation = interpretation.public_dict()
+            route = route_from_interpretation(interpretation)
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError, AttributeError) as exc:
+            logger.warning("FarmPi semantic interpretation failed; using fast-route fallback: %s", exc)
+        interpretation_ms = (time.perf_counter() - interpretation_start) * 1000
 
     if route.intent == "rename-request":
         try:
@@ -597,17 +671,27 @@ async def ask(request: AskRequest) -> AskResponse:
             f'Rename "{proposal.old_name}" to "{proposal.new_name}"? Reply “confirm” or “yes” within five minutes to apply this change.',
             "rename-request",
             confirmation_id,
+            provenance=[{"kind": "deterministic-action", "source": "FarmPi paddock administration", "status": "awaiting-confirmation"}],
+        )
+
+    if route.intent == "semantic-clarification":
+        return direct_action(
+            "I’m not confident I understood that well enough to choose a FarmPi action. Could you say it another way or tell me what you want to learn or change?",
+            "semantic-clarification",
+            source_category="general",
+            provenance=[{"kind": "interpretation", "source": "FarmPi semantic learner-intent layer", "confidence": "insufficient"}],
         )
 
     if route.intent == "contextual-follow-up-missing":
         return direct_action(
-            "I need a previous paddock measurement in this conversation before I can interpret “What about …?”. Try, for example, “What is the temperature in Paddock B?”.",
+            "I need a little more context for that follow-up. Tell me the paddock, measurement, or farming topic you mean and I’ll continue from there.",
             "contextual-follow-up",
+            source_category="general",
         )
 
-    # Educational definitions are curated and version controlled.  A named
-    # current measurement may be included as observational grounding, but the
-    # definition itself never comes from Qwen.
+    # Reviewed concept definitions remain useful high-confidence learning
+    # material. A named current measurement can be added without letting the
+    # language model invent the observation.
     if route.intent == "education":
         concept = CONCEPTS.get(route.education_key) or concept_for_measurement(route.measurement)
         lowered = question_text.casefold()
@@ -615,100 +699,148 @@ async def ask(request: AskRequest) -> AskResponse:
             concept = CONCEPTS.get("simulated_data" if "simulat" in lowered else "observed_received" if ("observed" in lowered or "received" in lowered) else "trend")
         facts = list(render_concept(concept, preferences.explanation_level))
         evidence: list[dict[str, Any]] = []
+        provenance: list[dict[str, Any]] = [{"kind": "curated-learning", "source": "FarmPi reviewed educational material", "concept": concept.key}]
         if route.paddock_name and route.measurement:
             try:
                 observed = await asyncio.to_thread(get_grounding_data, "paddock-field", route.paddock_name, route.measurement)
                 facts.insert(0, observed.facts[0])
                 evidence = [{"source": "observational", "fact": fact} for fact in observed.facts]
+                provenance.insert(0, {"kind": "farm-observation", "source": "FarmPi validated telemetry / MariaDB"})
             except (DatabaseUnavailable, NoFarmData):
                 facts.insert(0, "The requested current reading is unavailable, but the concept explanation is still available.")
-        return direct_action("\n".join(facts), "education", evidence=evidence + [{"source": "educational", "concept": concept.key}], source_category="combined" if evidence else "educational")
+        return direct_action(
+            "\n".join(facts),
+            "education",
+            evidence=evidence + [{"source": "educational", "concept": concept.key}],
+            source_category="combined" if evidence else "educational",
+            provenance=provenance,
+        )
 
     database_start = time.perf_counter()
+    source_context = ""
+    source_provenance: list[dict[str, Any]] = []
     try:
-        if route.intent in {"historical", "comparison"} and route.measurement and route.operation:
+        if route.intent in {"agriculture-learning", "agriculture-research", "conversation"}:
+            source_context, selected_sources = format_source_context(question_text)
+            source_provenance = list(provenance_for_sources(selected_sources))
+            if route.intent == "agriculture-research":
+                source_provenance.append({
+                    "kind": "research-status",
+                    "status": "curated-source-directory-only",
+                    "note": "Live external retrieval is not configured in this prototype; FarmPi must not imply that it searched the web.",
+                })
+            learning_facts = [
+                "This is an agricultural learning question. General agricultural explanation is allowed, but general knowledge must not be presented as a verified fact about this farm.",
+            ]
+            evidence: tuple[dict[str, object], ...] = ()
+            if route.paddock_name and route.measurement:
+                try:
+                    observed = await asyncio.to_thread(get_grounding_data, "paddock-field", route.paddock_name, route.measurement)
+                    learning_facts = [*observed.facts, *learning_facts]
+                    evidence = observed.evidence
+                    source_provenance.insert(0, {"kind": "farm-observation", "source": "FarmPi validated telemetry / MariaDB"})
+                except (DatabaseUnavailable, NoFarmData):
+                    learning_facts.insert(0, "The related FarmPi reading is unavailable, so do not imply a current farm observation.")
+            grounding_data = GroundingData(
+                route.intent,
+                tuple(learning_facts),
+                evidence,
+                source_category="general" if not evidence else "combined",
+            )
+        elif route.intent in {"historical", "comparison"} and route.measurement and route.operation:
             grounding_data = await asyncio.to_thread(analytics_grounding, route.measurement, route.operation, route.window_minutes, route.time_label, route.paddock_name, route.intent == "comparison")
         elif route.intent == "summary":
             grounding_data = await asyncio.to_thread(paddock_summary, route.paddock_name, route.window_minutes, route.time_label)
         else:
             grounding_data = await asyncio.to_thread(get_grounding_data, route.intent, route.paddock_name, route.measurement, route.operation, route.window_minutes)
     except DatabaseUnavailable as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="The FarmPi database is unavailable.",
-        ) from exc
+        raise HTTPException(status_code=503, detail="The FarmPi database is unavailable.") from exc
     except NoFarmData as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="No current soil-moisture readings are available.",
-        ) from exc
+        raise HTTPException(status_code=503, detail="No current FarmPi readings are available for that request.") from exc
     database_ms = (time.perf_counter() - database_start) * 1000
 
-    # Calculated responses and unavailable-boundary explanations are already
-    # complete deterministic teaching material.  They do not need a language
-    # model call, which also makes evidence/chart rendering dependable offline.
+    # Facts, calculations and mutations that are already complete deterministic
+    # results bypass the wording model. The model is for interpretation and
+    # teaching, not for recalculating authoritative farm data.
     if route.intent in {
         "historical", "comparison", "summary", "capability", "farm_inventory_count", "farm_inventory_list",
         "paddock_summary", "paddock", "paddock-field", "irrigation-decision", "operational-decision",
-        "forecast-boundary", "causal-boundary", "interpretation-boundary",
+        "forecast-boundary", "causal-boundary", "interpretation-boundary", "farm-average", "ranking",
+        "driest", "wettest", "average", "measurement-fallback",
     }:
+        category: SourceCategory = grounding_data.source_category if grounding_data.source_category in {
+            "observational", "calculated", "educational", "authoritative", "researched", "general", "combined"
+        } else "observational"
+        if route.intent in {"farm-average", "ranking", "historical", "comparison", "summary", "driest", "wettest", "average"} and category == "observational":
+            category = "calculated"
         return direct_action(
-            "\n".join(grounding_data.facts), route.intent,
+            "\n".join(grounding_data.facts),
+            route.intent,
             spoken_answer="\n".join(grounding_data.spoken_facts or grounding_data.facts),
             chart=grounding_data.chart,
             evidence=list(grounding_data.evidence),
-            source_category=grounding_data.source_category if grounding_data.source_category in {"observational", "educational", "combined"} else "observational",
+            source_category=category,
+            provenance=_grounding_provenance(grounding_data, route.intent),
         )
 
     context_start = time.perf_counter()
     grounding_context = format_grounding_context(grounding_data)
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": f"Use a {preferences.explanation_level} explanation level. Keep verified farm facts and deterministic actions distinct from general educational knowledge."},
+        {"role": "system", "content": grounding_context},
+    ]
+    if source_context:
+        messages.append({"role": "system", "content": source_context})
+    messages.append({"role": "user", "content": question_text})
     payload = {
-        "model": "Qwen3-0.6B",
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "system", "content": f"Use a {preferences.explanation_level} explanation level. Keep the farm-fact and decision boundaries in the system contract."},
-            {"role": "system", "content": grounding_context},
-            {"role": "user", "content": question_text},
-        ],
+        "model": LLM_MODEL,
+        "messages": messages,
         "temperature": 0.1,
-        "max_tokens": {"simple": 30, "normal": 40, "technical": 70}[preferences.explanation_level],
+        "max_tokens": {"simple": 64, "normal": 96, "technical": 128}[preferences.explanation_level],
         "stream": False,
     }
     context_ms = (time.perf_counter() - context_start) * 1000
 
     llm_start = time.perf_counter()
     try:
-        client: httpx.AsyncClient = app.state.http_client
+        client = app.state.http_client
         response = await client.post(LLAMA_CHAT_URL, json=payload)
         response.raise_for_status()
         result = response.json()
         answer = result["choices"][0]["message"]["content"].strip()
-    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="The local language model is unavailable or returned an invalid response.",
-        ) from exc
+    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError, AttributeError) as exc:
+        raise HTTPException(status_code=503, detail="The configured language model is unavailable or returned an invalid response.") from exc
     llm_ms = (time.perf_counter() - llm_start) * 1000
 
     if not answer:
-        raise HTTPException(
-            status_code=503,
-            detail="The local language model returned an empty response.",
-        )
+        raise HTTPException(status_code=503, detail="The configured language model returned an empty response.")
 
-    # Keep the observation identical but make explanation levels demonstrably
-    # instructional rather than only changing Qwen's token limit.  These notes
-    # are curated, so the model does not invent a definition or limitation.
-    source_category: Literal["observational", "educational", "combined"] = grounding_data.source_category if grounding_data.source_category in {"observational", "educational", "combined"} else "observational"
+    source_category: SourceCategory = grounding_data.source_category if grounding_data.source_category in {
+        "observational", "calculated", "educational", "authoritative", "researched", "general", "combined"
+    } else "general"
+    provenance = [*_grounding_provenance(grounding_data, route.intent), *source_provenance]
+    if route.intent in {"agriculture-learning", "conversation"}:
+        provenance.append({"kind": "general-explanation", "source": "configured language model", "scope": "educational; not a verified farm fact"})
+        if source_provenance:
+            source_category = "combined"
+        else:
+            source_category = "general"
+    elif route.intent == "agriculture-research":
+        provenance.append({"kind": "general-explanation", "source": "configured language model", "scope": "educational; curated source directory supplied"})
+        source_category = "authoritative" if source_provenance else "general"
+
     concept = concept_for_measurement(route.measurement)
-    if concept and preferences.explanation_level in {"normal", "technical"}:
+    if concept and preferences.explanation_level in {"normal", "technical"} and route.intent not in {"agriculture-learning", "agriculture-research"}:
         note = concept.normal if preferences.explanation_level == "normal" else f"{concept.technical} Limitation: {concept.limitations}"
         answer = f"{answer}\n\nLearning note: {note}"
         source_category = "combined"
+        provenance.append({"kind": "curated-learning", "source": "FarmPi reviewed educational material", "concept": concept.key})
 
     total_ms = (time.perf_counter() - total_start) * 1000
     timings = AskTimings(
         routing_ms=round(routing_ms, 2),
+        interpretation_ms=round(interpretation_ms, 2),
         database_ms=round(database_ms, 2),
         context_ms=round(context_ms, 2),
         llm_ms=round(llm_ms, 2),
@@ -716,9 +848,10 @@ async def ask(request: AskRequest) -> AskResponse:
     )
 
     logger.info(
-        "FarmPi ask intent=%s routing=%.2fms database=%.2fms context=%.2fms llm=%.2fms total=%.2fms",
+        "FarmPi ask intent=%s routing=%.2fms interpretation=%.2fms database=%.2fms context=%.2fms llm=%.2fms total=%.2fms",
         route.intent,
         routing_ms,
+        interpretation_ms,
         database_ms,
         context_ms,
         llm_ms,
@@ -736,4 +869,6 @@ async def ask(request: AskRequest) -> AskResponse:
         chart=grounding_data.chart,
         evidence=list(grounding_data.evidence),
         source_category=source_category,
+        provenance=provenance,
+        semantic_interpretation=semantic_interpretation,
     )
