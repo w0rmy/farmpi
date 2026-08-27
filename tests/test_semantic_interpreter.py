@@ -7,8 +7,9 @@ import json
 import unittest
 from unittest.mock import patch
 
-from app.app import AskRequest, app, ask
-from app.knowledge_sources import format_source_context, sources_for_question
+from app.app import AskRequest, _pending_renames, app, ask
+from app.knowledge_sources import format_source_context, provenance_for_sources
+from app.paddock_admin import RenameProposal
 from app.question_router import route_question
 from app.semantic_interpreter import (
     build_interpretation_payload,
@@ -19,10 +20,15 @@ from app.semantic_interpreter import (
 
 
 class SemanticInterpreterTests(unittest.TestCase):
-    def test_polite_rename_that_misses_fast_grammar_is_sent_for_semantic_interpretation(self) -> None:
-        question = "Could you please rename Paddock A to North Flat please?"
-        fast = route_question(question)
-        self.assertTrue(needs_semantic_interpretation(question, fast))
+    def test_polite_and_exact_rename_are_sent_for_semantic_interpretation(self) -> None:
+        for question in (
+            "Rename Paddock A to North Flat",
+            "Could you please rename Paddock A to North Flat please?",
+            "Can we call field A North Flat?",
+        ):
+            with self.subTest(question=question):
+                fast = route_question(question)
+                self.assertTrue(needs_semantic_interpretation(question, fast))
 
     def test_rename_interpretation_maps_to_deterministic_rename_route(self) -> None:
         interpretation = parse_semantic_interpretation(json.dumps({
@@ -96,6 +102,7 @@ class SemanticInterpreterTests(unittest.TestCase):
         self.assertIn("colloquial", system)
         self.assertIn("accented/transcribed", system)
         self.assertIn("Return ONE JSON object only", system)
+        self.assertIn("trailing 'please'", system)
         self.assertEqual(payload["max_tokens"], 192)
 
     def test_dairynz_irrigation_source_has_reviewed_claims(self) -> None:
@@ -103,6 +110,8 @@ class SemanticInterpreterTests(unittest.TestCase):
         self.assertTrue(any(source.organisation == "DairyNZ" for source in sources))
         self.assertIn("refill point", context)
         self.assertIn("Do not say they were searched live", context)
+        provenance = provenance_for_sources(sources)
+        self.assertTrue(any(item["use"] == "reviewed-claim-support" for item in provenance))
 
 
 class _FakeResponse:
@@ -117,21 +126,25 @@ class _FakeResponse:
         return {"choices": [{"message": {"content": self._content}}]}
 
 
-class _FakeClient:
-    def __init__(self) -> None:
+class _SequenceClient:
+    def __init__(self, responses: list[str]) -> None:
+        self.responses = list(responses)
         self.calls = 0
 
     async def post(self, _url: str, json: dict[str, object]) -> _FakeResponse:
         self.calls += 1
-        if self.calls == 1:
-            return _FakeResponse('{"intent":"learning","confidence":0.99,"paddock_name":null,"new_paddock_name":null,"measurement":null,"operation":null,"window_minutes":null,"topic":"milk fever in dairy cows","reason":"general dairy learning"}')
-        return _FakeResponse("Milk fever is a metabolic disorder around calving involving low blood calcium. Would you like me to explain why calcium demand rises around calving?")
+        if not self.responses:
+            raise AssertionError("Unexpected extra model request")
+        return _FakeResponse(self.responses.pop(0))
 
 
 class OpenLearningAskTests(unittest.TestCase):
     @patch("app.app.current_paddock_names", return_value=())
     def test_broad_dairy_question_uses_semantic_learning_path(self, _names) -> None:
-        client = _FakeClient()
+        client = _SequenceClient([
+            '{"intent":"learning","confidence":0.99,"paddock_name":null,"new_paddock_name":null,"measurement":null,"operation":null,"window_minutes":null,"topic":"milk fever in dairy cows","reason":"general dairy learning"}',
+            "Milk fever is a metabolic disorder around calving involving low blood calcium. Would you like me to explain why calcium demand rises around calving?",
+        ])
         old_client = getattr(app.state, "http_client", None)
         app.state.http_client = client
         try:
@@ -146,6 +159,28 @@ class OpenLearningAskTests(unittest.TestCase):
         self.assertEqual(response.semantic_interpretation["topic"], "milk fever in dairy cows")
         self.assertTrue(any(item.get("kind") == "general-explanation" for item in response.provenance))
         self.assertEqual(client.calls, 2)
+
+    @patch("app.app.prepare_rename")
+    @patch("app.app.current_paddock_names", return_value=("Paddock A",))
+    def test_polite_rename_is_interpreted_then_enters_deterministic_confirmation(self, _names, prepare) -> None:
+        _pending_renames.clear()
+        prepare.return_value = RenameProposal(7, "Paddock A", "North Flat")
+        client = _SequenceClient([
+            '{"intent":"rename","confidence":0.98,"paddock_name":"Paddock A","new_paddock_name":"North Flat","measurement":null,"operation":null,"window_minutes":null,"topic":null,"reason":"polite rename request"}',
+        ])
+        old_client = getattr(app.state, "http_client", None)
+        app.state.http_client = client
+        try:
+            response = asyncio.run(ask(AskRequest(question="Could you please rename Paddock A to North Flat please?")))
+        finally:
+            if old_client is None:
+                delattr(app.state, "http_client")
+            else:
+                app.state.http_client = old_client
+        self.assertEqual(response.intent, "rename-request")
+        self.assertIsNotNone(response.confirmation_id)
+        prepare.assert_called_once_with("Paddock A", "North Flat")
+        self.assertEqual(client.calls, 1)
 
 
 if __name__ == "__main__":
