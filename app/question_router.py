@@ -49,8 +49,12 @@ _GRAPH_RE = re.compile(r"\b(?:show\s+(?:a\s+)?graph|chart|trend\s+graph)\b", re.
 _EVIDENCE_RE = re.compile(r"\b(?:show\s+(?:the\s+)?(?:data|evidence)|why\??)\b", re.IGNORECASE)
 _INVENTORY_RE = re.compile(r"\bhow\s+many\s+(?:active\s+)?(?:paddocks?|sensor\s+nodes?)\b|\b(?:count|number)\s+of\s+(?:active\s+)?(?:paddocks?|sensor\s+nodes?)\b", re.IGNORECASE)
 _INVENTORY_LIST_RE = re.compile(
-    r"\b(?:a\s+)?(?:list|show|name)\s+(?:of\s+)?(?:all\s+)?(?:the\s+)?(?:current\s+|active\s+|monitored\s+)?paddocks?\b"
+    # The wording is intentionally broad but requires a plural/farm-wide
+    # paddock target.  It therefore catches "list the names of all paddocks"
+    # without stealing a named-paddock request such as "tell me about Paddock B".
+    r"\b(?:list|show|name|identify|give\s+(?:me|us)|tell\s+(?:me|us))\b(?:\s+[a-z]+){0,8}\s+\bpaddocks\b"
     r"|\bwhat\s+paddocks?\s+(?:are\s+)?(?:being\s+)?(?:monitored|active)\b"
+    r"|\bwhat\s+are\s+(?:the\s+)?(?:names?\s+of\s+)?(?:all\s+|active\s+|current\s+|monitored\s+)?paddocks?\b"
     r"|\bwhich\s+paddocks?\s+(?:are\s+)?active\b"
     r"|\blist\s+of\s+(?:all\s+)?(?:current\s+)?paddocks?\b",
     re.IGNORECASE,

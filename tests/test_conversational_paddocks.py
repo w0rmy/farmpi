@@ -37,6 +37,9 @@ class ConversationalPaddockTests(unittest.TestCase):
         cases = {
             "Can you give me a list of all current paddocks being monitored?": "farm_inventory_list",
             "List the paddocks.": "farm_inventory_list",
+            "Could you list the names of all of the paddocks?": "farm_inventory_list",
+            "Show me the names of the active paddocks.": "farm_inventory_list",
+            "What are the paddock names?": "farm_inventory_list",
             "What paddocks are being monitored?": "farm_inventory_list",
             "Which paddocks are active?": "farm_inventory_list",
             "How many paddocks are we monitoring?": "farm_inventory_count",
