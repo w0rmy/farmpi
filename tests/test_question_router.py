@@ -43,9 +43,15 @@ class QuestionRouterTests(unittest.TestCase):
         route = route_question("Which field is hottest?")
         self.assertEqual((route.intent, route.measurement, route.operation), ("ranking", "air_temperature_c", "highest"))
 
-    def test_field_is_a_farm_scope_alias_for_inventory(self) -> None:
+    def test_field_is_a_paddock_alias(self) -> None:
         self.assertEqual(route_question("List all fields").intent, "farm_inventory_list")
         self.assertEqual(route_question("How many fields are we monitoring?").intent, "farm_inventory_count")
+
+        route = route_question("What is the temperature in Field 2?")
+        self.assertEqual((route.intent, route.paddock_name, route.measurement), ("paddock-field", "Paddock 2", "air_temperature_c"))
+
+        route = route_question("What is Field B's humidity?")
+        self.assertEqual((route.intent, route.paddock_name, route.measurement), ("paddock-field", "Paddock B", "relative_humidity_pct"))
 
     def test_help_and_onboarding(self) -> None:
         for question in (
