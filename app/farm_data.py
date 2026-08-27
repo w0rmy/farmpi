@@ -256,12 +256,43 @@ def get_average_soil_moisture(snapshot: list[PaddockEnvironment] | None = None) 
     return round(fmean(item.soil_moisture_pct for item in values), 2)
 
 
+def get_average_measurement(key: str, snapshot: list[PaddockEnvironment] | None = None) -> float:
+    """Return the current farm-wide mean for one reviewed measurement."""
+    if key not in BY_KEY or AVERAGE not in BY_KEY[key].operations:
+        raise ValueError("That measurement does not have a reviewed farm-wide average operation.")
+    values = snapshot if snapshot is not None else get_environment_snapshot()
+    if not values:
+        raise NoFarmData(f"No current {measurement(key).label} readings are available.")
+    return fmean(item.values[key] for item in values)
+
+
 def _provenance_fact(items: list[PaddockEnvironment]) -> str:
     return "The result includes simulated test readings." if any(item.contains_simulated for item in items) else "The result uses non-simulated sensor readings."
 
 
 def _measurement_fact(item: PaddockEnvironment, key: str) -> str:
     return f"{item.name} {measurement(key).label}: {format_measurement(item.values[key], key)}."
+
+
+def _current_average(key: str) -> GroundingData:
+    """Calculate a current cross-paddock mean from the latest verified snapshot."""
+    items = get_environment_snapshot()
+    value = get_average_measurement(key, items)
+    label = measurement(key).label
+    evidence = tuple({
+        "paddock": item.name,
+        "sensor": None,
+        "timestamp": item.received_at.isoformat(),
+        "value": item.values[key],
+        "simulated": item.contains_simulated,
+    } for item in items)
+    fact = f"Farm average {label} across {len(items)} active paddocks: {format_measurement(value, key)}."
+    return GroundingData(
+        "farm-average",
+        (fact, _provenance_fact(items)),
+        evidence,
+        spoken_facts=(fact,),
+    )
 
 
 def _current_ranking(key: str, highest: bool) -> GroundingData:
@@ -431,9 +462,9 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
     """Return precisely the deterministic facts approved by a router route."""
     if intent in {"capability", "help"}:
         return GroundingData(intent, (
-            "FarmPi can show current verified soil moisture, air temperature, humidity, pH, EC, light, rainfall, pressure, wind, pasture height, and leaf wetness, plus paddock comparisons, bounded history and trends, evidence/graphs, and explanations.",
-            "It can also list or count active paddocks; renames require an explicit confirmation.",
-            "FarmPi does not currently provide forecasts or irrigation recommendations. Try asking: What is Paddock 2's soil moisture? or How has soil moisture changed over the last 24 hours?",
+            "FarmPi can show current verified soil moisture, air temperature, humidity, pH, EC, light, rainfall, pressure, wind, pasture height, and leaf wetness, plus farm-wide averages and highest/lowest paddocks, paddock comparisons, bounded history and trends, evidence/graphs, and explanations.",
+            "Field and paddock mean the same monitored area in learner questions. FarmPi can also list or count active paddocks; renames require an explicit confirmation.",
+            "FarmPi does not currently provide forecasts or irrigation recommendations. Try asking: What is the average temperature across all fields? or Which paddock is hottest?",
         ), source_category="educational")
     if intent == "irrigation-decision":
         return irrigation_decision_grounding(paddock_name)
@@ -458,8 +489,8 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
     if intent == "interpretation-boundary":
         return GroundingData(intent, (
             "FarmPi understood the measurement, but that calculation or interpretation is not one of its reviewed deterministic analytics.",
-            "It can show the current reading, a supported trend, or evidence instead of estimating a result.",
-            "Would you like a current value or a trend?",
+            "It can show the current reading, supported farm-wide averages or highest/lowest values, a trend, or evidence instead of estimating a result.",
+            "Would you like a current value, farm-wide comparison, or trend?",
         ), source_category="educational")
     if intent == "conversation":
         return GroundingData(intent, (
@@ -481,6 +512,8 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
     if intent == "average":
         snapshot = get_moisture_snapshot()
         return GroundingData(intent, (f"Farm average soil moisture: {format_measurement(get_average_soil_moisture(snapshot), 'soil_moisture_pct')}.", _provenance_fact(snapshot)))
+    if intent == "farm-average" and measurement_key and measurement_key in BY_KEY:
+        return _current_average(measurement_key)
     if intent == "ranking" and measurement_key and operation in {"highest", "lowest"}:
         return _current_ranking(measurement_key, operation == "highest")
     if intent == "historical" and measurement_key and operation and window_minutes:
