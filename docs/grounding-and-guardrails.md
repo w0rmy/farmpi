@@ -1,235 +1,246 @@
-# FarmPi grounding, guardrails, and deterministic control
+# FarmPi grounding, provenance, and deterministic control
 
 ## Purpose
 
-FarmPi does not rely on one prompt or one configuration file to keep the local language model factual. The control model is deliberately layered. Each layer has a narrow responsibility and prevents later layers from having to trust the LLM with work that can be done deterministically.
+FarmPi uses grounding and guardrails to protect **farm-specific facts and state-changing actions**, not to restrict the learner to a narrow command language.
 
-The central design principle is:
+The important architectural distinction is:
 
-> Qwen is the language interface, not the factual authority.
+> **The language model may interpret and teach broadly; FarmPi application code remains authoritative for this farm's observations, calculations, identities, database access and mutations.**
 
-FarmPi grounds farm facts and actions deterministically; it does not attempt to enumerate every valid learner sentence. An earlier deny-by-default language router was too restrictive and could interpret ordinary grammar as a paddock name. This pass introduces a controlled conversational path: Qwen may interpret learner intent and explain approved learning material, while every farm measurement, paddock resolution, calculation, database query, mutation, confirmation, and operational decision boundary remains application-controlled.
+Early development applied the same deny-by-default approach to both factual authority and learner language. Testing on 27 August 2026 showed that this was too restrictive for the Flexible IT Training objective. Exact regex routes could return accurate data, but ordinary phrases, polite requests and broader agricultural questions could be rejected or misclassified.
 
-The LLM does not query MariaDB directly, does not decide which SQL to run, does not calculate farm statistics, and is not allowed to invent measurements, causes, or recommendations.
+The current architecture therefore keeps the strong data/action boundaries while opening the conversational and educational layers.
 
-## Layered control path
-
-```text
-ESP32 sensor telemetry
-        ↓
-1. HTTP/API validation
-        ↓
-2. sensor identity and ingest logic
-        ↓
-3. MariaDB schema and constraints
-        ↓
-4. deterministic speech/domain normalisation (spoken input only)
-        ↓
-5. deterministic action routing / conversational boundary
-        ↓
-6. approved deterministic retrieval/calculation
-        ↓
-7. VERIFIED FARM FACTS and/or APPROVED LEARNING MATERIAL grounding
-        ↓
-8. LLM system instructions
-        ↓
-Qwen natural-language response
-        ↓
-9. deterministic user guidance / suggested next questions
-```
-
-These layers together are what this project informally calls the guardrails. There is no single `guardrails.conf` file.
-
-## 1. Incoming telemetry validation — `app/ingest_api.py`
-
-`app/ingest_api.py` defines the accepted ESP32 JSON payload and validates the incoming values before they reach the database.
-
-Current instantaneous fields are:
-
-- `soil_moisture_pct` — 0 to 100%;
-- `air_temperature_c` — -30 to 60°C;
-- `relative_humidity_pct` — 0 to 100%;
-- `soil_ph` — 0 to 14;
-- `light_lux` — 0 to 200,000 lux;
-- `simulated` — provenance flag for test telemetry.
-
-The 16-paddock expansion adds soil temperature, soil EC, rainfall per sample
-interval, barometric pressure, wind speed/direction, pasture height, and leaf
-wetness. Their aliases, ranges, units, and permitted operations are centrally
-defined in `app/measurements.py`, avoiding separate regex/validation lists.
-
-The endpoint also applies the deliberately lightweight prototype bearer token. This prevents arbitrary unauthenticated posts while avoiding a full embedded-device PKI project.
-
-## 2. Sensor identity and storage — `app/sensor_ingest.py`
-
-`app/sensor_ingest.py` checks that the submitted `sensor` UID exists, is active, and belongs to an active paddock. Unknown or inactive sensor nodes are rejected.
-
-FarmPi is the authoritative UTC clock. It records both node `observed_at` and FarmPi `received_at`, checks a 30-second drift threshold, and owns all sync/deduplication rules. Qwen never participates in time synchronisation, SQL, calculation, retry handling, or mutations; [the telemetry contract](time-sync-telemetry.md) documents the detail.
-
-The timestamp decision became important during testing. An early fixed seed timestamp appeared newer than a genuinely later ingest value because the seed effectively used local time while ingest used UTC. That caused the deterministic latest-reading query to select the wrong row. The seed was corrected to an intentionally old UTC baseline.
-
-## 3. Database constraints — `config/database/schema.sql`
-
-MariaDB is another validation boundary, not merely storage. `config/database/schema.sql` defines:
-
-- table relationships;
-- sensor/paddock foreign keys;
-- unique constraints;
-- measurement columns;
-- valid measurement ranges through `CHECK` constraints;
-- the `simulated` provenance marker.
-
-This means an invalid measurement should be rejected both by the API model and by the database constraint layer.
-
-## 4. Speech/domain normalisation — `app/speech_normalizer.py`
-
-Browser speech recognition runs on the user's device and returns text to the FarmPi UI. For spoken input only, FarmPi asks the browser for up to five alternatives and sends them to `app/speech_normalizer.py` before the router sees the question. The module uses the reviewed aliases in `app/measurements.py`, plus current active paddock names fetched from MariaDB, as its small domain vocabulary.
-
-It uses explainable scores rather than an LLM, a cloud speech provider, or a fuzzy-matching framework. An alternative must score strictly better than the browser's top result before it is selected; a tie stays unchanged. The explicit `Patek` → `paddock` correction is applied only when other farm context is present, so unrelated proper-name use such as a Patek watch is retained. The browser's phrase/context biasing support is inconsistent, which is why FarmPi treats this deterministic layer as the reliable correction boundary.
-
-The response contains the raw and interpreted transcript when a change occurs, allowing the interface to display **Heard** and **Interpreted**. This records the observed `Patek`/`paddock` phone-dictation issue as an evaluation finding rather than hiding it.
-
-Typed questions bypass this layer. Normalisation may make a spoken rename routeable, but it does not execute it: the normal deterministic confirmation boundary below still applies.
-
-## 5. Deterministic question routing — `app/question_router.py`
-
-`app/question_router.py` interprets the user's wording and selects an approved application operation before Qwen receives any farm facts.
-
-The router currently recognises:
-
-- help/onboarding requests;
-- active paddock and sensor-node inventory counts;
-- a latest-measurement paddock summary, including the supported measurement set;
-- driest paddock;
-- wettest paddock;
-- average soil moisture;
-- current named-paddock measurements;
-- current measurement snapshots;
-- broader soil-moisture questions using a safe deterministic fallback;
-- unsupported questions.
-
-It also maps natural-language measurement terms such as `temperature`, `humidity`, `pH`, `EC`, `how wet`, and `lux` to explicit internal field names. Plain `temperature` selects air temperature; `soil temperature` remains explicit.
-
-Paddock references pass through one database-backed resolver shared by every API client. It prioritises current display name, audited previous name, canonical letter, and then the active configured numeric/word-number order (`Paddock 2`, `Paddock two`, or `Paddock number 2`). The resolver returns a specific unknown, ambiguous, out-of-range, no-current-reading, or no-active-paddocks result rather than a generic unavailable answer. The API's short opaque conversation token can reuse the preceding approved current measurement for “What about Paddock 2?”; it does not provide free-form LLM memory.
-
-The router does **not** generate SQL and does not ask the LLM to decide which database function to execute.
-
-A useful alpha failure occurred when the phrase `which paddock is driest` could fall through an earlier recogniser and the generic paddock regex interpreted the word `is` as a paddock identifier, producing `Paddock IS`. The router now contains paddock stop-words and regression tests so ordinary grammar cannot be treated as a paddock name.
-
-## 6. Deterministic retrieval and calculation — `app/farm_data.py`
-
-`app/farm_data.py` is the main factual-authority layer.
-
-It retrieves the latest complete reading for active sensor nodes and produces the current environmental snapshot. For soil moisture it also performs approved deterministic calculations such as:
-
-- driest paddock;
-- wettest paddock;
-- average soil moisture.
-
-Current temperature, humidity, soil pH, and light are retrieved as measurements. Rankings or aggregates for those fields are not currently calculated, so questions such as `Which paddock is hottest?` remain unsupported until an explicit deterministic rule is implemented.
-
-The expanded layer now permits only catalogue-approved rankings and bounded
-historical sum/min/max/average/change. Rainfall total, pasture-height change,
-and daylight derived from five-minute light samples at or above 1,000 lux are
-the initial useful operations. The LLM still performs none of this arithmetic.
-
-The measurement metadata and units are also defined here so the value handed to the LLM is already a complete fact such as:
+## Current control path
 
 ```text
-Paddock A air temperature: 16.50 °C.
+ESP32 telemetry / learner question
+        ↓
+Telemetry validation OR speech/domain normalisation
+        ↓
+Fast deterministic route where meaning is obvious
+        ↓                         ↓
+        └──── ambiguous/open wording ────┐
+                                         ↓
+                              semantic intent interpreter
+                                         ↓
+                              structured reviewed intent
+                                         ↓
+                     deterministic application execution
+                         ├─ paddock resolver
+                         ├─ MariaDB retrieval
+                         ├─ deterministic analytics
+                         └─ explicit mutation confirmation
+                                         ↓
+                     provenance-labelled knowledge context
+                         ├─ FarmPi observation
+                         ├─ FarmPi calculation
+                         ├─ curated NZ source material
+                         └─ general agricultural explanation
+                                         ↓
+                             concise teaching response
 ```
 
-Qwen is not asked to calculate or infer that value.
+The semantic interpreter is allowed to decide what a sentence *probably means*. It is not allowed to decide what the farm data *is* or to execute an action.
 
-## 7. Grounding context — `app/farm_data.py`
+## 1. Telemetry validation and identity
 
-The deterministic result is converted to a compact context headed:
+Incoming ESP32 telemetry is validated before storage. Sensor identity and active paddock membership are application/database concerns. MariaDB constraints provide another validation boundary.
+
+FarmPi stores and distinguishes device observation time and FarmPi receipt time. The language model does not participate in clock synchronisation, sensor identity, deduplication, SQL or measurement validation.
+
+## 2. Speech/domain normalisation
+
+Android/device speech recognition can provide several transcript alternatives. `app/speech_normalizer.py` uses transparent FarmPi vocabulary cues and current paddock names to prefer a better alternative when there is strong domain evidence.
+
+Known contextual transcription errors currently include forms such as `Patek` and `padlock` for `paddock`. Corrections only occur when farming/measurement context exists, so an unrelated sentence about a padlock or a Patek watch is left unchanged.
+
+When normalisation changes a transcript, the client can show both **Heard** and **Interpreted** text. This keeps speech-recognition errors visible during learner evaluation.
+
+## 3. Fast deterministic router
+
+`app/question_router.py` remains useful for obvious requests such as a clearly phrased current measurement, average, ranking, comparison, history or paddock inventory question.
+
+It is now an **optimisation**, not the definition of valid learner language.
+
+A learner does not need to know the exact syntax accepted by a regex. If wording is ambiguous, colloquial, indirect, source-oriented or action-like, FarmPi can invoke the semantic interpretation layer instead.
+
+## 4. Semantic learner-intent interpretation
+
+`app/semantic_interpreter.py` asks the configured language model to convert natural language into a small JSON contract. Example:
+
+```json
+{
+  "intent": "rename",
+  "confidence": 0.96,
+  "paddock_name": "Paddock A",
+  "new_paddock_name": "North Flat",
+  "measurement": null,
+  "operation": null
+}
+```
+
+or:
+
+```json
+{
+  "intent": "learning",
+  "confidence": 0.98,
+  "topic": "milk fever in dairy cows"
+}
+```
+
+The interpreter prompt explicitly expects ordinary, polite, colloquial, regional, accented/transcribed and incomplete English. Its output is validated by Python before being mapped to a reviewed FarmPi route.
+
+Low-confidence action interpretations do not execute. FarmPi asks the learner to clarify.
+
+Every rename-looking phrase is semantically interpreted before the mutation path. This prevents conversational words such as a trailing `please` from accidentally becoming part of a new paddock name while still allowing a learner to explicitly choose a name that genuinely contains such a word.
+
+## 5. Deterministic paddock identity
+
+Paddock references are resolved against FarmPi state, not model memory. The resolver supports current names, audited previous names and configured letter/numeric aliases.
+
+The semantic model may suggest that `field B` means `Paddock B`; the deterministic resolver still decides whether that paddock actually exists and which stable database ID it represents.
+
+This separation preserves history when a display name changes.
+
+## 6. Deterministic farm data and calculations
+
+`app/farm_data.py`, `app/analytics.py` and the measurement catalogue remain factual authority for FarmPi telemetry.
+
+The language model does not calculate sensor-derived values. Reviewed deterministic operations include current readings and supported:
+
+- farm-wide averages;
+- highest/lowest rankings;
+- comparisons;
+- minimum/maximum/average over bounded history where supported;
+- change and trends where supported;
+- rainfall totals;
+- range/anomaly operations where defined by the catalogue;
+- graph/evidence payloads.
+
+For example, if FarmPi supplies:
 
 ```text
-VERIFIED FACTS
+Farm average air temperature across 16 active paddocks: 17.42 °C.
 ```
 
-Only the facts appropriate to the selected route are supplied to Qwen. This reduces prompt size and reduces the opportunity for the model to answer from unrelated information.
+that figure was produced by application code over the validated FarmPi snapshot. The LLM may explain it but does not recalculate it.
 
-The provenance of synthetic telemetry is carried through the grounding layer and retained in the evidence payload. It is shown as a visual label and under **Show evidence**; routine TTS uses the API's concise spoken answer, so it does not repeat simulated-test provenance unless it is relevant or explicitly requested.
+## 7. Mutation boundary
 
-## 8. LLM instructions and orchestration — `app/app.py`
+A semantic interpretation can identify a requested action, but it cannot execute it.
 
-`app/app.py` orchestrates the full question path:
+Paddock rename remains:
 
 ```text
-question
-→ route_question()
-→ get_grounding_data()
-→ format_grounding_context()
-→ llama-server / Qwen
-→ answer
+learner language
+    ↓
+semantic rename intent
+    ↓
+deterministic paddock resolution
+    ↓
+new-name validation
+    ↓
+short-lived confirmation token
+    ↓
+explicit learner confirmation
+    ↓
+application/database update + audit
 ```
 
-Its system prompt tells Qwen to:
+Qwen neither authorises nor performs the database mutation.
 
-- use only `VERIFIED FACTS` supplied by FarmPi;
-- never calculate or invent facts, causes, or recommendations;
-- say information is unavailable when it is absent;
-- explain FarmPi's capabilities helpfully when capability facts are supplied.
+The same principle should apply to future state-changing FarmPi operations.
 
-The prompt is therefore one guardrail, but it is deliberately the final guardrail rather than the only one.
+## 8. Agricultural learning is intentionally broader
 
-## 9. User guidance — `app/guidance.py`
+General agricultural questions are not required to map to a FarmPi database operation.
 
-The first Flexible Learning scaffold is kept deterministic as well.
+FarmPi can teach about cows, sheep, pasture, soils, irrigation, weather, effluent, animal health and related practical agriculture. General model knowledge is allowed for explanation, subject to one important boundary: **general agricultural knowledge is not evidence about this particular farm and is not automatically an official New Zealand recommendation**.
 
-`app/guidance.py` contains:
+A question such as `Why do cows get milk fever?` can therefore be answered as a learning question. A question such as `Why did this cow get milk fever?` must not be presented as a verified diagnosis merely because the model can explain general causes.
 
-- the onboarding welcome text;
-- the verified capability facts used by the `help` route;
-- initial example questions;
-- context-sensitive suggested follow-up questions.
+## 9. Curated authoritative sources
 
-The browser can therefore prompt the user with useful next questions without allowing the LLM to invent capabilities or farm advice.
+`app/knowledge_sources.py` contains the first source registry for trusted New Zealand agricultural material. Initial organisations include:
 
-When the user taps **Guide me**, the request is routed through the normal grounded LLM path. Qwen may phrase the explanation naturally, but the list of what FarmPi can and cannot do is supplied by deterministic application facts.
+- DairyNZ;
+- Ministry for Primary Industries (MPI);
+- Earth Sciences New Zealand;
+- Irrigation New Zealand.
 
-## 9. Controlled rename
+The registry can provide source metadata and reviewed claims to the teaching model. FarmPi may attribute those supplied claims to the named source.
 
-Rename wording is routed to a deterministic administrative action. FarmPi
-resolves the active paddock by identity/name, validates a non-duplicate display
-name, asks for an explicit five-minute confirmation, updates only
-`paddocks.name`, and records `paddock_admin_audit`. Qwen neither authorises
-nor executes it. Numeric relationships preserve all historical rows after the
-name changes.
+The current prototype does **not yet contain a general live web-search/retrieval provider**. It must therefore not say `I searched DairyNZ` merely because a DairyNZ source reference was included. A provenance entry explicitly records when a research request was answered from the curated source directory rather than live retrieval.
 
-## Behavioural contract — tests
+A later external-research provider can add a separate `retrieved/researched` provenance class once FarmPi really performs retrieval.
 
-`tests/test_question_router.py` and `tests/test_guidance.py` are part of the control architecture even though they do not run in production request handling.
+## 10. Provenance classes
 
-They preserve behaviours such as:
+FarmPi's API distinguishes the origin of information rather than pretending all statements have the same authority.
 
-- known questions route to approved operations;
-- help requests route to deterministic capability facts;
-- `Paddock IS` is not invented from grammar;
-- unsupported aggregates remain unsupported;
-- follow-up guidance stays within supported capabilities.
+Current classes are:
 
-The `update` script runs the Python unit tests before restarting FarmPi, so routing-policy regressions should stop deployment.
+- **observational** — validated FarmPi telemetry/database facts;
+- **calculated** — deterministic FarmPi analytics over observations;
+- **educational** — version-controlled FarmPi learning material;
+- **authoritative** — curated authoritative external source material;
+- **researched** — reserved for material actually retrieved by an external-research provider;
+- **general** — model explanatory knowledge, not a farm observation or official source;
+- **combined** — a response that intentionally uses more than one class.
 
-## What remains deliberately unsupported
+The response also carries a `provenance` list. Android exposes it with evidence under **Show sources / evidence**.
 
-At this stage FarmPi does not deterministically establish:
+## 11. Prompt boundary
 
-- weather forecasts;
-- irrigation decisions;
-- agronomic recommendations;
-- causal explanations such as why a pH value changed;
-- rankings or summaries not enabled by the measurement catalogue.
+`app/app.py` tells the answering model to:
 
-`daylight_hours` is intentionally not an ingest field. It is now a documented deterministic historical derivation from `light_lux`, using a 1,000-lux threshold and five-minute sample interval.
+- converse naturally and teach concisely;
+- treat FarmPi verified facts as authoritative for this farm;
+- treat deterministic calculations as authoritative calculations;
+- attribute curated source claims only when supplied;
+- never claim live research unless retrieval actually happened;
+- use general agricultural knowledge for teaching without converting it into a farm-specific fact;
+- avoid unsupported farm-specific diagnoses or operational decisions;
+- explain uncertainty and offer one useful next learning direction.
 
-## Why this matters to the capstone
+This is intentionally less restrictive than the older `use only verified facts` prompt because that old contract prevented useful education. The strong controls now sit where they belong: around facts, calculations and actions.
 
-The layered design demonstrates an important AI/Data Science distinction: a fluent LLM response is not itself evidence that the answer is correct. FarmPi therefore establishes provenance, validation, retrieval, calculation, and scope before the language model is allowed to phrase the result.
+## 12. Model role
 
-It also supports the Flexible Learning component because user guidance can become more adaptive without weakening factual controls. Explanation style, onboarding depth, repeated hints, and user preferences can change independently of the deterministic factual authority underneath them.
-# Current implementation note
+The current reference development model is Qwen3.5-9B hosted by LM Studio on the development PC. It is used in non-thinking mode so short FarmPi interactions are not consumed by hidden reasoning tokens.
 
-FarmPi now returns a labelled observational, educational, or combined source category, plus deterministic chart/evidence payloads when useful. Curated concepts are separate from MariaDB readings and Qwen still has no authority to calculate, query, mutate, or make causal/agronomic claims. See [educational grounding](educational-grounding.md), [structured requests](structured-requests.md), and [the grounding diagram](diagrams/grounding-pipeline.mmd).
+The model performs two distinct language functions:
+
+1. semantic interpretation for wording that the fast route should not be expected to enumerate;
+2. concise educational rendering/explanation.
+
+Neither function gives it direct SQL or mutation authority.
+
+## 13. Behavioural tests
+
+The test suite now covers both deterministic authority and language variation. Relevant files include:
+
+- `tests/test_question_router.py`;
+- `tests/test_conversational_paddocks.py`;
+- `tests/test_conversational_architecture.py`;
+- `tests/test_conversational_variation.py`;
+- `tests/test_semantic_interpreter.py`;
+- `tests/test_speech_normalizer.py`;
+- `tests/test_farm_data.py`.
+
+Language tests deliberately include polite, indirect and colloquial variants rather than only one canonical phrase. The objective is not to enumerate every possible sentence; it is to preserve the semantic/deterministic boundary while demonstrating that different natural phrasings can reach the same controlled operation.
+
+The Pi `./update` process runs the Python validation/tests before service restart, so a failed routing/control regression stops deployment.
+
+## Design rule going forward
+
+When deciding whether to add a new guardrail, ask:
+
+> **Does this protect a farm fact, calculation, identity, external-source claim or state-changing action?**
+
+If yes, deterministic control or explicit provenance is appropriate.
+
+If the proposed guardrail merely forces a learner to phrase a valid agricultural question in one particular way, it is probably in the wrong layer.
