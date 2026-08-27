@@ -68,6 +68,32 @@ class FarmDataTests(unittest.TestCase):
                 self.assertEqual(grounding.evidence[0]["received_at"], "2026-08-26T09:00:00")
 
     @patch("app.farm_data.fetch_all")
+    def test_farm_wide_average_temperature_uses_latest_snapshot_not_the_llm(self, fetch_all) -> None:
+        second = self._row() | {"id": 2, "name": "Paddock B", "air_temperature_c": 18.5}
+        fetch_all.return_value = [self._row(), second]
+        route = route_question("What is the average temperature across all fields?")
+        grounding = get_grounding_data(route.intent, route.paddock_name, route.measurement, route.operation)
+        self.assertEqual(route.intent, "farm-average")
+        self.assertIn("Farm average air temperature across 2 active paddocks: 17.50 °C.", grounding.facts)
+        self.assertEqual(len(grounding.evidence), 2)
+        self.assertEqual(grounding.spoken_facts, ("Farm average air temperature across 2 active paddocks: 17.50 °C.",))
+
+    @patch("app.farm_data.fetch_all")
+    def test_current_highest_and_lowest_temperature_are_deterministic(self, fetch_all) -> None:
+        second = self._row() | {"id": 2, "name": "Paddock B", "air_temperature_c": 18.5}
+        fetch_all.return_value = [self._row(), second]
+
+        high = route_question("What is the highest temperature?")
+        high_grounding = get_grounding_data(high.intent, high.paddock_name, high.measurement, high.operation)
+        self.assertIn("Highest air temperature: Paddock B.", high_grounding.facts)
+        self.assertIn("Paddock B air temperature: 18.50 °C.", high_grounding.facts)
+
+        low = route_question("Which field is coldest?")
+        low_grounding = get_grounding_data(low.intent, low.paddock_name, low.measurement, low.operation)
+        self.assertIn("Lowest air temperature: Paddock A.", low_grounding.facts)
+        self.assertIn("Paddock A air temperature: 16.50 °C.", low_grounding.facts)
+
+    @patch("app.farm_data.fetch_all")
     def test_renamed_paddock_query_resolves_current_database_name(self, fetch_all) -> None:
         row = self._row() | {"name": "North Flat"}
         fetch_all.return_value = [row]
