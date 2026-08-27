@@ -26,7 +26,8 @@ class QuestionRoute:
 
 _RENAME_RE = re.compile(r"^\s*rename\s+(.+?)\s+to\s+(.+?)[?.! ]*\s*$", re.IGNORECASE)
 _PADDOCK_RE = re.compile(r"\b(paddock\s+[a-z0-9_-]+)\b", re.IGNORECASE)
-_NUMBERED_PADDOCK_RE = re.compile(r"\b(?:paddock\s+)?number\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen)\b", re.IGNORECASE)
+_FIELD_RE = re.compile(r"\b(field\s+(?:\d+|[a-p]))\b", re.IGNORECASE)
+_NUMBERED_PADDOCK_RE = re.compile(r"\b(?:(?:paddock|field)\s+)?number\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen)\b", re.IGNORECASE)
 _POSSESSIVE_RE = re.compile(r"\b([a-z][a-z0-9 '&-]{0,98}?)'s\s+(?:soil\s+)?(?:moisture|temperature|humidity|ph|ec|light|rainfall|pressure|wind|pasture|grass|leaf)", re.IGNORECASE)
 _MEASUREMENT_LOCATION_RE = re.compile(r"\b(?:in|for|at)\s+([a-z][a-z0-9 '&-]{0,98}?)(?=\s+(?:over|during|in)\s+(?:the\s+)?(?:last|past)\b|[?!.]|$)", re.IGNORECASE)
 _WINDOW_RE = re.compile(r"\b(?:over|during|in)\s+(?:the\s+)?(?:last|past)\s+(?:(\d+)\s*)?(minutes?|mins?|hours?|hrs?|days?)\b", re.IGNORECASE)
@@ -76,7 +77,11 @@ _SUMMARY_TARGET_RE = re.compile(r"\b(?:tell\s+me\s+about|what\s+do\s+we\s+know\s
 
 def _canonical_paddock_name(name: str) -> str:
     name = " ".join(name.split())
-    if name.casefold().startswith("paddock "):
+    folded = name.casefold()
+    if folded.startswith("field "):
+        name = "Paddock " + name[6:].strip()
+        folded = name.casefold()
+    if folded.startswith("paddock "):
         suffix = name[8:].strip()
         return f"Paddock {suffix.upper() if suffix.isalpha() and len(suffix) <= 3 else suffix}"
     return name
@@ -84,13 +89,14 @@ def _canonical_paddock_name(name: str) -> str:
 
 def _extract_paddock(question: str, *, allow_measurement_location: bool = False) -> str | None:
     """Extract only a candidate; dynamic resolution happens against MariaDB."""
-    direct_matches = _PADDOCK_RE.findall(question)
-    if len(direct_matches) > 1:
+    paddock_matches = _PADDOCK_RE.findall(question)
+    field_matches = _FIELD_RE.findall(question)
+    if len(paddock_matches) + len(field_matches) > 1:
         return None
     numbered = _NUMBERED_PADDOCK_RE.search(question)
-    if numbered and ("paddock" in question.casefold() or _FOLLOW_UP_RE.match(question) or measurement_for_text(question)):
+    if numbered and (("paddock" in question.casefold() or "field" in question.casefold()) or _FOLLOW_UP_RE.match(question) or measurement_for_text(question)):
         return _canonical_paddock_name(numbered.group(0))
-    direct = _PADDOCK_RE.search(question)
+    direct = _PADDOCK_RE.search(question) or _FIELD_RE.search(question)
     if direct and direct.group(1).casefold() not in {"paddock is", "paddock are"}:
         return _canonical_paddock_name(direct.group(1))
     possessive = _POSSESSIVE_RE.search(question)
