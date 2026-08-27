@@ -7,7 +7,9 @@ import unittest
 from unittest.mock import patch
 
 from app.app import AskRequest, app, ask
+from app.question_router import route_question
 from app.semantic_interpreter import SemanticInterpretationError
+from app.semantic_interpreter import needs_semantic_interpretation
 
 
 class _Response:
@@ -30,6 +32,12 @@ class SemanticFallbackTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         app.state.http_client = self._old_client
+
+    def test_farm_wide_mean_temperature_is_semantically_eligible(self) -> None:
+        question = "What's the mean temperature over all the fields please?"
+        fast = route_question(question)
+        self.assertEqual((fast.intent, fast.measurement), ("conversation", "air_temperature_c"))
+        self.assertTrue(needs_semantic_interpretation(question, fast))
 
     @patch("app.app.interpret_semantically", side_effect=SemanticInterpretationError("bad JSON"))
     def test_general_animal_health_question_fails_open_to_learning(self, _) -> None:
