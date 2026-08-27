@@ -8,6 +8,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -82,6 +83,7 @@ private fun FarmPiApp() {
     var guidance by remember { mutableStateOf("normal") }
     var learnTab by remember { mutableStateOf(false) }
     var asking by remember { mutableStateOf(false) }
+    var isSpeaking by remember { mutableStateOf(false) }
     var chart by remember { mutableStateOf<ChartPayload?>(null) }
     var evidence by remember { mutableStateOf(emptyList<String>()) }
     var showEvidence by remember { mutableStateOf(false) }
@@ -89,15 +91,32 @@ private fun FarmPiApp() {
     val preferences = remember { context.getSharedPreferences("farmpi-learning", 0) }
     LaunchedEffect(Unit) { explanation = preferences.getString("explanation", "normal") ?: "normal"; guidance = preferences.getString("guidance", "normal") ?: "normal" }
     val tts = remember { TextToSpeech(context) { } }
-    DisposableEffect(Unit) { onDispose { tts.shutdown() } }
+    DisposableEffect(tts) {
+        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) { scope.launch { isSpeaking = true } }
+            override fun onDone(utteranceId: String?) { scope.launch { isSpeaking = false } }
+            @Deprecated("Deprecated in Android")
+            override fun onError(utteranceId: String?) { scope.launch { isSpeaking = false } }
+        })
+        onDispose { tts.stop(); tts.shutdown() }
+    }
 
-    fun speak(text: String) { tts.language = Locale("en", "NZ"); tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "farmpi-answer") }
+    fun stopSpeaking() {
+        tts.stop()
+        isSpeaking = false
+    }
+    fun speak(text: String) {
+        stopSpeaking()
+        tts.language = Locale("en", "NZ")
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "farmpi-answer")
+    }
     fun checkStatus() = scope.launch {
         connection = "Checking FarmPi…"
         connection = try { if (FarmPiApi.status()) "FarmPi connected" else "FarmPi is unavailable" } catch (_: Exception) { "FarmPi is unavailable" }
     }
     fun ask(text: String, speechAlternatives: List<String> = emptyList()) = scope.launch {
         if (text.isBlank() || asking) return@launch
+        stopSpeaking()
         asking = true; answer = "Asking FarmPi…"
         try {
             val speech = if (speechAlternatives.isEmpty()) null else FarmPiApi.normalise(text, speechAlternatives)
@@ -111,6 +130,7 @@ private fun FarmPiApp() {
         asking = false
     }
     fun guideMe() = scope.launch {
+        stopSpeaking()
         try { val guide = FarmPiApi.guidance(guidance); answer = guide.first; suggestions = guide.second; speak(guide.first) }
         catch (_: Exception) { answer = "FarmPi guidance is unavailable." }
     }
@@ -161,13 +181,18 @@ private fun FarmPiApp() {
             Spacer(Modifier.height(18.dp))
             OutlinedTextField(value = question, onValueChange = { question = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Ask about your farm data") }, minLines = 3)
             Spacer(Modifier.height(10.dp))
-            Button(onClick = { listen() }, modifier = Modifier.size(132.dp), enabled = !asking) { Text("🎤\nSpeak", textAlign = TextAlign.Center, style = MaterialTheme.typography.titleLarge) }
+            Button(
+                onClick = { if (isSpeaking) stopSpeaking() else listen() },
+                modifier = Modifier.size(132.dp),
+                enabled = !asking || isSpeaking,
+            ) {
+                Text(if (isSpeaking) "■\nStop" else "🎤\nSpeak", textAlign = TextAlign.Center, style = MaterialTheme.typography.titleLarge)
+            }
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { ask(question) }, enabled = !asking) { Text("Ask FarmPi") }
                 OutlinedButton(onClick = { guideMe() }) { Text("Guide me") }
             }
-            Preferences(explanation, guidance, { explanation = it; preferences.edit().putString("explanation", it).apply() }, { guidance = it; preferences.edit().putString("guidance", it).apply() })
             if (heard != null) Text("Heard: $heard", modifier = Modifier.fillMaxWidth().padding(top = 14.dp), style = MaterialTheme.typography.bodySmall)
             if (interpreted != null) Text("Interpreted: $interpreted", modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
             Card(modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) { Text(answer, modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodyLarge) }
@@ -177,6 +202,7 @@ private fun FarmPiApp() {
                 if (showEvidence) Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) { Text("Evidence used", fontWeight = FontWeight.Bold); evidence.take(12).forEach { Text(it, style = MaterialTheme.typography.bodySmall) } } }
             }
             suggestions.forEach { suggestion -> TextButton(onClick = { question = suggestion; ask(suggestion) }) { Text(suggestion, textAlign = TextAlign.Start) } }
+            Preferences(explanation, guidance, { explanation = it; preferences.edit().putString("explanation", it).apply() }, { guidance = it; preferences.edit().putString("guidance", it).apply() })
         }
     }
 }
