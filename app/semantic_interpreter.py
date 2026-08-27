@@ -83,14 +83,15 @@ _ALLOWED_INTENTS = {
 def needs_semantic_interpretation(question: str, route: QuestionRoute) -> bool:
     """Return whether the fast router should be supplemented by semantic interpretation.
 
-    Obvious deterministic requests stay fast. Ambiguous learner language, broad
-    learning questions, explicit source/research requests, and mutation-looking
-    wording that missed the exact action grammar are interpreted by the LLM
-    before any execution occurs.
+    Obvious deterministic data requests stay fast. Ambiguous learner language,
+    broad learning questions, explicit source/research requests, and every
+    mutation-looking phrase are interpreted semantically before execution. The
+    last rule is deliberate: it prevents trailing politeness such as "please"
+    from accidentally becoming part of a new paddock name.
     """
     if _EXTERNAL_SOURCE_RE.search(question):
         return True
-    if _MUTATION_HINT_RE.search(question) and route.intent != "rename-request":
+    if _MUTATION_HINT_RE.search(question):
         return True
     if route.intent in _AMBIGUOUS_FAST_ROUTES:
         return True
@@ -126,7 +127,7 @@ Return ONE JSON object only, with these keys:
 intent, confidence, paddock_name, new_paddock_name, measurement, operation, window_minutes, topic, reason.
 Allowed intent values: rename, current, average, highest, lowest, comparison, history, trend, summary, list-paddocks, count-paddocks, capability, irrigation-decision, learning, research, clarify.
 Allowed measurement values: {measurements}. Use null when no FarmPi measurement is requested.
-Use field and paddock as conversational synonyms. Preserve a requested new paddock name exactly; words such as 'please' may legitimately be part of a name.
+Use field and paddock as conversational synonyms. For rename requests, separate conversational politeness from the requested name: a trailing 'please' is normally politeness, but preserve it if the learner clearly says it is part of the new name.
 Use learning for general agricultural education, including cows, sheep, pasture, soils, animal health, farm systems and explanations such as 'why'.
 Use research when the learner explicitly asks what an external organisation/source says, asks for current external information, or asks FarmPi to look something up.
 Use irrigation-decision for a farm-specific question asking whether/when to irrigate; do not make the decision yourself.
@@ -134,6 +135,7 @@ For a farm-data request, extract only entities that are actually expressed or st
 Confidence is a number from 0 to 1. If meaning is genuinely ambiguous, use clarify rather than inventing details.
 Examples:
 'Could you please call field A North Flat?' -> rename, paddock_name='Paddock A', new_paddock_name='North Flat'.
+'Rename Paddock A to North Flat please.' -> rename, paddock_name='Paddock A', new_paddock_name='North Flat'.
 'What's B sitting at temperature-wise?' -> current, paddock_name='Paddock B', measurement='air_temperature_c'.
 'Which field is looking driest?' -> lowest, measurement='soil_moisture_pct'.
 'Why do cows get milk fever?' -> learning, topic='milk fever in dairy cows'.
