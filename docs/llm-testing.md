@@ -1,4 +1,45 @@
-# Raspberry Pi 4 Local LLM Testing – Preliminary Findings
+# FarmPi LLM Testing – Raspberry Pi and Reference-Model Findings
+
+## Reference-model pivot — 27 August 2026
+
+The earlier sections of this document are retained as the chronological record of Raspberry Pi model testing. Their performance measurements remain useful, but one architectural conclusion has now changed substantially.
+
+Early testing assumed the LLM could remain a very tightly constrained language renderer over deterministic farm results. Subsequent end-to-end learner testing showed that this was **too restrictive for the Flexible IT Training objective**. A 0.6B model could return short known facts quickly, but natural paraphrases, polite/indirect requests, follow-up language, speech variation and broad agricultural learning exposed both router brittleness and limited language capacity.
+
+The current development/reference model is therefore **Qwen3.5-9B Q4_K_M hosted by LM Studio on the Windows development PC**, while the Raspberry Pi continues to own FarmPi application logic, MariaDB, deterministic analytics and the learner API. This is an experiment/development topology, not a decision that the final capstone must require a PC-hosted model.
+
+The reference model is used to answer a different question from the original Pi benchmark:
+
+> What should FarmPi feel like when the language layer is capable enough that architectural problems are not confused with small-model language limitations?
+
+Current Qwen3.5-9B observations include approximately **24 generated tokens/second** on the RTX 3070 test PC. Thinking/reasoning was disabled in the LM Studio Qwen3.5 chat template because a 30-token FarmPi response was initially consumed entirely by reasoning tokens and returned an empty visible answer. With thinking disabled, the same server generated normal visible output at approximately 24 tokens/second.
+
+The FarmPi response ceilings have subsequently been increased from `30 / 40 / 70` to `64 / 96 / 128` tokens for Simple / Normal / Technical explanations. These remain maximum ceilings: FarmPi still requests short answers and one useful learning direction.
+
+The development strategy is now:
+
+```text
+Qwen3.5-9B reference model
+        ↓
+make FarmPi conversationally and educationally correct
+        ↓
+build a repeatable conversational/learning test suite
+        ↓
+re-test Qwen3 1.7B and smaller Pi-hosted models
+        ↓
+choose the smallest deployment model that preserves an acceptable learner experience
+```
+
+This prevents two different failure classes from being confused:
+
+- **architecture failure** — FarmPi routes or guardrails reject valid learner language;
+- **model-capacity failure** — the application gives the model an appropriate task but the model cannot reliably understand/render it.
+
+The strong deterministic boundaries remain. Qwen does not calculate FarmPi statistics, invent sensor readings, resolve database identity, authorise a rename or directly mutate MariaDB. What has changed is that the language model is now allowed to play a much broader role in **semantic learner-intent interpretation and agricultural education**.
+
+Accordingly, statements later in this historical document that the LLM need not act as a broad farming educator should be read as the **earlier design hypothesis**, not the current architecture. FarmPi is now intended to teach broad practical agriculture while keeping farm-specific facts/actions separately controlled and provenance-labelled.
+
+---
 
 ## 16-paddock synthetic-data stage
 
@@ -148,83 +189,17 @@ Prompt processing: 7–8 tokens/second
 Text generation:    approximately 2.5 tokens/second
 ```
 
-One recorded transaction showed:
-
-```text
-626 prompt tokens
-Prompt evaluation: 75.1 seconds
-Generation rate:   2.65 tokens/second
-Total time:        80.8 seconds
-```
-
-Later requests benefited from prompt/context reuse, reducing prompt-processing time substantially, but text generation remained approximately:
-
-```text
-2.5 tokens/second
-```
-
-At this rate, a 100-token response requires approximately 40 seconds of generation time alone.
+One recorded transaction showed approximately 626 prompt tokens, 75.1 seconds prompt evaluation, 2.65 generated tokens/second, and 80.8 seconds total. Later requests benefited from prompt/context reuse, but generation remained about 2.5 tokens/second.
 
 ### Finding
 
-Qwen3 1.7B operates successfully on the Raspberry Pi 4, but its performance is too slow for the intended conversational user experience.
-
-The limitation is CPU performance rather than RAM, storage, networking, power supply, or temperature.
+Qwen3 1.7B operates successfully on the Raspberry Pi 4, but its performance is too slow for the intended conversational user experience. The limitation is CPU performance rather than RAM, storage, networking, power supply, or temperature.
 
 ## Smaller Model Test – Qwen3 0.6B
 
-A second test was performed using:
+A second test used Qwen3 0.6B Q4_K_M, reasoning disabled, 2048-token context and one inference slot. Resident memory was about 796 MB and CPU remained close to fully used.
 
-- Qwen3 0.6B
-- Q4_K_M quantisation
-- reasoning disabled
-- 2048-token context
-- a single inference slot using `--parallel 1`
-
-The smaller model reduced memory utilisation substantially:
-
-```text
-Resident memory: approximately 796 MB
-RAM utilisation: approximately 10%
-```
-
-The CPU was still heavily utilised:
-
-```text
-llama-server: approximately 375% CPU
-```
-
-This was expected because `llama.cpp` continues to make use of all available CPU cores. The significant difference was how much work could be completed with that CPU capacity.
-
-### Measured Qwen3 0.6B Performance
-
-One representative request produced:
-
-```text
-Prompt tokens:       222
-Prompt processing:   25.24 tokens/second
-Generated tokens:    105
-Generation speed:    7.21 tokens/second
-Total request time:  23.23 seconds
-```
-
-A later, much shorter response produced:
-
-```text
-Prompt tokens:       132
-Prompt processing:   22.50 tokens/second
-Generated tokens:    8
-Generation speed:    6.83 tokens/second
-Total request time:  6.89 seconds
-```
-
-The model correctly returned the requested deterministic result:
-
-```text
-Paddock A is driest.
-```
-
-This is a substantial improvement over the 1.7B model.
+Representative generation results were approximately 6.8–7.2 tokens/second, materially faster than the 1.7B model. This made short deterministic-result responses more usable.
 
 Approximate comparison:
 
@@ -233,171 +208,60 @@ Approximate comparison:
 | Qwen3 1.7B Q4_K_M | 7–8 t/s | ~2.5 t/s | ~1.5 GB |
 | Qwen3 0.6B Q4_K_M | 22–25 t/s | ~7 t/s | ~0.8 GB |
 
-## Interpretation
+## Historical interpretation
 
-The Qwen3 0.6B results demonstrate that model size has a major effect on practical usability on the Raspberry Pi 4.
+At this stage, Qwen3 0.6B appeared potentially usable if its role remained tightly constrained. The original design assumed deterministic software would perform all factual/analytical work and the model would primarily understand a narrow question and phrase a supplied result.
 
-The smaller model may be usable if its role remains tightly constrained.
-
-The intended architecture does not require the LLM to:
-
-- analyse raw sensor datasets;
-- determine minima, maxima, averages or trends;
-- generate statistical conclusions;
-- independently establish factual results;
-- act as a general-purpose farming expert.
-
-Instead, deterministic software can perform these functions and provide the LLM with compact verified information such as:
-
-```text
-Driest paddock: Paddock A
-Soil moisture: 18%
-Farm average: 23%
-```
-
-The LLM then only needs to understand the user's question and turn the supplied result into appropriate natural language.
-
-This significantly reduces the capability required from the model and makes a small model more realistic.
+That hypothesis was valuable for proving the local Pi chain but was later revised by the 27 August learner-language findings above. The Pi measurements remain valid; the assumption that the learner-facing model could stay equally narrow does not.
 
 ## Application-Layer Testing
 
-A small Python web application was subsequently introduced between the phone and `llama-server`.
+A Python web application was introduced between the client and the LLM so users could ask ordinary questions without seeing system prompts or raw database operations. This became the basis for the later MariaDB grounding, analytics, semantic interpretation and Flexible Learning architecture.
 
-The intended architecture is:
-
-```text
-Android phone / browser
-        ↓
-Python FarmPi application
-        ↓
-Deterministic farm data/results
-        ↓
-System instructions
-        ↓
-Qwen3 0.6B / llama-server
-        ↓
-Natural-language response
-        ↓
-Android phone
-```
-
-The user therefore only needs to ask a normal question such as:
-
-```text
-Which paddock is driest?
-```
-
-The application automatically adds:
-
-- system instructions;
-- behavioural constraints;
-- verified farm data;
-- deterministic results;
-- later, user interaction-profile information.
-
-This removes the requirement for users to understand prompting.
-
-Text-based interaction through this application has been successfully demonstrated.
-
-Voice input and output are intended to occur on the Android device rather than on the Raspberry Pi. The phone performs speech-to-text, transmits text to FarmPi, receives a textual response, and uses the phone's own text-to-speech capability to speak the answer.
-
-HTTPS will be required for the browser-based speech interface because browser microphone APIs require an appropriate secure context.
+Voice input and output occur on the Android device rather than on the Raspberry Pi. The phone performs speech-to-text, sends text to FarmPi, receives a text response, and uses device text-to-speech for playback.
 
 ## Current Raspberry Pi 4 Assessment
 
-The Raspberry Pi 4 has successfully demonstrated that a local LLM can operate as part of the proposed architecture.
+The Raspberry Pi 4 successfully demonstrates local LLM hosting and remains the FarmPi application/database platform.
 
-However, testing has identified a significant performance constraint.
+For inference, the current position is deliberately experimental:
 
-### Qwen3 1.7B
+- Qwen3 0.6B is fast enough for very short constrained responses but has shown learner-language brittleness;
+- Qwen3 1.7B is linguistically worth re-testing but is slow on the Pi 4 at roughly 2.5 generated tokens/second;
+- Qwen3.5-9B on the development PC is the current reference model used to separate architecture quality from small-model limitations.
 
-**Not considered suitable** for the intended interactive application.
-
-Although the model operates correctly, approximately 2.5 generated tokens per second and near-total CPU utilisation produce unacceptable response latency.
-
-### Qwen3 0.6B
-
-**Potentially suitable for continued prototyping**, provided that:
-
-- responses remain short;
-- deterministic software performs all analytical work;
-- prompts remain compact;
-- static prompt context is reused where possible;
-- the LLM is limited to language interpretation and explanation;
-- testing confirms that the smaller model follows instructions reliably enough.
-
-The approximately 7-token-per-second generation rate is materially more usable, particularly when typical responses may only contain 10–30 generated tokens.
-
-The Raspberry Pi 4 should therefore not yet be completely rejected, but it appears to be operating close to the lower performance boundary for this application.
+No final deployment-model decision should be made until the new conversational test suite can be run consistently against each candidate.
 
 ## Alternative Hardware Considered
 
-### Raspberry Pi 5
+Raspberry Pi 5, RK3588 systems and NVIDIA Jetson Orin Nano remain possible future inference platforms. The main capstone objective is not embedded accelerator engineering, so hardware decisions should follow measured learner-experience requirements rather than drive the project prematurely.
 
-A Raspberry Pi 5 would provide considerably greater CPU performance than the Pi 4 and could potentially improve CPU-based LLM inference.
-
-A Raspberry Pi 5 combined with suitable AI-acceleration hardware may also provide another possible approach.
-
-However, once the cost of a Pi 5 and an appropriate AI accelerator is considered, the total system cost begins to approach more purpose-built AI platforms.
-
-This makes the cost/performance trade-off important.
-
-### Orange Pi / RK3588
-
-RK3588-based systems were investigated because they include an integrated NPU capable of accelerating neural-network inference.
-
-Although potentially attractive in cost and performance, use of the NPU involves additional Rockchip-specific tooling, model conversion, runtimes and integration work.
-
-This was rejected as a preferred direction because the capstone is intended to investigate AI-supported data access and flexible learning, rather than become an embedded AI engineering project.
-
-### NVIDIA Jetson Orin Nano
-
-The NVIDIA Jetson Orin Nano represents a technically attractive platform because it combines:
-
-- ARM Linux;
-- Ubuntu/Jetson Linux;
-- Python;
-- MariaDB;
-- standard Linux networking;
-- NVIDIA CUDA/GPU acceleration;
-- local LLM inference;
-- USB/SPI connectivity suitable for LoRa or LoRaWAN gateways.
-
-It would allow the farm-data application, database, deterministic analytics, web/API layer and GPU-accelerated LLM inference to operate on one platform.
-
-From a technical and development perspective, it appears substantially easier to integrate than an RK3588/NPU solution.
-
-The major limitation is cost. Current pricing makes the Jetson difficult to justify purely as an experimental capstone platform.
-
-It is therefore considered an **ideal technical option but currently an expensive prototype option**.
-
-## Preliminary Conclusion
+## Current conclusion
 
 Testing has demonstrated that:
 
-1. A local LLM can successfully run on an 8 GB Raspberry Pi 4.
-2. The Raspberry Pi 4 has sufficient RAM for the lightweight models tested.
-3. Power and thermal issues can be eliminated and are not the primary bottleneck.
-4. Qwen3 1.7B is too slow for the required conversational interface, generating approximately 2.5 tokens per second.
-5. Qwen3 0.6B performs substantially better, generating approximately 7 tokens per second.
-6. The smaller model may remain viable if it is used only as a constrained language interface over verified deterministic results.
-7. Further optimisation should focus on compact prompts, context reuse, short responses and strict separation between deterministic analysis and language generation.
-8. If the smaller model proves insufficient in quality or responsiveness, a more capable hardware platform will be required.
-9. A Jetson Orin Nano currently appears to provide the cleanest technical path to local accelerated inference, although its cost may be excessive for the prototype.
-10. The Raspberry Pi 4 remains worthwhile for continued experimentation before additional hardware expenditure is justified.
+1. an 8 GB Raspberry Pi 4 can run local Qwen models and the complete FarmPi application chain;
+2. Pi 4 inference is CPU-limited rather than RAM-limited for the models tested;
+3. Qwen3 0.6B is much faster than 1.7B on the Pi but is more brittle for open learner language;
+4. Qwen3 1.7B remains worth controlled re-evaluation once the architecture is stable;
+5. Qwen3.5-9B on the RTX 3070 development PC provides a useful reference-quality language layer at roughly 24 generated tokens/second;
+6. deterministic software should still calculate FarmPi facts and control state-changing actions;
+7. the language layer now has a broader responsibility for semantic interpretation and agricultural teaching;
+8. the final model should be selected by a repeatable learner-conversation benchmark, not generation speed alone.
 
-## Next Testing
+## Next testing
 
-The next stage should test whether Qwen3 0.6B is sufficiently reliable for the actual restricted task rather than assessing it as a general-purpose LLM.
+The next comparison should run the same conversation suite against the reference model and Pi-hosted candidates. Useful measures include:
 
-Testing should concentrate on whether it can reliably:
+- semantic interpretation success across paraphrases;
+- polite/indirect command handling;
+- speech-recognition variant recovery;
+- factual grounding correctness;
+- broad agricultural explanation quality;
+- source/provenance discipline;
+- clarification quality when confidence is low;
+- time to first useful answer;
+- total response time;
+- generated tokens/second.
 
-- answer direct questions from verified results;
-- avoid introducing unsupported information;
-- state when information is unavailable;
-- explain the same verified result at different levels of complexity;
-- work with concise structured data;
-- operate through the Python application layer;
-- maintain acceptable latency with short real-world responses.
-
-If these tests are successful, the Raspberry Pi 4 may remain adequate for the capstone prototype despite its limited general-purpose LLM performance.
+The goal is to find the smallest model that preserves the Flexible Learning experience after the architecture itself is working correctly.
