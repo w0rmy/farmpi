@@ -66,6 +66,7 @@ _INVENTORY_LIST_RE = re.compile(
     r"\b(?:list|show|name|identify|give\s+(?:me|us)|tell\s+(?:me|us))\b(?:\s+[a-z]+){0,8}\s+\b(?:paddocks|fields)\b"
     r"|\bwhat\s+(?:paddocks|fields)\s+(?:are\s+)?(?:being\s+)?(?:monitored|active)\b"
     r"|\bwhat\s+are\s+(?:the\s+)?(?:names?\s+of\s+)?(?:all\s+|active\s+|current\s+|monitored\s+)?(?:paddocks|fields)\b"
+    r"|\bwhat\s+are\s+(?:the\s+)?(?:paddock|field)\s+names?\b"
     r"|\bwhich\s+(?:paddocks|fields)\s+(?:are\s+)?active\b"
     r"|\blist\s+of\s+(?:all\s+)?(?:current\s+)?(?:paddocks|fields)\b",
     re.IGNORECASE,
