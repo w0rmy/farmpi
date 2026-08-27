@@ -1,5 +1,5 @@
 [Unit]
-Description=FarmPi Qwen3 0.6B local LLM server
+Description=FarmPi Qwen3 1.7B local LLM server
 After=network-online.target
 Wants=network-online.target
 
@@ -9,7 +9,7 @@ User=@FARMPI_USER@
 Group=@FARMPI_GROUP@
 WorkingDirectory=@FARMPI_HOME@/llama.cpp
 Environment=HOME=@FARMPI_HOME@
-ExecStart=@FARMPI_HOME@/llama.cpp/build/bin/llama-server -hf lmstudio-community/Qwen3-0.6B-GGUF:Q4_K_M -c 2048 --host 127.0.0.1 --port 8080 --reasoning off --parallel 1
+ExecStart=@FARMPI_HOME@/llama.cpp/build/bin/llama-server -hf lmstudio-community/Qwen3-1.7B-GGUF:Q4_K_M -c 2048 --host 127.0.0.1 --port 8080 --reasoning off --parallel 1
 Restart=on-failure
 RestartSec=5
 
