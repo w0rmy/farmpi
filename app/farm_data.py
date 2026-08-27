@@ -461,10 +461,11 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
             "It can show the current reading, a supported trend, or evidence instead of estimating a result.",
             "Would you like a current value or a trend?",
         ), source_category="educational")
-    if intent == "conversation":
+    if intent in {"conversation", "agriculture-learning"}:
         return GroundingData(intent, (
-            "FarmPi is a teaching assistant for monitored farm data. It can discuss approved measurement concepts, data limits, comparisons, history, evidence, and how to explore verified readings.",
-            "If a question needs a farm-specific value, FarmPi will retrieve it deterministically rather than guess it.",
+            "FarmPi may provide a general agricultural explanation, not a claim about this farm.",
+            "No live web research, current external guidance lookup, or external citation has been performed for this response.",
+            "If a question needs a farm-specific value, calculation, paddock identity, or operation, FarmPi will use a deterministic route rather than guess it.",
         ), source_category="educational")
     if intent == "farm_inventory_count":
         return farm_inventory_count()

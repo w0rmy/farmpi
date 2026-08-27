@@ -30,6 +30,13 @@ from .learning import activity_payload
 from .question_router import route_question
 from .paddock_admin import RenameProposal, RenameRejected, confirm_rename, prepare_rename
 from .guidance import INITIAL_SUGGESTIONS, WELCOME_TEXT, follow_up_suggestions
+from .semantic_interpreter import (
+    SemanticInterpretationError,
+    interpret_semantically,
+    is_research_question,
+    needs_semantic_interpretation,
+    requires_clarification_on_failure,
+)
 from .speech_normalizer import SpeechAlternative, SpeechNormalization, current_paddock_names, normalize_speech
 
 LLAMA_BASE_URL = os.getenv("FARMPI_LLAMA_URL", "http://127.0.0.1:8080")
@@ -53,6 +60,7 @@ app = FastAPI(title="FarmPi", version="0.6.0", lifespan=lifespan)
 SYSTEM_PROMPT = """You are FarmPi, a concise teaching assistant for farm monitoring.
 FARM-SPECIFIC VERIFIED FACTS supplied by FarmPi are authoritative: never invent, calculate, alter, or infer farm measurements, causes, forecasts, or decisions.
 You may use APPROVED LEARNING MATERIAL for general educational explanations, but do not turn it into a claim about this farm.
+When the context says no live web research was performed, do not claim to have searched, checked current guidance, or cite an external source. Present the answer as general agricultural explanation.
 If FarmPi cannot support an operational decision, explain what is known, what other factors matter, and offer one useful next learning step; never recommend an action.
 Use the supplied context only. Answer in 1–3 short sentences and at most one follow-up question. Give deeper detail only when asked.
 """
@@ -599,10 +607,38 @@ async def ask(request: AskRequest) -> AskResponse:
             confirmation_id,
         )
 
+    # Semantic interpretation is a convenience layer, never an authority
+    # layer. It may only identify a broad learning question. Completed rename
+    # requests and confirmations returned above without model involvement.
+    if needs_semantic_interpretation(question_text, route):
+        try:
+            semantic = await interpret_semantically(question_text, getattr(app.state, "http_client", None), LLAMA_CHAT_URL)
+        except SemanticInterpretationError as exc:
+            logger.warning("FarmPi semantic interpretation failed; applying safe fallback: %s", exc)
+            if requires_clarification_on_failure(question_text, route):
+                route = replace(route, intent="clarification")
+            else:
+                route = replace(route, intent="agriculture-learning")
+        else:
+            # An action-shaped utterance must remain fail-closed even if the
+            # local model produces an inappropriate broad-learning label.
+            if requires_clarification_on_failure(question_text, route):
+                route = replace(route, intent="clarification")
+            else:
+                route = replace(route, intent=semantic.intent)
+        routing_ms = (time.perf_counter() - route_start) * 1000
+
     if route.intent == "contextual-follow-up-missing":
         return direct_action(
             "I need a previous paddock measurement in this conversation before I can interpret “What about …?”. Try, for example, “What is the temperature in Paddock B?”.",
             "contextual-follow-up",
+        )
+
+    if route.intent == "clarification":
+        return direct_action(
+            "I could not safely determine the requested action or farm-specific operation. Please state the paddock and intended change clearly; any rename will still need explicit confirmation.",
+            "clarification",
+            source_category="educational",
         )
 
     # Educational definitions are curated and version controlled.  A named
@@ -695,6 +731,12 @@ async def ask(request: AskRequest) -> AskResponse:
             status_code=503,
             detail="The local language model returned an empty response.",
         )
+
+    if route.intent == "agriculture-learning":
+        if is_research_question(question_text):
+            answer = f"No live web research was performed. This is a general agricultural explanation: {answer}"
+        else:
+            answer = f"General agricultural explanation: {answer}"
 
     # Keep the observation identical but make explanation levels demonstrably
     # instructional rather than only changing Qwen's token limit.  These notes
