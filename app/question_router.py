@@ -1,4 +1,4 @@
-"""Deterministic routing for approved FarmPi questions and admin requests."""
+"""Route deterministic farm actions without trying to parse all learner language."""
 
 from __future__ import annotations
 
@@ -21,17 +21,14 @@ class QuestionRoute:
     time_label: str | None = None
     comparison: bool = False
     presentation: str | None = None
+    education_key: str | None = None
 
 
-_UNSUPPORTED_RE = re.compile(
-    r"\b(?:weather|forecast|irrigat(?:e|ion|ing)?|water(?:ing)?|recommend(?:ation|ed)?|advi[cs]e|should|need\s+to|why|reason(?:s)?|cause(?:d|s|ing)?)\b",
-    re.IGNORECASE,
-)
 _RENAME_RE = re.compile(r"^\s*rename\s+(.+?)\s+to\s+(.+?)[?.! ]*\s*$", re.IGNORECASE)
 _PADDOCK_RE = re.compile(r"\b(paddock\s+[a-z0-9_-]+)\b", re.IGNORECASE)
 _NUMBERED_PADDOCK_RE = re.compile(r"\b(?:paddock\s+)?number\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen)\b", re.IGNORECASE)
 _POSSESSIVE_RE = re.compile(r"\b([a-z][a-z0-9 '&-]{0,98}?)'s\s+(?:soil\s+)?(?:moisture|temperature|humidity|ph|ec|light|rainfall|pressure|wind|pasture|grass|leaf)", re.IGNORECASE)
-_PREPOSITION_RE = re.compile(r"\b(?:in|for|at|of)\s+([a-z][a-z0-9 '&-]{0,98}?)(?=\s+(?:over|during|in)\s+(?:the\s+)?(?:last|past)\b|[?!.]|$)", re.IGNORECASE)
+_MEASUREMENT_LOCATION_RE = re.compile(r"\b(?:in|for|at)\s+([a-z][a-z0-9 '&-]{0,98}?)(?=\s+(?:over|during|in)\s+(?:the\s+)?(?:last|past)\b|[?!.]|$)", re.IGNORECASE)
 _WINDOW_RE = re.compile(r"\b(?:over|during|in)\s+(?:the\s+)?(?:last|past)\s+(?:(\d+)\s*)?(minutes?|mins?|hours?|hrs?|days?)\b", re.IGNORECASE)
 _RANK_HIGH_RE = re.compile(r"\b(?:highest|most|wettest|tallest|hottest)\b", re.IGNORECASE)
 _RANK_LOW_RE = re.compile(r"\b(?:lowest|least|driest|dryest|shortest|coldest)\b", re.IGNORECASE)
@@ -41,8 +38,21 @@ _MAX_RE = re.compile(r"\b(?:maximum|max|highest|most)\b", re.IGNORECASE)
 _CHANGE_RE = re.compile(r"\b(?:change|changed|trend|trending|increase|decrease|difference)\b", re.IGNORECASE)
 _RANGE_RE = re.compile(r"\b(?:range|spread)\b", re.IGNORECASE)
 _ANOMALY_RE = re.compile(r"\b(?:anomal(?:y|ies|ous)|outlier|unusual)\b", re.IGNORECASE)
-_HELP_RE = re.compile(r"\b(?:help|guide\s+me|what\s+can\s+(?:i|we)\s+ask|what\s+can\s+you\s+do|how\s+(?:can|do)\s+i\s+use\s+farmpi)\b", re.IGNORECASE)
+_HELP_RE = re.compile(r"^\s*(?:guide\s+me|what\s+can\s+(?:i|we)\s+ask|what\s+can\s+you\s+do|how\s+(?:can|do)\s+i\s+use\s+farmpi)\s*[?!.]*\s*$", re.IGNORECASE)
+_CAPABILITY_RE = re.compile(
+    r"\bwhat\s+(?:sort\s+of\s+)?(?:other\s+)?information\s+(?:can|do)\b"
+    r"|\bwhat\s+else\s+can\s+you\s+(?:show|tell|do)\b"
+    r"|\bwhat\s+can\s+i\s+learn(?:\s+about)?\b"
+    r"|\bwhat\s+(?:information|topics?)\s+(?:is|are)\s+available\b"
+    r"|\bwhat\s+else\s+do\s+you\s+know\b",
+    re.IGNORECASE,
+)
 _EDUCATION_RE = re.compile(r"\b(?:what\s+does|explain|meaning|mean|unit|simulated\s+(?:data|telemetry)|observed(?:_at|\s+at)?|received(?:_at|\s+at)?)\b", re.IGNORECASE)
+_IRRIGATION_RE = re.compile(r"\b(?:irrigat(?:e|ion|ing)?|water(?:ing)?)\b", re.IGNORECASE)
+_DECISION_RE = re.compile(r"\b(?:should|when\s+should|need\s+to|recommend(?:ation|ed)?|advi[cs]e)\b", re.IGNORECASE)
+_CAUSAL_RE = re.compile(r"\b(?:why|reason(?:s)?|cause(?:d|s|ing)?)\b", re.IGNORECASE)
+_FORECAST_RE = re.compile(r"\b(?:weather|forecast)\b", re.IGNORECASE)
+_LEARNING_TOPIC_RE = re.compile(r"\b(?:field\s+capacity|refill\s+point|evapotranspiration|soil\s+water\s+holding\s+capacity)\b", re.IGNORECASE)
 _COMPARE_RE = re.compile(r"\b(?:compare|across\s+all\s+paddocks|all\s+paddocks|which\s+paddock.{0,30}(?:most|highest|lowest|least))\b", re.IGNORECASE)
 _TODAY_RE = re.compile(r"\b(?:today|this\s+morning)\b", re.IGNORECASE)
 _GRAPH_RE = re.compile(r"\b(?:show\s+(?:a\s+)?graph|chart|trend\s+graph)\b", re.IGNORECASE)
@@ -61,7 +71,7 @@ _INVENTORY_LIST_RE = re.compile(
 )
 _PADDOCK_SUMMARY_RE = re.compile(r"\b(?:what\s+(?:stats|data|measurements?)\s+(?:are|do)\s+(?:available|we\s+have)|what\s+are\s+we\s+monitoring|tell\s+me\s+about|what\s+do\s+we\s+know\s+about)\b", re.IGNORECASE)
 _FOLLOW_UP_RE = re.compile(r"^\s*what\s+about\s+(.+?)\s*[?!.]*\s*$", re.IGNORECASE)
-_SUMMARY_TARGET_RE = re.compile(r"\b(?:tell\s+me\s+about|what\s+do\s+we\s+know\s+about)\s+([a-z][a-z0-9 '&-]{0,98}?)(?=[?!.]|$)", re.IGNORECASE)
+_SUMMARY_TARGET_RE = re.compile(r"\b(?:tell\s+me\s+about|what\s+do\s+we\s+know\s+about|what\s+has\s+happened\s+in)\s+([a-z][a-z0-9 '&-]{0,98}?)(?=\s+(?:today|this\s+morning)\b|[?!.]|$)", re.IGNORECASE)
 
 
 def _canonical_paddock_name(name: str) -> str:
@@ -72,7 +82,7 @@ def _canonical_paddock_name(name: str) -> str:
     return name
 
 
-def _extract_paddock(question: str) -> str | None:
+def _extract_paddock(question: str, *, allow_measurement_location: bool = False) -> str | None:
     """Extract only a candidate; dynamic resolution happens against MariaDB."""
     direct_matches = _PADDOCK_RE.findall(question)
     if len(direct_matches) > 1:
@@ -86,9 +96,13 @@ def _extract_paddock(question: str) -> str | None:
     possessive = _POSSESSIVE_RE.search(question)
     if possessive:
         return _canonical_paddock_name(possessive.group(1))
-    preposition = _PREPOSITION_RE.search(question)
-    if preposition:
-        candidate = preposition.group(1).strip(" '")
+    # Location wording is only a paddock candidate when the caller has already
+    # established that this is a measurement/analytic operation.  In
+    # particular, never treat ordinary grammar such as "sort of other
+    # information" as a paddock name.
+    location = _MEASUREMENT_LOCATION_RE.search(question) if allow_measurement_location else None
+    if location:
+        candidate = location.group(1).strip(" '")
         candidate = re.sub(r"\s+(?:today|this\s+morning)$", "", candidate, flags=re.IGNORECASE)
         if candidate.casefold() not in {"the farm", "farm", "a paddock", "paddock"} and not candidate.casefold().startswith(("last ", "past ")):
             return _canonical_paddock_name(candidate)
@@ -116,6 +130,8 @@ def route_question(question: str) -> QuestionRoute:
         return QuestionRoute("rename-request", _canonical_paddock_name(rename.group(1)), new_paddock_name=" ".join(rename.group(2).split()))
     if _HELP_RE.search(question):
         return QuestionRoute("help")
+    if _CAPABILITY_RE.search(question):
+        return QuestionRoute("capability")
     # Farm-wide inventory must win before entity extraction.  In particular,
     # "a list of all current paddocks being monitored" is not a paddock name.
     if _INVENTORY_LIST_RE.search(question):
@@ -124,12 +140,23 @@ def route_question(question: str) -> QuestionRoute:
         return QuestionRoute("farm_inventory_count")
     measurement = measurement_for_text(question)
     presentation = "evidence" if _EVIDENCE_RE.search(question) else "graph" if _GRAPH_RE.search(question) else None
+    explicit_paddock = _extract_paddock(question)
+    if _IRRIGATION_RE.search(question):
+        if _DECISION_RE.search(question):
+            return QuestionRoute("irrigation-decision", paddock_name=explicit_paddock)
+        return QuestionRoute("education", paddock_name=explicit_paddock, education_key="irrigation_decision")
+    if _LEARNING_TOPIC_RE.search(question):
+        return QuestionRoute("education", paddock_name=explicit_paddock, education_key="irrigation_decision")
     # Educational "what does this mean?" questions are safe and routed before
-    # the causal/advice guardrail, which remains intact for agronomy questions.
+    # any decision boundary.  Their content is curated, not model-generated.
     if _EDUCATION_RE.search(question) and (measurement or re.search(r"\b(?:simulated|observed|received|trend|average|comparison)\b", question, re.IGNORECASE)):
-        return QuestionRoute("education", paddock_name=_extract_paddock(question), measurement=measurement, presentation=presentation)
-    if _UNSUPPORTED_RE.search(question):
-        return QuestionRoute("unsupported")
+        return QuestionRoute("education", paddock_name=explicit_paddock, measurement=measurement, presentation=presentation)
+    if _DECISION_RE.search(question):
+        return QuestionRoute("operational-decision", paddock_name=explicit_paddock)
+    if _FORECAST_RE.search(question):
+        return QuestionRoute("forecast-boundary")
+    if _CAUSAL_RE.search(question):
+        return QuestionRoute("causal-boundary", paddock_name=explicit_paddock, measurement=measurement)
 
     # Conversational ranking shorthand has no literal catalogue alias.
     if not measurement and re.search(r"\b(?:driest|dryest|wettest)\b", question, re.IGNORECASE):
@@ -140,7 +167,7 @@ def route_question(question: str) -> QuestionRoute:
         measurement = "pasture_height_cm"
     if not measurement and re.search(r"\b(?:hottest|coldest)\b", question, re.IGNORECASE):
         measurement = "air_temperature_c"
-    paddock = _extract_paddock(question)
+    paddock = _extract_paddock(question, allow_measurement_location=bool(measurement))
     window = _window_minutes(question)
     today_match = _TODAY_RE.search(question)
     time_label = today_match.group(0).casefold() if today_match else None
@@ -178,7 +205,7 @@ def route_question(question: str) -> QuestionRoute:
         elif _MAX_RE.search(question) and MAXIMUM in BY_KEY[measurement].operations:
             operation = MAXIMUM
         else:
-            return QuestionRoute("unsupported")
+            return QuestionRoute("interpretation-boundary", measurement=measurement)
         if comparison:
             # rainfall is summed; other comparison operations use the requested
             # aggregate or an average as the explicit default.
@@ -203,10 +230,14 @@ def route_question(question: str) -> QuestionRoute:
             return QuestionRoute("ranking", measurement=measurement, operation="lowest", presentation=presentation)
 
     if measurement and (_RANK_HIGH_RE.search(question) or _RANK_LOW_RE.search(question) or _AVERAGE_RE.search(question)):
-        return QuestionRoute("unsupported")
+        return QuestionRoute("interpretation-boundary", measurement=measurement)
 
     if paddock:
         return QuestionRoute("paddock-field" if measurement and measurement != "soil_moisture_pct" else "paddock", paddock, measurement, presentation=presentation)
     if measurement and measurement != "soil_moisture_pct":
         return QuestionRoute("measurement-fallback", measurement=measurement)
-    return QuestionRoute("moisture-fallback")
+    if re.search(r"\bwhich\s+paddock\s+is\s+(?:currently\s+)?(?:the\s+)?most\s+dry\b", question, re.IGNORECASE):
+        return QuestionRoute("moisture-fallback")
+    # No database operation has been selected.  Let the local LLM interpret
+    # ordinary learner language against a small, approved learning context.
+    return QuestionRoute("conversation")

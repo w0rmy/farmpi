@@ -14,6 +14,7 @@ class EducationalConcept:
     normal: str
     technical: str
     limitations: str
+    source_note: str = "Curated FarmPi educational content; external source integration is pending."
 
 
 _MEASUREMENT_CONTENT = {
@@ -40,6 +41,16 @@ CONCEPTS.update({
     "simulated_data": EducationalConcept("simulated_data", "Simulated and real data", "", "Simulated data is deliberately generated test telemetry.", "FarmPi uses the same validated telemetry contract for simulated and future real devices, while clearly marking provenance.", "Synthetic values demonstrate system behaviour and data analysis; they are not field observations or an agronomic model.", "Never treat synthetic telemetry as evidence about a real farm."),
     "observed_received": EducationalConcept("observed_received", "Observed and received time", "UTC", "Observed time is when a sensor says it measured; received time is when FarmPi got the sample.", "FarmPi uses received time for freshness and keeps observed time for valid device-clock analysis.", "The two timestamps expose transport delay and clock quality. Invalid/out-of-tolerance clocks are retained with metadata rather than silently trusted.", "Neither timestamp proves that a sensor value is accurate."),
     "trend": EducationalConcept("trend", "Trend, comparison and average", "", "A trend is the direction values move over time; a comparison puts values side by side.", "FarmPi calculates trends, ranges and averages from selected verified readings and shows the period and evidence.", "A simple trend is a deterministic first-to-last rate, not a forecast or causal model; averages can hide variation.", "Association in a chart is not proof that one measurement caused another."),
+    "irrigation_decision": EducationalConcept(
+        "irrigation_decision",
+        "Irrigation decision factors",
+        "",
+        "A soil-moisture reading alone cannot determine whether a paddock should be irrigated.",
+        "A decision normally also considers soil water-holding capacity or field capacity, a refill point, recent and expected rainfall, evapotranspiration, soil type, and irrigation-system capacity.",
+        "Field capacity and refill point are site-specific management thresholds; FarmPi does not currently store or validate them, so it cannot calculate an irrigation decision.",
+        "Do not treat FarmPi's simulated or current sensor readings as an irrigation recommendation.",
+        "Curated FarmPi irrigation learning draft; NZ source integration is pending and no external citation is asserted.",
+    ),
 })
 
 
@@ -53,4 +64,15 @@ def concept_for_measurement(measurement_key: str | None) -> EducationalConcept |
 
 def render_concept(concept: EducationalConcept, level: str) -> tuple[str, ...]:
     detail = getattr(concept, level if level in {"simple", "normal", "technical"} else "normal")
-    return (concept.simple, detail, f"Limitation: {concept.limitations}", "Educational grounding: curated FarmPi content (version-controlled), not a model-generated fact.")
+    return (concept.simple, detail, f"Limitation: {concept.limitations}", f"Educational grounding: {concept.source_note}")
+
+
+def irrigation_decision_material(level: str = "normal") -> tuple[str, ...]:
+    """Return reviewed learning material without presenting it as a recommendation."""
+    concept = CONCEPTS["irrigation_decision"]
+    detail = concept.simple if level == "simple" else concept.technical if level == "technical" else concept.normal
+    return (
+        "FarmPi cannot determine an irrigation decision from its current measurements alone.",
+        detail,
+        "Would you like me to explain refill point and field capacity?",
+    )

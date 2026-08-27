@@ -22,9 +22,8 @@ The generator includes a synchronized real-time Waikato/NZ seasonal daylight cyc
 ```text
 ESP32 virtual nodes → HTTPS ingest → FastAPI range validation → MariaDB
                                                      ↓
-question/action router → reviewed deterministic operation → verified facts
-                                                     ↓
-                                          Qwen: concise language only
+question/action router → deterministic farm action → verified facts
+                         ↘ approved learning context → Qwen teaching assistant
 ```
 
 Spoken questions have one additional deterministic step before the question/action router:
@@ -61,12 +60,14 @@ No fabricated N/P/K values are used; soil EC is the practical raw soil-chemistry
 - Current moisture: driest, wettest, and farm average.
 - Safe current rankings where listed in the catalogue, for example: “Which paddock is tallest?”
 - Expanded historical calculations: totals, min/max/average, change, range, deterministic first-to-last trend, simple baseline anomaly flagging, comparison bars, and time-series charts. Examples: “Compare soil EC across all paddocks.” and “Show a graph of soil moisture over the last 24 hours.”
-- Curated concept explanations at Simple/Normal/Technical levels: “What does soil EC mean?”, “Explain simulated data.”, and “What are observed and received times?”
+- Curated concept explanations at Simple/Normal/Technical levels: “What does soil EC mean?”, “Explain simulated data.”, “What are observed and received times?”, and “Explain refill point and field capacity.”
+- Exploration questions such as “What else can you show me?” receive a short capability overview instead of being treated as a paddock lookup.
+- Irrigation questions are a teaching exercise: FarmPi may show a resolved paddock's verified current soil moisture, explains the other decision factors, and does not recommend irrigation.
 - Learner evidence: returned charts include the selected time period/provenance and a bounded list of measurements used.
 - Derived daylight hours from historical light_lux, counting five-minute samples at or above 1,000 lux. It is not an ingest field.
 - Controlled rename: “Rename Paddock A to North Flat”, followed by “confirm” or “yes” in the same browser within five minutes.
 
-Weather forecasts, irrigation decisions, causal claims, agronomic recommendations, LoRaWAN, MQTT, OTA, and control actions are intentionally unavailable.
+Weather forecasts, irrigation decisions, causal claims, agronomic recommendations, LoRaWAN, MQTT, OTA, and control actions remain outside FarmPi's authority. Rather than a generic refusal, FarmPi explains the relevant boundary, what it can show, and one useful next learning direction.
 
 ## Rename safety
 

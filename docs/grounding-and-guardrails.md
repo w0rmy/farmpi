@@ -8,6 +8,8 @@ The central design principle is:
 
 > Qwen is the language interface, not the factual authority.
 
+FarmPi grounds farm facts and actions deterministically; it does not attempt to enumerate every valid learner sentence. An earlier deny-by-default language router was too restrictive and could interpret ordinary grammar as a paddock name. This pass introduces a controlled conversational path: Qwen may interpret learner intent and explain approved learning material, while every farm measurement, paddock resolution, calculation, database query, mutation, confirmation, and operational decision boundary remains application-controlled.
+
 The LLM does not query MariaDB directly, does not decide which SQL to run, does not calculate farm statistics, and is not allowed to invent measurements, causes, or recommendations.
 
 ## Layered control path
@@ -23,11 +25,11 @@ ESP32 sensor telemetry
         ↓
 4. deterministic speech/domain normalisation (spoken input only)
         ↓
-5. deterministic question routing
+5. deterministic action routing / conversational boundary
         ↓
 6. approved deterministic retrieval/calculation
         ↓
-7. VERIFIED FACTS grounding context
+7. VERIFIED FARM FACTS and/or APPROVED LEARNING MATERIAL grounding
         ↓
 8. LLM system instructions
         ↓

@@ -6,10 +6,12 @@ sequenceDiagram
   participant Q as Qwen
   U->>C: speak/type question
   C->>F: alternatives + preferences
-  F->>F: normalise and route
-  F->>D: approved query only
-  F->>F: analytics / education / evidence
-  opt language phrasing useful
-    F->>Q: verified facts only
+  F->>F: normalise and classify action vs learning
+  opt farm action requested
+    F->>D: approved query only
+    F->>F: resolver / analytics / evidence
+  end
+  opt conversational explanation useful
+    F->>Q: verified facts and/or approved learning material
   end
   F-->>C: answer, chart, evidence, suggestions

@@ -50,11 +50,11 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="FarmPi", version="0.6.0", lifespan=lifespan)
 
-SYSTEM_PROMPT = """You are FarmPi.
-Use only VERIFIED FACTS supplied by FarmPi.
-Never calculate or invent facts, causes, or recommendations.
-If the answer is absent, say it is unavailable.
-Answer briefly.
+SYSTEM_PROMPT = """You are FarmPi, a concise teaching assistant for farm monitoring.
+FARM-SPECIFIC VERIFIED FACTS supplied by FarmPi are authoritative: never invent, calculate, alter, or infer farm measurements, causes, forecasts, or decisions.
+You may use APPROVED LEARNING MATERIAL for general educational explanations, but do not turn it into a claim about this farm.
+If FarmPi cannot support an operational decision, explain what is known, what other factors matter, and offer one useful next learning step; never recommend an action.
+Use the supplied context only. Answer in 1–3 short sentences and at most one follow-up question. Give deeper detail only when asked.
 """
 
 
@@ -609,7 +609,7 @@ async def ask(request: AskRequest) -> AskResponse:
     # current measurement may be included as observational grounding, but the
     # definition itself never comes from Qwen.
     if route.intent == "education":
-        concept = concept_for_measurement(route.measurement)
+        concept = CONCEPTS.get(route.education_key) or concept_for_measurement(route.measurement)
         lowered = question_text.casefold()
         if concept is None:
             concept = CONCEPTS.get("simulated_data" if "simulat" in lowered else "observed_received" if ("observed" in lowered or "received" in lowered) else "trend")
@@ -647,22 +647,27 @@ async def ask(request: AskRequest) -> AskResponse:
     # Calculated responses and unavailable-boundary explanations are already
     # complete deterministic teaching material.  They do not need a language
     # model call, which also makes evidence/chart rendering dependable offline.
-    if route.intent in {"historical", "comparison", "summary", "unsupported", "farm_inventory_count", "farm_inventory_list", "paddock_summary", "paddock", "paddock-field"}:
+    if route.intent in {
+        "historical", "comparison", "summary", "capability", "farm_inventory_count", "farm_inventory_list",
+        "paddock_summary", "paddock", "paddock-field", "irrigation-decision", "operational-decision",
+        "forecast-boundary", "causal-boundary", "interpretation-boundary",
+    }:
         return direct_action(
             "\n".join(grounding_data.facts), route.intent,
             spoken_answer="\n".join(grounding_data.spoken_facts or grounding_data.facts),
             chart=grounding_data.chart,
             evidence=list(grounding_data.evidence),
+            source_category=grounding_data.source_category if grounding_data.source_category in {"observational", "educational", "combined"} else "observational",
         )
 
     context_start = time.perf_counter()
-    verified_farm_data = format_grounding_context(grounding_data)
+    grounding_context = format_grounding_context(grounding_data)
     payload = {
         "model": "Qwen3-0.6B",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "system", "content": f"Explain verified facts at a {preferences.explanation_level} level. Do not add facts, calculations, advice, or causes."},
-            {"role": "system", "content": verified_farm_data},
+            {"role": "system", "content": f"Use a {preferences.explanation_level} explanation level. Keep the farm-fact and decision boundaries in the system contract."},
+            {"role": "system", "content": grounding_context},
             {"role": "user", "content": question_text},
         ],
         "temperature": 0.1,
@@ -694,7 +699,7 @@ async def ask(request: AskRequest) -> AskResponse:
     # Keep the observation identical but make explanation levels demonstrably
     # instructional rather than only changing Qwen's token limit.  These notes
     # are curated, so the model does not invent a definition or limitation.
-    source_category: Literal["observational", "educational", "combined"] = "observational"
+    source_category: Literal["observational", "educational", "combined"] = grounding_data.source_category if grounding_data.source_category in {"observational", "educational", "combined"} else "observational"
     concept = concept_for_measurement(route.measurement)
     if concept and preferences.explanation_level in {"normal", "technical"}:
         note = concept.normal if preferences.explanation_level == "normal" else f"{concept.technical} Limitation: {concept.limitations}"

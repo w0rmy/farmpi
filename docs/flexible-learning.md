@@ -4,7 +4,13 @@
 
 FarmPi is beginning to move from a passive question-and-answer interface toward a guided learning interface. This is the first implementation step for the **Developing Flexible IT Courses** elective within the capstone.
 
-The aim is not to turn FarmPi into an unrestricted chatbot. The user experience can become more helpful, conversational, and adaptive while the factual authority remains deterministic.
+The aim is not to turn FarmPi into an unrestricted chatbot. The user experience can become more helpful, conversational, and adaptive while factual authority and state-changing actions remain deterministic.
+
+## Controlled conversational learning
+
+The first router pass was too deny-by-default for learner language: it attempted to force ordinary phrasing into a small regex catalogue, which produced brittle interactions and misleading paddock errors. FarmPi now grounds **farm facts and actions**, not every possible sentence. Capability and approved topic questions receive curated material; otherwise ordinary learning prompts can reach Qwen with a controlled learning context. Qwen can clarify, summarise, and teach, but cannot invent a measurement, resolve a paddock, calculate an analytic, make a farm decision, or change state.
+
+This means `What sort of other information can you show me?` gets a capability overview, and `Should I irrigate Paddock A?` becomes a short teaching exercise: FarmPi states the decision boundary, includes a verified moisture value when one exists, explains relevant approved factors, and offers a next concept to learn. It never gives an irrigation recommendation.
 
 ## Current guided interaction
 

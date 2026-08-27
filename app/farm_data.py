@@ -11,6 +11,7 @@ from .database import fetch_all, fetch_one
 from .analytics import AnalyticsResult, comparison_chart, compare_paddocks, historical_analysis
 from .measurements import AVERAGE, BY_KEY, CHANGE, CURRENT, DAYLIGHT, MAXIMUM, MINIMUM, RANKING, SUM, MEASUREMENTS, format_measurement, measurement
 from .paddock_resolver import PaddockIdentity, PaddockResolution, active_paddocks, resolve_paddock as resolve_paddock_identity
+from .education import irrigation_decision_material
 
 
 class NoFarmData(RuntimeError):
@@ -398,19 +399,73 @@ def paddock_summary(paddock_name: str | None, window_minutes: int | None, window
     return GroundingData("summary", facts, moisture.evidence + rain.evidence, moisture.chart)
 
 
+def irrigation_decision_grounding(paddock_name: str | None, level: str = "normal") -> GroundingData:
+    """Explain the irrigation boundary with facts, never make an irrigation decision."""
+    facts = list(irrigation_decision_material(level))
+    if not paddock_name:
+        return GroundingData("irrigation-decision", tuple(facts), source_category="educational")
+    try:
+        snapshot = get_environment_snapshot()
+    except NoFarmData:
+        snapshot = []
+    resolution = resolve_paddock_reference(paddock_name, snapshot if snapshot else None)
+    if resolution.paddock is None:
+        return GroundingData("irrigation-decision", _paddock_resolution_facts(resolution), source_category="educational")
+    try:
+        item = resolve_paddock(paddock_name, snapshot)
+    except NoFarmData:
+        item = None
+    if item is None:
+        facts.insert(1, f"{resolution.paddock.name} is active, but has no current complete soil-moisture reading.")
+        return GroundingData("irrigation-decision", tuple(facts), source_category="educational")
+    facts.insert(1, _measurement_fact(item, "soil_moisture_pct"))
+    return GroundingData(
+        "irrigation-decision",
+        tuple(facts),
+        _current_evidence(item),
+        source_category="combined",
+    )
+
+
 def get_grounding_data(intent: str, paddock_name: str | None = None, measurement_key: str | None = None, operation: str | None = None, window_minutes: int | None = None) -> GroundingData:
     """Return precisely the deterministic facts approved by a router route."""
-    if intent == "unsupported":
+    if intent in {"capability", "help"}:
         return GroundingData(intent, (
-            "The requested information is unavailable.",
-            "FarmPi provides measured current values and limited deterministic historical summaries only; it does not provide forecasts, irrigation advice, agronomic causes, or recommendations.",
-        ))
-    if intent == "help":
+            "FarmPi can show current verified soil moisture, air temperature, humidity, pH, EC, light, rainfall, pressure, wind, pasture height, and leaf wetness, plus paddock comparisons, bounded history and trends, evidence/graphs, and explanations.",
+            "It can also list or count active paddocks; renames require an explicit confirmation.",
+            "FarmPi does not currently provide forecasts or irrigation recommendations. Try asking: What is Paddock 2's soil moisture? or How has soil moisture changed over the last 24 hours?",
+        ), source_category="educational")
+    if intent == "irrigation-decision":
+        return irrigation_decision_grounding(paddock_name)
+    if intent == "operational-decision":
         return GroundingData(intent, (
-            "FarmPi can count active monitored paddocks and sensor nodes, and report current moisture, soil/air temperature, humidity, pH, EC, light, rainfall, pressure, wind, pasture height, and leaf wetness.",
-            "Try: How many paddocks are we monitoring?; What stats are available on Paddock B?; What is the temperature in Paddock 2?; What about Paddock 2? after a measurement question.",
-            "It can rename a paddock only after an explicit confirmation. FarmPi does not currently provide forecasts, irrigation advice, or agronomic recommendations.",
-        ))
+            "FarmPi cannot make that farm-operation decision from the information it has.",
+            "It can show verified measurements and explain the factors that would normally need to be considered, without presenting a recommendation.",
+            "Would you like to inspect a current paddock measurement or a trend?",
+        ), source_category="educational")
+    if intent == "forecast-boundary":
+        return GroundingData(intent, (
+            "FarmPi does not provide weather forecasts.",
+            "It can show verified rainfall and other recorded measurements, but those readings are not a forecast.",
+            "Would you like to inspect recent rainfall instead?",
+        ), source_category="educational")
+    if intent == "causal-boundary":
+        return GroundingData(intent, (
+            "FarmPi cannot establish the cause of a condition from its current measurements alone.",
+            "It can show verified readings and explain general measurement limits without claiming what caused a change on this farm.",
+            "Would you like to inspect a trend or explain the measurement?",
+        ), source_category="educational")
+    if intent == "interpretation-boundary":
+        return GroundingData(intent, (
+            "FarmPi understood the measurement, but that calculation or interpretation is not one of its reviewed deterministic analytics.",
+            "It can show the current reading, a supported trend, or evidence instead of estimating a result.",
+            "Would you like a current value or a trend?",
+        ), source_category="educational")
+    if intent == "conversation":
+        return GroundingData(intent, (
+            "FarmPi is a teaching assistant for monitored farm data. It can discuss approved measurement concepts, data limits, comparisons, history, evidence, and how to explore verified readings.",
+            "If a question needs a farm-specific value, FarmPi will retrieve it deterministically rather than guess it.",
+        ), source_category="educational")
     if intent == "farm_inventory_count":
         return farm_inventory_count()
     if intent == "farm_inventory_list":
@@ -448,7 +503,7 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
             return GroundingData(intent, (f"{resolution.paddock.name} is active, but has no current complete reading for the requested measurement.",))
         key = measurement_key or "soil_moisture_pct"
         if key not in BY_KEY or CURRENT not in BY_KEY[key].operations:
-            return GroundingData("unsupported", ("The requested information is unavailable.",))
+            return GroundingData("interpretation-boundary", ("FarmPi does not have a reviewed current-reading operation for that measurement.",))
         screen_facts = (_measurement_fact(item, key), _display_reading_time(item.received_at))
         return GroundingData(intent, screen_facts, _current_evidence(item), spoken_facts=(_measurement_fact(item, key),))
     if intent == "measurement-fallback" and measurement_key in BY_KEY:
@@ -461,7 +516,8 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
 
 
 def format_grounding_context(grounding: GroundingData) -> str:
-    return "\n".join(["VERIFIED FACTS", *(f"- {fact}" for fact in grounding.facts)])
+    heading = "APPROVED LEARNING MATERIAL" if grounding.source_category == "educational" else "FARMPI GROUNDING"
+    return "\n".join([heading, *(f"- {fact}" for fact in grounding.facts)])
 
 
 def build_verified_moisture_context() -> str:

@@ -13,8 +13,8 @@ HELP_FACTS = (
     "FarmPi can deterministically identify the driest/wettest paddock, average moisture, approved rankings, rainfall totals, and limited historical change.",
     "Useful example questions include: How many paddocks are we monitoring? What stats are available on Paddock B? What is Paddock 2's temperature? How much rainfall was there over the last 24 hours?",
     "The current ESP32 readings are synthetic test telemetry and are marked as simulated in FarmPi.",
-    "FarmPi does not currently provide weather forecasts, irrigation recommendations, or agronomic causes. Daylight is a deterministic historical light-derived value.",
-    "If FarmPi does not have a verified fact for a question, it should say the information is unavailable rather than inventing an answer.",
+    "FarmPi does not provide weather forecasts, irrigation recommendations, or agronomic causes. It can explain the factors that matter and its data limits. Daylight is a deterministic historical light-derived value.",
+    "FarmPi clarifies unknown paddocks, missing readings, interpretation limits, and genuine service failures rather than guessing farm facts.",
 )
 
 INITIAL_SUGGESTIONS = (
@@ -32,7 +32,7 @@ def follow_up_suggestions(
     measurement: str | None = None,
 ) -> tuple[str, ...]:
     """Return small deterministic next-question prompts for the user interface."""
-    if intent == "help":
+    if intent in {"help", "capability"}:
         return INITIAL_SUGGESTIONS[:3]
 
     if intent == "farm_inventory_count":
@@ -84,11 +84,11 @@ def follow_up_suggestions(
             "How do I use FarmPi?",
         )
 
-    if intent == "unsupported":
+    if intent in {"unsupported", "irrigation-decision", "operational-decision", "forecast-boundary", "causal-boundary", "interpretation-boundary"}:
         return (
             "How do I use FarmPi?",
-            "Which paddock is driest?",
-            "What is Paddock A's air temperature?",
+            "What is Paddock A's soil moisture?",
+            "Explain refill point and field capacity.",
         )
 
     return INITIAL_SUGGESTIONS[:3]

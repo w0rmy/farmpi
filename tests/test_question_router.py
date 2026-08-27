@@ -35,6 +35,19 @@ class QuestionRouterTests(unittest.TestCase):
         ):
             self.assertEqual(route_question(question).intent, "help")
 
+    def test_capability_paraphrases_never_become_paddock_candidates(self) -> None:
+        for question in (
+            "What sort of other information can you show me?",
+            "What else can you show me?",
+            "What can I learn about?",
+            "What information is available?",
+            "What else do you know?",
+        ):
+            with self.subTest(question=question):
+                route = route_question(question)
+                self.assertEqual(route.intent, "capability")
+                self.assertIsNone(route.paddock_name)
+
     def test_single_paddock(self) -> None:
         route = route_question("What is Paddock B's soil moisture?")
         self.assertEqual(route.intent, "paddock")
@@ -71,7 +84,7 @@ class QuestionRouterTests(unittest.TestCase):
 
     def test_multiple_paddocks_use_broad_fallback(self) -> None:
         route = route_question("Compare Paddock A and Paddock B.")
-        self.assertEqual(route.intent, "moisture-fallback")
+        self.assertEqual(route.intent, "conversation")
 
     def test_conversational_paddock_word_is_not_treated_as_name(self) -> None:
         route = route_question("Which paddock is currently the most dry?")
@@ -90,17 +103,17 @@ class QuestionRouterTests(unittest.TestCase):
         self.assertEqual((route.intent, route.paddock_name, route.new_paddock_name), ("rename-request", "Paddock A", "North Flat"))
         self.assertEqual(route_question("Guide me").intent, "help")
 
-    def test_advice_and_causal_questions_are_unsupported(self) -> None:
-        questions = (
-            "What is tomorrow's weather forecast?",
-            "Should I irrigate Paddock A?",
-            "When should I water Paddock A?",
-            "Why is the soil pH dropping in Paddock A?",
-            "What caused Paddock A's humidity to change?",
-        )
-        for question in questions:
-            with self.subTest(question=question):
-                self.assertEqual(route_question(question).intent, "unsupported")
+    def test_decision_and_causal_questions_keep_safe_explicit_boundaries(self) -> None:
+        self.assertEqual(route_question("Should I irrigate Paddock 2?").intent, "irrigation-decision")
+        self.assertEqual(route_question("Should I irrigate Paddock 2?").paddock_name, "Paddock 2")
+        self.assertEqual(route_question("When should I water Paddock A?").intent, "irrigation-decision")
+        self.assertEqual(route_question("What is tomorrow's weather forecast?").intent, "forecast-boundary")
+        self.assertEqual(route_question("Why is the soil pH dropping in Paddock A?").intent, "causal-boundary")
+        self.assertEqual(route_question("What caused Paddock A's humidity to change?").intent, "causal-boundary")
+
+    def test_ordinary_learning_prompt_uses_conversational_path(self) -> None:
+        self.assertEqual(route_question("Can you help me make sense of this farm data?").intent, "conversation")
+        self.assertEqual(route_question("Explain refill point and field capacity.").education_key, "irrigation_decision")
 
 
 if __name__ == "__main__":

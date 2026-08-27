@@ -3,10 +3,12 @@ flowchart LR
   I --> D[(MariaDB)]
   W[Browser] --> A[FastAPI ask API]
   N[Native Android] --> A
-  A --> R[Structured request router]
-  R --> X[Deterministic analytics / education]
+  A --> R[Action router / conversational boundary]
+  R -->|farm action| X[Deterministic resolver + analytics]
+  R -->|learning language| L[Curated learning context]
   X --> D
-  X --> Q[Qwen language layer]
+  X --> Q[Qwen teaching assistant]
+  L --> Q
   X --> G[Charts + evidence]
   Q --> A
   G --> A
