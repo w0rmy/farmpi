@@ -41,7 +41,8 @@ import javax.net.ssl.HttpsURLConnection
 private data class SpeechResult(val heard: String, val interpreted: String, val changed: Boolean)
 private data class ChartPoint(val label: String, val value: Double)
 private data class ChartPayload(val type: String, val title: String, val unit: String, val period: String, val provenance: String, val series: List<Pair<String, List<ChartPoint>>>)
-private data class AskResult(val answer: String, val spokenAnswer: String, val suggestions: List<String>, val intent: String, val conversationId: String?, val chart: ChartPayload?, val evidence: List<String>)
+private data class AskResult(val answer: String, val spokenAnswer: String, val suggestions: List<String>, val intent: String, val conversationId: String?, val chart: ChartPayload?, val evidence: List<String>, val provenance: List<String>)
+private class FarmPiApiException(message: String) : Exception(message)
 
 private val FarmPiColours = darkColorScheme(
     primary = Color(0xFF9ACBA6),
@@ -74,7 +75,7 @@ private fun FarmPiApp() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var question by remember { mutableStateOf("") }
-    var answer by remember { mutableStateOf("Ask FarmPi about a paddock to begin.") }
+    var answer by remember { mutableStateOf("Ask FarmPi about farming or your monitored farm data to begin.") }
     var connection by remember { mutableStateOf("Checking FarmPi…") }
     var heard by remember { mutableStateOf<String?>(null) }
     var interpreted by remember { mutableStateOf<String?>(null) }
@@ -86,6 +87,7 @@ private fun FarmPiApp() {
     var isSpeaking by remember { mutableStateOf(false) }
     var chart by remember { mutableStateOf<ChartPayload?>(null) }
     var evidence by remember { mutableStateOf(emptyList<String>()) }
+    var provenance by remember { mutableStateOf(emptyList<String>()) }
     var showEvidence by remember { mutableStateOf(false) }
     var conversationId by remember { mutableStateOf<String?>(null) }
     val preferences = remember { context.getSharedPreferences("farmpi-learning", 0) }
@@ -125,13 +127,21 @@ private fun FarmPiApp() {
             question = routedQuestion
             val result = FarmPiApi.ask(routedQuestion, explanation, guidance, conversationId)
             conversationId = result.conversationId ?: conversationId
-            answer = result.answer; suggestions = result.suggestions; chart = result.chart; evidence = result.evidence; showEvidence = false; connection = "FarmPi connected"; speak(result.spokenAnswer)
-        } catch (_: Exception) { answer = "FarmPi is unavailable. Check the local connection and certificate trust."; connection = "FarmPi is unavailable" }
+            answer = result.answer; suggestions = result.suggestions; chart = result.chart; evidence = result.evidence; provenance = result.provenance; showEvidence = false; connection = "FarmPi connected"; speak(result.spokenAnswer)
+        } catch (error: FarmPiApiException) {
+            answer = error.message ?: "FarmPi could not complete that request."
+            connection = "FarmPi connected — request not completed"
+        } catch (error: Exception) {
+            val detail = error.message?.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: ""
+            answer = "I could not reach FarmPi$detail. Check the local connection and certificate trust."
+            connection = "FarmPi is unavailable"
+        }
         asking = false
     }
     fun guideMe() = scope.launch {
         stopSpeaking()
         try { val guide = FarmPiApi.guidance(guidance); answer = guide.first; suggestions = guide.second; speak(guide.first) }
+        catch (error: FarmPiApiException) { answer = error.message ?: "FarmPi guidance is unavailable." }
         catch (_: Exception) { answer = "FarmPi guidance is unavailable." }
     }
 
@@ -179,7 +189,7 @@ private fun FarmPiApp() {
             Text("FarmPi", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
             Text(connection, style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(18.dp))
-            OutlinedTextField(value = question, onValueChange = { question = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Ask about your farm data") }, minLines = 3)
+            OutlinedTextField(value = question, onValueChange = { question = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Ask about farming or your farm data") }, minLines = 3)
             Spacer(Modifier.height(10.dp))
             Button(
                 onClick = { if (isSpeaking) stopSpeaking() else listen() },
@@ -197,9 +207,18 @@ private fun FarmPiApp() {
             if (interpreted != null) Text("Interpreted: $interpreted", modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
             Card(modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) { Text(answer, modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodyLarge) }
             chart?.let { ChartCard(it) }
-            if (evidence.isNotEmpty()) {
-                TextButton(onClick = { showEvidence = !showEvidence }) { Text(if (showEvidence) "Hide evidence" else "Show evidence / data") }
-                if (showEvidence) Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) { Text("Evidence used", fontWeight = FontWeight.Bold); evidence.take(12).forEach { Text(it, style = MaterialTheme.typography.bodySmall) } } }
+            if (evidence.isNotEmpty() || provenance.isNotEmpty()) {
+                TextButton(onClick = { showEvidence = !showEvidence }) { Text(if (showEvidence) "Hide sources / evidence" else "Show sources / evidence") }
+                if (showEvidence) Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) {
+                    if (provenance.isNotEmpty()) {
+                        Text("Sources / provenance", fontWeight = FontWeight.Bold)
+                        provenance.take(12).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    }
+                    if (evidence.isNotEmpty()) {
+                        Text("Evidence used", modifier = Modifier.padding(top = 8.dp), fontWeight = FontWeight.Bold)
+                        evidence.take(12).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    }
+                } }
             }
             suggestions.forEach { suggestion -> TextButton(onClick = { question = suggestion; ask(suggestion) }) { Text(suggestion, textAlign = TextAlign.Start) } }
             Preferences(explanation, guidance, { explanation = it; preferences.edit().putString("explanation", it).apply() }, { guidance = it; preferences.edit().putString("guidance", it).apply() })
@@ -221,8 +240,6 @@ private fun ChartCard(chart: ChartPayload) {
                     Text("${point.label}: ${"%.2f".format(point.value)} ${chart.unit}", style = MaterialTheme.typography.bodySmall)
                     LinearProgressIndicator(progress = (point.value / maximum).toFloat().coerceIn(0f, 1f), modifier = Modifier.fillMaxWidth().height(9.dp).padding(bottom = 4.dp), color = MaterialTheme.colorScheme.primary)
                 } else {
-                    // Each point is an actual backend-supplied, timestamped value;
-                    // the connected markers form a compact native line/spark view.
                     Row(Modifier.fillMaxWidth().height(54.dp), verticalAlignment = Alignment.Bottom) { values.takeLast(24).forEach { point -> Box(Modifier.weight(1f).fillMaxHeight((point.value / maximum).toFloat().coerceIn(.03f, 1f)).padding(horizontal = 1.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))) } }
                     values.takeLast(2).forEach { point -> Text("${point.label}: ${"%.2f".format(point.value)} ${chart.unit}", style = MaterialTheme.typography.bodySmall) }
                 }
@@ -242,16 +259,17 @@ private fun Preferences(explanation: String, guidance: String, setExplanation: (
 @Composable
 private fun LearnArea(modifier: Modifier, usePrompt: (String) -> Unit) = Column(modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
     Text("Learn FarmPi", style = MaterialTheme.typography.headlineMedium)
-    Text("Short teach-by-doing tasks use only verified FarmPi information.")
+    Text("Ask naturally. FarmPi combines verified farm data with agricultural teaching and clearly separated source provenance.")
     listOf(
         "Getting started" to "Guide me",
         "One paddock" to "What is Paddock A's soil EC?",
         "Compare paddocks" to "Compare soil EC across all paddocks.",
         "Inspect a trend" to "Show a graph of soil moisture over the last 24 hours.",
         "Understand a measurement" to "What does soil EC mean?",
-        "Understand provenance" to "Explain simulated data.",
+        "Learn a farming concept" to "Why do dairy cows get milk fever?",
+        "Use a NZ source" to "What does DairyNZ say about irrigation scheduling?",
         "Safe boundaries" to "Should I irrigate Paddock A?"
-    ).forEach { (title, prompt) -> Card(Modifier.fillMaxWidth().padding(top = 10.dp)) { Column(Modifier.padding(14.dp)) { Text(title, fontWeight = FontWeight.Bold); Text("Try this real FarmPi task, then inspect the answer and evidence."); TextButton(onClick = { usePrompt(prompt) }) { Text(prompt) } } } }
+    ).forEach { (title, prompt) -> Card(Modifier.fillMaxWidth().padding(top = 10.dp)) { Column(Modifier.padding(14.dp)) { Text(title, fontWeight = FontWeight.Bold); Text("Try this FarmPi learning question, then inspect the answer and its sources or evidence."); TextButton(onClick = { usePrompt(prompt) }) { Text(prompt) } } } }
 }
 
 private object FarmPiApi {
@@ -259,8 +277,13 @@ private object FarmPiApi {
         val connection = (URL(BuildConfig.FARMPI_BASE_URL + path.removePrefix("/")).openConnection() as HttpsURLConnection)
         connection.requestMethod = method; connection.connectTimeout = 5_000; connection.readTimeout = 30_000; connection.setRequestProperty("Accept", "application/json")
         if (body != null) { connection.doOutput = true; connection.setRequestProperty("Content-Type", "application/json"); connection.outputStream.use { it.write(body.toString().toByteArray()) } }
-        val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
-        val text = stream.bufferedReader().use { it.readText() }; if (connection.responseCode !in 200..299) throw IllegalStateException(text)
+        val status = connection.responseCode
+        val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+        val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        if (status !in 200..299) {
+            val detail = try { JSONObject(text).optString("detail").takeIf { it.isNotBlank() } } catch (_: Exception) { null }
+            throw FarmPiApiException(detail ?: "FarmPi returned HTTP $status.")
+        }
         return JSONObject(text)
     }
     suspend fun status(): Boolean = withContext(Dispatchers.IO) { request("api/status").optString("status") == "running" }
@@ -271,7 +294,16 @@ private object FarmPiApi {
     }
     suspend fun ask(question: String, explanation: String, guidance: String, conversationId: String?): AskResult = withContext(Dispatchers.IO) {
         val body = JSONObject().put("question", question).put("preferences", JSONObject().put("explanation_level", explanation).put("guidance_level", guidance)); if (conversationId != null) body.put("conversation_id", conversationId); val json = request("api/ask", "POST", body)
-        AskResult(json.getString("answer"), json.optString("spoken_answer", json.getString("answer")), json.optJSONArray("suggestions").strings(), json.optString("intent"), json.optString("conversation_id").takeIf { it.isNotBlank() }, json.optJSONObject("chart")?.chart(), json.optJSONArray("evidence")?.let { evidence -> (0 until evidence.length()).map { evidence.getJSONObject(it).toString() } } ?: emptyList())
+        AskResult(
+            json.getString("answer"),
+            json.optString("spoken_answer", json.getString("answer")),
+            json.optJSONArray("suggestions").strings(),
+            json.optString("intent"),
+            json.optString("conversation_id").takeIf { it.isNotBlank() },
+            json.optJSONObject("chart")?.chart(),
+            json.optJSONArray("evidence")?.objectsAsStrings() ?: emptyList(),
+            json.optJSONArray("provenance")?.objectsAsStrings() ?: emptyList(),
+        )
     }
     private fun JSONObject.chart(): ChartPayload {
         val entries = optJSONArray("series") ?: JSONArray()
@@ -282,4 +314,5 @@ private object FarmPiApi {
         return ChartPayload(optString("type"), optString("title"), optString("unit"), optString("source_period"), optString("provenance"), series)
     }
     private fun JSONArray?.strings(): List<String> = if (this == null) emptyList() else (0 until length()).map { getString(it) }
+    private fun JSONArray.objectsAsStrings(): List<String> = (0 until length()).map { index -> getJSONObject(index).toString() }
 }
