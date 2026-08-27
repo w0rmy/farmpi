@@ -48,7 +48,7 @@ _CAPABILITY_RE = re.compile(
     r"|\bwhat\s+else\s+do\s+you\s+know\b",
     re.IGNORECASE,
 )
-_EDUCATION_RE = re.compile(r"\b(?:what\s+does|explain|meaning|mean|unit|simulated\s+(?:data|telemetry)|observed(?:_at|\s+at)?|received(?:_at|\s+at)?)\b", re.IGNORECASE)
+_EDUCATION_RE = re.compile(r"\b(?:what\s+does|explain|meaning|unit|simulated\s+(?:data|telemetry)|observed(?:_at|\s+at)?|received(?:_at|\s+at)?)\b", re.IGNORECASE)
 _IRRIGATION_RE = re.compile(r"\b(?:irrigat(?:e|ion|ing)?|water(?:ing)?)\b", re.IGNORECASE)
 _DECISION_RE = re.compile(r"\b(?:should|when\s+should|need\s+to|recommend(?:ation|ed)?|advi[cs]e)\b", re.IGNORECASE)
 _CAUSAL_RE = re.compile(r"\b(?:why|reason(?:s)?|cause(?:d|s|ing)?)\b", re.IGNORECASE)

@@ -42,6 +42,10 @@ class ConversationalVariationTests(unittest.TestCase):
                 fast = route_question(question)
                 self.assertTrue(fast.intent in useful_fast or needs_semantic_interpretation(question, fast))
 
+    def test_mean_is_an_aggregate_operator_not_an_education_trigger(self) -> None:
+        route = route_question("What's the mean temperature over all the fields please?")
+        self.assertEqual((route.intent, route.measurement, route.operation), ("farm-average", "air_temperature_c", "average"))
+
     def test_structured_semantic_results_cover_value_ranking_average_and_learning(self) -> None:
         cases = (
             (
