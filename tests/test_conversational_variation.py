@@ -32,7 +32,11 @@ class ConversationalVariationTests(unittest.TestCase):
             "Which field is looking the driest?",
             "What's the mean temperature over all the fields please?",
         )
-        useful_fast = {"paddock", "paddock-field", "ranking", "farm-average", "measurement-fallback", "conversation", "interpretation-boundary"}
+        useful_fast = {
+            "paddock", "paddock-field", "ranking", "farm-average", "measurement-fallback",
+            "conversation", "interpretation-boundary", "driest", "wettest", "average",
+            "comparison", "historical",
+        }
         for question in variants:
             with self.subTest(question=question):
                 fast = route_question(question)
@@ -79,9 +83,16 @@ class ConversationalVariationTests(unittest.TestCase):
         self.assertTrue(needs_semantic_interpretation(question, fast))
 
     def test_explicit_nz_source_question_is_open_to_research_interpretation(self) -> None:
-        question = "Could you tell me what DairyNZ says about refill point please?"
-        fast = route_question(question)
-        self.assertTrue(needs_semantic_interpretation(question, fast))
+        questions = (
+            "Could you tell me what DairyNZ says about refill point please?",
+            "What does MPI say about dairy cattle welfare?",
+            "Can you look up Earth Sciences NZ information about drought?",
+            "Research IrrigationNZ soil moisture monitoring for me.",
+        )
+        for question in questions:
+            with self.subTest(question=question):
+                fast = route_question(question)
+                self.assertTrue(needs_semantic_interpretation(question, fast))
 
 
 if __name__ == "__main__":
