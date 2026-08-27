@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import unittest
 from unittest.mock import patch
-import asyncio
 
 from app.app import AskRequest, SpeechInput, _pending_renames, ask
 from app.paddock_admin import RenameProposal, RenameRejected, confirm_rename, prepare_rename
@@ -30,9 +30,14 @@ class PaddockAdminTests(unittest.TestCase):
         self.assertIn("UPDATE paddocks", execute.call_args_list[0].args[0])
         self.assertIn("paddock_admin_audit", execute.call_args_list[1].args[0])
 
+    # These two tests exercise the deterministic mutation boundary itself. The
+    # semantic interpreter has separate tests for mapping varied learner
+    # language into the same rename-request route, so it is deliberately
+    # bypassed here rather than requiring an LLM HTTP client in an admin test.
+    @patch("app.app.needs_semantic_interpretation", return_value=False)
     @patch("app.app.confirm_rename")
     @patch("app.app.prepare_rename")
-    def test_natural_language_rename_requires_confirmation(self, prepare, confirm) -> None:
+    def test_natural_language_rename_requires_confirmation(self, prepare, confirm, _) -> None:
         _pending_renames.clear()
         proposal = RenameProposal(7, "Paddock A", "North Flat")
         prepare.return_value = proposal
@@ -46,10 +51,11 @@ class PaddockAdminTests(unittest.TestCase):
         self.assertIn('Renamed "Paddock A" to "North Flat".', completed.answer)
         confirm.assert_called_once_with(proposal)
 
+    @patch("app.app.needs_semantic_interpretation", return_value=False)
     @patch("app.app.confirm_rename")
     @patch("app.app.prepare_rename")
     @patch("app.app.current_paddock_names", return_value=("Paddock A",))
-    def test_spoken_patek_rename_still_only_prepares_confirmation(self, _, prepare, confirm) -> None:
+    def test_spoken_patek_rename_still_only_prepares_confirmation(self, _, prepare, confirm, _semantic) -> None:
         _pending_renames.clear()
         proposal = RenameProposal(7, "Paddock A", "North Flat")
         prepare.return_value = proposal
