@@ -1,6 +1,6 @@
 """LLM-assisted interpretation of learner language into reviewed FarmPi operations.
 
-This module deliberately does not execute database queries or mutations.  It turns
+This module deliberately does not execute database queries or mutations. It turns
 natural learner language into a small structured intent which the application then
 validates and executes through the existing deterministic FarmPi functions.
 """
@@ -12,7 +12,7 @@ import json
 import re
 from typing import Any
 
-from .measurements import AVERAGE, BY_KEY, CURRENT, MAXIMUM, MINIMUM, RANKING, TREND, measurement_for_text
+from .measurements import AVERAGE, BY_KEY, MAXIMUM, MINIMUM, RANKING, TREND, measurement_for_text
 from .question_router import QuestionRoute
 
 
@@ -36,6 +36,18 @@ class SemanticInterpretation:
 
 _MUTATION_HINT_RE = re.compile(
     r"\b(?:rename|renamed|call\s+(?:the\s+)?(?:paddock|field)|change\s+(?:the\s+)?(?:paddock|field)?.{0,20}\bname)\b",
+    re.IGNORECASE,
+)
+
+# External-source language must get a chance to become a research intent even
+# when the fast router happens to recognise an embedded concept such as
+# "refill point". This prevents the old deterministic filter order from hiding
+# what the learner actually asked: "what does DairyNZ say?".
+_EXTERNAL_SOURCE_RE = re.compile(
+    r"\b(?:dairynz|mpi|ministry\s+for\s+primary\s+industries|"
+    r"earth\s+sciences(?:\s+new\s+zealand|\s+nz)?|niwa|"
+    r"irrigation(?:\s+new\s+zealand|nz)|look\s+up|research|find\s+out|"
+    r"what\s+does\s+[^?!.]{1,80}\s+say)\b",
     re.IGNORECASE,
 )
 
@@ -71,10 +83,13 @@ _ALLOWED_INTENTS = {
 def needs_semantic_interpretation(question: str, route: QuestionRoute) -> bool:
     """Return whether the fast router should be supplemented by semantic interpretation.
 
-    Obvious deterministic requests stay fast.  Ambiguous learner language, broad
-    learning questions, and mutation-looking wording that missed the exact action
-    grammar are interpreted by the LLM before any execution occurs.
+    Obvious deterministic requests stay fast. Ambiguous learner language, broad
+    learning questions, explicit source/research requests, and mutation-looking
+    wording that missed the exact action grammar are interpreted by the LLM
+    before any execution occurs.
     """
+    if _EXTERNAL_SOURCE_RE.search(question):
+        return True
     if _MUTATION_HINT_RE.search(question) and route.intent != "rename-request":
         return True
     if route.intent in _AMBIGUOUS_FAST_ROUTES:
@@ -164,6 +179,7 @@ def parse_semantic_interpretation(content: str) -> SemanticInterpretation:
         "farm-inventory-count": "count-paddocks",
         "education": "learning",
         "agriculture-learning": "learning",
+        "agriculture-research": "research",
     }
     intent = aliases.get(intent, intent)
     if intent not in _ALLOWED_INTENTS:
@@ -266,11 +282,17 @@ def route_from_interpretation(value: SemanticInterpretation) -> QuestionRoute:
         return QuestionRoute("ranking", measurement=key, operation=wanted) if supported else QuestionRoute("semantic-clarification", measurement=key)
 
     if value.intent == "comparison":
-        operation = AVERAGE if AVERAGE in BY_KEY[key].operations else CURRENT
-        return QuestionRoute("comparison", value.paddock_name, key, operation, value.window_minutes or 60, comparison=True)
+        if AVERAGE not in BY_KEY[key].operations:
+            return QuestionRoute("semantic-clarification", measurement=key)
+        return QuestionRoute("comparison", value.paddock_name, key, AVERAGE, value.window_minutes or 60, comparison=True)
 
     if value.intent in {"history", "trend"}:
-        operation = TREND if value.intent == "trend" and TREND in BY_KEY[key].operations else AVERAGE if AVERAGE in BY_KEY[key].operations else CURRENT
+        if value.intent == "trend" and TREND in BY_KEY[key].operations:
+            operation = TREND
+        elif AVERAGE in BY_KEY[key].operations:
+            operation = AVERAGE
+        else:
+            return QuestionRoute("semantic-clarification", measurement=key)
         return QuestionRoute("historical", value.paddock_name, key, operation, value.window_minutes or 1440)
 
     return QuestionRoute("semantic-clarification", education_key=value.topic)
