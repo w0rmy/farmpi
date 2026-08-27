@@ -1,14 +1,13 @@
 """Curated New Zealand agricultural source directory and provenance helpers.
 
-These records are source metadata, not a web-search engine.  FarmPi may use reviewed
-claims included here and may direct learners to the source.  It must not imply that a
+These records are source metadata, not a web-search engine. FarmPi may use reviewed
+claims included here and may direct learners to the source. It must not imply that a
 live page was searched unless a future research provider actually performed retrieval.
 """
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-import re
 
 
 @dataclass(frozen=True)
@@ -87,10 +86,6 @@ SOURCES: tuple[KnowledgeSource, ...] = (
 )
 
 
-def _tokens(text: str) -> set[str]:
-    return set(re.findall(r"[a-z0-9]+(?:\s+[a-z0-9]+)?", text.casefold()))
-
-
 def sources_for_question(question: str, limit: int = 4) -> tuple[KnowledgeSource, ...]:
     """Select relevant reviewed NZ sources by topic without claiming live retrieval."""
     lowered = question.casefold()
@@ -115,7 +110,7 @@ def format_source_context(question: str) -> tuple[str, tuple[KnowledgeSource, ..
     sources = sources_for_question(question)
     lines = [
         "CURATED NEW ZEALAND SOURCE DIRECTORY",
-        "These are reviewed source references. Do not say they were searched live. Attribute only the reviewed claims below to the named organisation.",
+        "These are reviewed source references. Do not say they were searched live. Attribute only an explicit 'Reviewed claim' below to the named organisation; a source listed without a reviewed claim is a reference suggestion, not evidence for your answer.",
     ]
     for source in sources:
         lines.append(f"- {source.organisation}: {source.name} — {source.url}")
@@ -125,6 +120,7 @@ def format_source_context(question: str) -> tuple[str, tuple[KnowledgeSource, ..
 
 
 def provenance_for_sources(sources: tuple[KnowledgeSource, ...]) -> list[dict[str, str]]:
+    """Make source use inspectable without overstating unsupported attribution."""
     return [
         {
             "kind": "authoritative-curated",
@@ -132,6 +128,7 @@ def provenance_for_sources(sources: tuple[KnowledgeSource, ...]) -> list[dict[st
             "title": source.name,
             "url": source.url,
             "authority": source.authority,
+            "use": "reviewed-claim-support" if source.reviewed_claims else "reference-only",
         }
         for source in sources
     ]
