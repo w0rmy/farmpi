@@ -38,9 +38,10 @@ class SpeechNormalization:
     alternative_selected: bool
 
 
-# These are observed or very close phonetic spellings of "paddock".  They are
-# intentionally not a general spelling-correction table.
-_PADDOCK_CONFUSIONS = ("patek", "paddic", "paddik")
+# These are observed or close phonetic/transcription spellings of "paddock".
+# They are intentionally not a general spelling-correction table and are only
+# changed when the transcript already has FarmPi/farming context.
+_PADDOCK_CONFUSIONS = ("patek", "padlock", "paddic", "paddik")
 _PADDOCK_CONFUSION_RE = re.compile(
     r"\b(?:" + "|".join(_PADDOCK_CONFUSIONS) + r")\b", re.IGNORECASE
 )
