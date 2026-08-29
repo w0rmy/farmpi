@@ -67,6 +67,15 @@ FARMPI_LLAMA_URL=http://127.0.0.1:8080
 FARMPI_LLM_MODEL=Qwen3-1.7B
 ```
 
+For the Qwen3.5-9B development/reference setup hosted by LM Studio on the Windows PC, use the PC's current trusted-LAN address and LM Studio's advertised model identifier:
+
+```text
+FARMPI_LLAMA_URL=http://<development-pc-lan-ip>:1234
+FARMPI_LLM_MODEL=qwen/qwen3.5-9b
+```
+
+Enable LM Studio's local-server network access only on a trusted LAN, allow the Pi to reach TCP port `1234`, and do not expose the server to the public Internet. FarmPi checks model-service readiness through the OpenAI-compatible `GET /v1/models` endpoint; LM Studio does not advertise `GET /health`.
+
 Never commit this file or copy its secrets into firmware source. Only the ingest token is copied into the ignored ESP32 `config.h` on the development workstation.
 
 ## What `./update` does
@@ -155,6 +164,8 @@ Store backups outside the repository and protect them as operational data. Resto
 **Database unavailable.** Check MariaDB, `/etc/farmpi/farmpi.env` ownership/permissions, and the `farmpi@127.0.0.1` credentials.
 
 **Language model unavailable.** Check `FARMPI_LLAMA_URL`, the model service, model identifier, and `/api/status`. Learning questions return a limited useful fallback, while deterministic farm facts remain available when their dependencies are healthy.
+
+From the Pi, verify an LM Studio connection and confirm the configured model identifier with `curl http://<development-pc-lan-ip>:1234/v1/models`. A successful response should list `qwen/qwen3.5-9b` for the current reference model.
 
 **LM Studio/Qwen3.5 rejects the prompt.** Confirm FarmPi is launched through `app.main:app`; that composition root installs the compatibility adapter that combines system messages and applies `FARMPI_LLM_MODEL`.
 
