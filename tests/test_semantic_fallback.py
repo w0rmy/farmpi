@@ -28,8 +28,11 @@ class SemanticFallbackTests(unittest.TestCase):
     def setUp(self) -> None:
         self._old_client = getattr(app.state, "http_client", None)
         app.state.http_client = _AnswerClient()
+        self._warning_patcher = patch("app.app.logger.warning")
+        self._warning_patcher.start()
 
     def tearDown(self) -> None:
+        self._warning_patcher.stop()
         app.state.http_client = self._old_client
 
     def test_farm_wide_mean_temperature_stays_deterministic(self) -> None:

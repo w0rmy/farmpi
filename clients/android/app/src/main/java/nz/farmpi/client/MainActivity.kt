@@ -147,6 +147,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FarmPiApp() {
     val context = LocalContext.current
