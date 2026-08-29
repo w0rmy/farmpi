@@ -2,6 +2,37 @@
 
 This record captures material design decisions and their outcome/evidence rationale. Current operating instructions live in the subject guides; historical performance measurements live under `docs/history`.
 
+## 29 August 2026 - interactive visual analytics expansion
+
+### Context
+
+The first Android chart renderer proved that deterministic database results could be visualised, but its presentation was deliberately minimal: comparisons were rendered as progress bars and time-series data as a small strip of vertical blocks. That was adequate plumbing evidence but weak as a learning interface because it made trends, daily shapes, and comparisons harder to perceive than necessary.
+
+### Decisions
+
+- Kept chart values entirely deterministic: the database/analytics layer remains responsible for selecting and calculating the values. The language model does not create, alter, smooth, or estimate graph data.
+- Added a dedicated Android visualisation component that renders the existing verified chart payload at a substantially larger size with grid lines, clearer summary values, and theme-aware presentation.
+- Added learner-selectable graph views. Time-series data can be switched between line, area, bars, and dots; comparison datasets can switch between bars and dots. Changing view type changes presentation only, never the underlying values.
+- Light/lux time-series data defaults to an area-style **Day profile** view because the daily rise/fall pattern is visually meaningful and easier to interpret that way. The learner can still switch to the other supported views.
+- Added low/latest/high summaries and simplified time labels so a learner can combine an immediate numeric cue with the graphical pattern.
+- Kept the graph controls inside the result card rather than adding a separate graph-configuration workflow. This deliberately limits UI scope while still giving learners control over how information is represented.
+- Added a defensive Android JSON check so a JSON `null` `spoken_answer` cannot become the literal four-character string `"null"`; the visible answer is used for speech instead.
+
+### Outcome and scope mapping
+
+| Change | Evidence contribution | Scope control |
+|---|---|---|
+| Selectable line/area/bar/dot presentation | Developing Flexible IT Courses: the same learning data can be represented in different visual forms to support learner preference and comprehension | Presentation changes only; no graph-design workstream or model-generated graphics |
+| Larger trend/day-profile visualisation | AI and Data Sciences: database observations and deterministic analytics are made interpretable as visual data | No new IoT requirement and no change to factual authority |
+| Low/latest/high visual cues | Developing Flexible IT Courses: supports quick interpretation before deeper inspection | Values come from the same chart dataset; no inferred farm conclusion |
+| Theme-aware graph rendering | Developing Flexible IT Courses: existing visual-flexibility choices apply to data visualisation as well as text | Reuses existing themes rather than adding bespoke artwork |
+
+This work remains in capstone scope because it directly improves how learners inspect and interpret data. It is not being justified as Android polish: the evidence target is flexible visual presentation and data interpretation. Further chart work should be rejected if it becomes cosmetic rather than improving those outcomes.
+
+### Verification
+
+The changes were pushed directly to `main`. This repository currently has no GitHub Actions build/check associated with the commit, so the Android changes still require a normal Android Studio/Gradle compile and device acceptance check. Manual acceptance should include a 24-hour light graph, a soil-moisture trend, and a multi-paddock comparison, switching through every offered view and confirming that displayed values do not change between views.
+
 ## 29 August 2026 - learning focus, evidence hierarchy, Android flexibility, and documentation baseline
 
 ### Context
