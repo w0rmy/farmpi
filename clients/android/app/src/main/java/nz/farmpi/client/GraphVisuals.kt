@@ -274,5 +274,5 @@ private fun formatGraphValue(value: Double, unit: String): String {
         kotlin.math.abs(value) >= 100 -> 1
         else -> 2
     }
-    return "%1$.${digits}f%2$s".format(value, if (unit.isBlank()) "" else " $unit")
+    return "%.${digits}f%s".format(value, if (unit.isBlank()) "" else " $unit")
 }
