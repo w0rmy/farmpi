@@ -28,14 +28,16 @@ from .farm_data import (
 )
 from .education import CONCEPTS, concept_for_measurement, render_concept
 from .guidance import INITIAL_SUGGESTIONS, WELCOME_TEXT, follow_up_suggestions
-from .knowledge_sources import format_source_context, provenance_for_sources
+from .knowledge_sources import format_source_context, provenance_for_sources, source_hierarchy_contract
 from .learning import activity_payload
 from .paddock_admin import RenameProposal, RenameRejected, confirm_rename, prepare_rename
 from .question_router import route_question
 from .semantic_interpreter import (
     build_interpretation_payload,
+    is_research_question,
     needs_semantic_interpretation,
     parse_semantic_interpretation,
+    requires_clarification_on_failure,
     route_from_interpretation,
 )
 from .speech_normalizer import SpeechAlternative, SpeechNormalization, current_paddock_names, normalize_speech
@@ -153,6 +155,7 @@ class AskResponse(BaseModel):
     chart: dict[str, Any] | None = None
     evidence: list[dict[str, Any]] = Field(default_factory=list)
     source_category: SourceCategory = "observational"
+    source_tier: str = "first-class-trusted"
     provenance: list[dict[str, Any]] = Field(default_factory=list)
     semantic_interpretation: dict[str, Any] | None = None
 
@@ -586,6 +589,7 @@ async def ask(request: AskRequest) -> AskResponse:
         chart: dict[str, Any] | None = None,
         evidence: list[dict[str, Any]] | None = None,
         source_category: SourceCategory = "observational",
+        source_tier: str | None = None,
         provenance: list[dict[str, Any]] | None = None,
     ) -> AskResponse:
         remember_conversation()
@@ -603,6 +607,11 @@ async def ask(request: AskRequest) -> AskResponse:
             chart=chart,
             evidence=evidence or [],
             source_category=source_category,
+            source_tier=source_tier or (
+                "first-class-trusted" if source_category in {"observational", "calculated", "authoritative"}
+                else "first-class-trusted" if source_category == "combined"
+                else "model-knowledge"
+            ),
             provenance=provenance or [],
             semantic_interpretation=semantic_interpretation,
             timings=AskTimings(
@@ -642,6 +651,7 @@ async def ask(request: AskRequest) -> AskResponse:
     # Ambiguous/open wording is interpreted semantically into a reviewed route.
     if needs_semantic_interpretation(question_text, route):
         interpretation_start = time.perf_counter()
+        fast_route = route
         try:
             try:
                 known_paddocks = await asyncio.to_thread(current_paddock_names)
@@ -656,8 +666,25 @@ async def ask(request: AskRequest) -> AskResponse:
             interpretation = parse_semantic_interpretation(interpreted_result["choices"][0]["message"]["content"])
             semantic_interpretation = interpretation.public_dict()
             route = route_from_interpretation(interpretation)
+            if route.intent == "semantic-clarification" and not requires_clarification_on_failure(question_text, fast_route):
+                route = replace(
+                    fast_route,
+                    intent="agriculture-research" if is_research_question(question_text) else "agriculture-learning",
+                    paddock_name=None,
+                    measurement=None,
+                    operation=None,
+                    window_minutes=None,
+                    new_paddock_name=None,
+                    education_key=interpretation.topic or fast_route.education_key,
+                )
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError, AttributeError) as exc:
             logger.warning("FarmPi semantic interpretation failed; using fast-route fallback: %s", exc)
+            if requires_clarification_on_failure(question_text, fast_route):
+                route = replace(fast_route, intent="semantic-clarification")
+            elif is_research_question(question_text):
+                route = replace(fast_route, intent="agriculture-research", paddock_name=None, measurement=None)
+            elif fast_route.intent in {"conversation", "causal-boundary", "forecast-boundary", "interpretation-boundary"}:
+                route = replace(fast_route, intent="agriculture-learning", paddock_name=None, measurement=None)
         interpretation_ms = (time.perf_counter() - interpretation_start) * 1000
 
     if route.intent == "rename-request":
@@ -787,6 +814,7 @@ async def ask(request: AskRequest) -> AskResponse:
     grounding_context = format_grounding_context(grounding_data)
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": source_hierarchy_contract()},
         {"role": "system", "content": f"Use a {preferences.explanation_level} explanation level. Keep verified farm facts and deterministic actions distinct from general educational knowledge."},
         {"role": "system", "content": grounding_context},
     ]
@@ -810,10 +838,29 @@ async def ask(request: AskRequest) -> AskResponse:
         result = response.json()
         answer = result["choices"][0]["message"]["content"].strip()
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError, AttributeError) as exc:
+        if route.intent in {"agriculture-learning", "agriculture-research", "conversation"}:
+            return direct_action(
+                "I cannot generate the full learning explanation while the configured language model is unavailable. I can still help with verified FarmPi readings, or you can try this question again shortly.",
+                route.intent,
+                source_category="general",
+                source_tier="model-knowledge",
+                provenance=[
+                    *source_provenance,
+                    {"kind": "availability", "source": "configured language model", "status": "unavailable"},
+                ],
+            )
         raise HTTPException(status_code=503, detail="The configured language model is unavailable or returned an invalid response.") from exc
     llm_ms = (time.perf_counter() - llm_start) * 1000
 
     if not answer:
+        if route.intent in {"agriculture-learning", "agriculture-research", "conversation"}:
+            return direct_action(
+                "I do not have a generated explanation for that question yet. I can still help you inspect verified FarmPi data, or you can try again shortly.",
+                route.intent,
+                source_category="general",
+                source_tier="model-knowledge",
+                provenance=source_provenance,
+            )
         raise HTTPException(status_code=503, detail="The configured language model returned an empty response.")
 
     source_category: SourceCategory = grounding_data.source_category if grounding_data.source_category in {
@@ -828,7 +875,8 @@ async def ask(request: AskRequest) -> AskResponse:
             source_category = "general"
     elif route.intent == "agriculture-research":
         provenance.append({"kind": "general-explanation", "source": "configured language model", "scope": "educational; curated source directory supplied"})
-        source_category = "authoritative" if source_provenance else "general"
+        source_category = "combined" if source_provenance else "general"
+        answer = f"No live web research was performed. FarmPi used its curated source directory and configured model.\n\n{answer}"
 
     concept = concept_for_measurement(route.measurement)
     if concept and preferences.explanation_level in {"normal", "technical"} and route.intent not in {"agriculture-learning", "agriculture-research"}:
@@ -869,6 +917,11 @@ async def ask(request: AskRequest) -> AskResponse:
         chart=grounding_data.chart,
         evidence=list(grounding_data.evidence),
         source_category=source_category,
+        source_tier=(
+            "first-class-trusted" if source_category in {"observational", "calculated", "authoritative"}
+            else "first-class-trusted" if source_category == "combined"
+            else "model-knowledge"
+        ),
         provenance=provenance,
         semantic_interpretation=semantic_interpretation,
     )

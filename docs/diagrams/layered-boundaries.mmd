@@ -1,9 +1,13 @@
 flowchart TB
   UI[Web / Android: voice, display, local preferences]
   API[FastAPI: validation and response schema]
-  ROUTE[Deterministic actions + conversational boundary]
-  DATA[Verified analytics/evidence + curated education]
+  ROUTE[Intent/context: deterministic actions; open learning]
+  DATA[Verified analytics/evidence]
+  SOURCES[Five-tier evidence: curated NZ to model knowledge]
+  PROV[Explicit provenance + uncertainty]
   DB[(MariaDB)]
-  LLM[Qwen: wording only]
+  LLM[Configured model: concise teaching, no farm-fact authority]
   UI --> API --> ROUTE --> DATA --> DB
-  DATA --> LLM[Qwen: concise teaching, no farm authority] --> API
+  ROUTE --> SOURCES
+  DATA --> PROV --> LLM --> API
+  SOURCES --> PROV

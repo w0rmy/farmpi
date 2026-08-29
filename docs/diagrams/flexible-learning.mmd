@@ -1,6 +1,8 @@
 flowchart LR
-  I[Short instruction] --> A[Real FarmPi action]
-  A --> R[Route/result evaluation]
-  R --> F[Feedback, evidence, next task]
-  F --> P[local learner preferences/progress]
+  I[Natural learner question] --> C[Interpret intent and context]
+  C -->|farm fact/action| A[Controlled FarmPi action/result]
+  C -->|learning conversation| S[Select labelled learning source]
+  A --> F[Evidence, feedback, next learning direction]
+  S --> F
+  F --> P[Explanation, guidance, theme, text density, progress]
   P --> I

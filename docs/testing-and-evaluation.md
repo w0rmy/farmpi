@@ -1,18 +1,83 @@
-# Testing, capstone evidence, and evaluation
+# Testing, evaluation, and capstone evidence
 
-The automated Python suite covers measurement ranges, telemetry clock semantics, sequence retry/idempotency, dynamic paddock names, speech normalisation, confirmation-only rename, existing deterministic grounding, and the repeatable database update contract. New analytics must be tested with controlled row fixtures for calculation, selected period, chart series, and evidence metadata; they must never require Qwen.
+FarmPi needs two kinds of assurance: software verification and evidence that the embedded learning platform supports the defined outcomes. Passing tests does not prove learning effectiveness, and learner feedback does not replace deterministic data tests.
 
-Before a major feature is considered complete, update the affected text, Mermaid diagram source, tests, rationale, limitations, and user-facing instructions. Keep any rendered diagram export alongside its `.mmd` source when a formal document needs a portable image.
+## Automated backend checks
 
-## Initial usability / learning test plan
+From the repository root, with the project virtual environment active:
 
-Recruit a small number of nontechnical learners after deployment; do not fabricate results. Observe whether participants can understand simulated provenance, ask a one-paddock question, compare paddocks, interpret a graph/evidence panel, and recognise an unavailable recommendation boundary. Compare Simple and Technical explanations for clarity, note SpeechRecognizer mishearings and normaliser corrections, and ask whether More/Normal/Less guidance feels excessive or insufficient. Record task completion, confusion points, quotes with consent, and improvement actions—not claims of agronomic effectiveness.
+```bash
+python -m unittest discover -s tests -v
+python -m compileall -q app tests
+```
 
-## Preserved lessons
+The suite covers measurement validation, telemetry time/sequence behaviour, database operations, deterministic analytics, paddock identity and rename confirmation, speech normalisation, semantic interpretation, source hierarchy, LLM compatibility, response provenance, and fallback behaviour. Add a controlled fixture whenever a new calculation, route, source claim, or state-changing operation is introduced.
 
-- Timestamp ordering mistakes matter: `observed_at`, `received_at`, and database audit time answer different questions. Verify that screen freshness is readable and that exact times/provenance remain in evidence, not routine TTS.
-- Test farm-wide phrases independently of prior conversation context: “List the paddocks”, “What paddocks are being monitored?”, and “How many paddocks are there?” must not become a paddock-name lookup.
-- Test recovery as learning: unknown/ambiguous paddock phrasing should offer a cautious “Did you mean...?” or valid-name examples, while a known paddock with no reading should report missing data distinctly.
-- TLS/SNI matters on the local network: resolve the Pi address but present `farmpi.local` as the HTTPS hostname.
-- `Paddock IS` must not become a paddock name in the deterministic router.
-- Speech usability matters: contextual `Patek` → `paddock` is visible to the learner rather than hidden.
+Farm facts must be testable without an LLM. Tests for current readings, history, comparisons, device state, timestamps, and calculations must assert exact deterministic results and must not substitute generated text for database evidence.
+
+## Android checks
+
+Build the debug client from `clients/android`:
+
+```powershell
+.\gradlew.bat :app:assembleDebug
+```
+
+Then test on a device that trusts the FarmPi development certificate. Check text and speech input, visible and spoken output, TTS stop/retry behaviour, charts, evidence/provenance, all six themes, compact/standard/large text density, preference persistence, and operation when TTS is unavailable. Exercise both portrait and landscape layouts and at least one small display.
+
+## Raspberry Pi deployment checks
+
+After install or update:
+
+```bash
+sudo systemctl is-active mariadb farmpi-llm farmpi caddy
+curl -fsS http://127.0.0.1:8000/health
+curl -fsS http://127.0.0.1:8000/api/status
+curl --resolve farmpi.local:443:127.0.0.1 -k https://farmpi.local/health
+```
+
+Also submit one authenticated ingest sample, retry the same sensor/sequence to confirm deduplication, ask for its exact value, request a historical calculation, test an unrelated general question, and verify that a stopped database or LLM is described honestly. Do not record credentials in test output or evidence documents.
+
+## Requirements traceability
+
+Every material change should link implementation, verification, and outcome evidence:
+
+| Concern | Required evidence |
+|---|---|
+| Farm facts and calculations | exact fixtures, provenance fields, failure-path tests |
+| Source selection | tier/category assertions and reviewed claim/source records |
+| General conversation | useful-answer and uncertainty checks without invented farm facts |
+| State-changing actions | validation, confirmation, identity, and audit tests |
+| Flexible presentation | theme, contrast, text-density, persistence, and usability observations |
+| Learning interaction | task observation, explanation-depth comparison, and source comprehension |
+| Deployment | recorded service/health checks and version/configuration used |
+
+## Learner evaluation
+
+Use a small, consented group of nontechnical participants. Do not fabricate results. Observe whether they can:
+
+- begin using FarmPi without learning a command language;
+- ask a current-value and historical/comparison question in their own words;
+- distinguish FarmPi evidence from external guidance and general explanation;
+- recognise when farm evidence is unavailable;
+- use evidence/charts to explain an answer;
+- adjust explanation depth, guidance, theme, and text density;
+- recover from a speech or paddock-name misunderstanding;
+- complete a teach-by-doing activity and identify what they learned.
+
+Record task completion, hesitation/confusion, source comprehension, accessibility/preferences, participant comments with consent, and resulting design actions. Do not claim agronomic effectiveness, accessibility compliance, or learning gains without suitable evidence.
+
+## Performance evaluation
+
+Record end-to-end latency and the existing response timing stages under a named hardware/model/configuration. Compare deterministic direct answers separately from model-assisted explanations. Model size, tokens per second, and memory are implementation evidence; they are not the capstone thesis. Historical model measurements belong in [Local LLM evaluation history](history/local-llm-evaluation.md).
+
+## Documentation release check
+
+Before publishing a material change:
+
+1. update the owning guide and affected Mermaid source;
+2. remove or archive superseded current-state text;
+3. check local Markdown links and documented paths;
+4. compare commands, environment names, endpoints, and defaults with code/configuration;
+5. run automated checks and record any limitation honestly;
+6. apply the [capstone outcome gate](capstone-governance.md).

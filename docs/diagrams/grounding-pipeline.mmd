@@ -1,12 +1,19 @@
-flowchart LR
-  T[Learner question] --> S[Speech/domain normalisation]
-  S --> R{Deterministic action needed?}
-  R -->|farm fact/action| M[MariaDB + deterministic resolver/analytics]
-  R -->|capability/topic| K[Curated educational content]
-  R -->|ordinary learning language| C[Controlled conversational context]
-  M --> F[Verified farm facts]
-  K --> G[Approved learning material]
-  C --> G
-  F --> E[Evidence/chart]
-  F --> L[Qwen teaching assistant]
-  G --> L
+flowchart TD
+  T[Learner question] --> N[Speech/domain normalisation]
+  N --> R{Farm fact, calculation, device state, or action?}
+  R -->|yes| D[MariaDB + approved deterministic operation]
+  D --> F[Exact result or honest unavailable state]
+  R -->|no / explanation needed| H[Choose best relevant evidence]
+  H --> T1[1 FarmPi data, Experience Edge, DairyNZ, relevant govt.nz]
+  H --> T2[2 Trusted primary organisation/manufacturer]
+  H --> T3[3 Reputable general]
+  H --> T4[4 General/unverified web]
+  H --> T5[5 Model knowledge]
+  F --> P[Source tier, category, provenance, uncertainty]
+  T1 --> P
+  T2 --> P
+  T3 --> P
+  T4 --> P
+  T5 --> P
+  P --> L[Concise adaptive explanation]
+  L --> U[Useful response + evidence/chart/next direction as applicable]

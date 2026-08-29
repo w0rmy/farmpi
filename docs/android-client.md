@@ -1,45 +1,109 @@
 # Native Android client
 
-`clients/android/` is a Kotlin/Jetpack Compose Android Studio project: a thin native client for FarmPi's APIs, not a WebView wrapper. The existing browser UI remains a diagnostic/fallback interface.
+## Role
 
-The initial learner client provides FarmPi status, typed input, a large native `SpeechRecognizer` control (up to five alternatives), native `TextToSpeech`, conversation display, Guide me/suggestions, Heard versus Interpreted speech display, explanation depth, guidance frequency, and a teach-by-doing Learn tab. It renders the backend's compact native bar/time-series chart payloads and can reveal the bounded evidence/data list; charts are never calculated on the phone. Explanation and guidance preferences are saved in device-local `SharedPreferences`, not in a learner account. The purpose-built FarmPi palette uses neutral charcoal surfaces with restrained green/grey accents rather than default pink/purple Material colours.
+`clients/android` is the primary learner-facing Kotlin/Jetpack Compose client. It calls the FarmPi APIs directly and is not a WebView. The server-rendered browser page remains a diagnostic fallback.
 
-The large Speak control is also the immediate TTS stop control. While FarmPi is speaking it changes to **Stop**; tapping it cancels the current utterance immediately, and asking a new question also cancels any previous speech before the next response is spoken. The reply and suggested follow-up questions are shown before the Explanation and Guidance preference controls so the learner does not have to scroll past settings to read the answer.
+The Android app deliberately performs presentation and device I/O only. It does not query MariaDB, select farm operations, calculate analytics/charts, authorise renames, or invent source provenance.
 
-Speech alternatives are sent to `POST /api/speech/normalize`; FarmPi's existing deterministic server-side normalizer selects/corrects farm language before `POST /api/ask`. Typed text bypasses normalization. `POST /api/ask` is the single conversational contract; it may contain `answer`, `spoken_answer`, `intent`, suggestions, chart, evidence, source category, and speech-normalisation details. Android displays the detailed answer but speaks the concise `spoken_answer`, keeping precise timestamps and routine simulation provenance in the visual evidence path.
+## Implemented experience
 
-## Text-to-speech diagnostics and robustness
+- typed questions and a large speech-recognition control;
+- up to five Android speech alternatives sent to FarmPi's deterministic normaliser;
+- Heard and Interpreted display when FarmPi corrects a spoken phrase;
+- native text-to-speech with en-NZ preference and English fallback;
+- immediate Stop behaviour on the same large button while speech is active;
+- robust TTS chunking, state, diagnostics, and pronunciation adjustments for `FarmPi` and `DairyNZ`;
+- Ask and Learn tabs, Guide me, and context-sensitive next questions;
+- teach-by-doing prompts for data, agricultural learning, source use, and safety boundaries;
+- backend-supplied line/bar charts and bounded evidence;
+- expandable source/provenance display;
+- explanation depth and guidance-frequency preferences;
+- six presentation themes and compact/standard/large text density behind a top-right settings cog.
 
-The Android client treats TTS as a separate presentation layer from the FarmPi answer itself. A correct text answer on screen therefore remains available even if the device speech engine fails.
+## Display flexibility
 
-The client now:
+The settings cog moves secondary controls away from the Ask screen so the current learning interaction remains dominant. Preferences are stored in device-local `SharedPreferences`.
 
-- waits for Android `TextToSpeech` initialisation before queuing speech;
-- checks for `en-NZ` support and falls back to an installed English locale when necessary;
-- selects an available English voice explicitly where Android exposes one;
-- cancels `SpeechRecognizer` before playback so STT and TTS are not competing for the same audio session;
-- gives each utterance a unique ID;
-- splits unusually long responses into bounded chunks before queuing them;
-- checks the return value from every `TextToSpeech.speak()` call;
-- records detailed `UtteranceProgressListener` success/error callbacks, including Android's TTS error code when available;
-- displays a small live Voice status line in the FarmPi UI; and
-- logs the exact text handed to the speech engine, the selected engine/locale/voice, chunk sizes, queue return values, and callback results using the Logcat tag `FarmPiTTS`.
+Themes are lightweight Material colour schemes applied consistently across the app:
 
-This diagnostic path was added after testing found cases where the full FarmPi response displayed correctly but the Android voice output said only a short unrelated word such as `no`. Because the display and voice are fed from the same returned guidance/answer payload, the diagnostics are intended to distinguish a backend-content problem from a device TTS engine, locale, voice, queue, or audio-session problem.
+- neutral/default;
+- New Zealand red, white, and blue;
+- green/natural;
+- dark high contrast;
+- yellow/black high visibility;
+- muted/low stimulation.
 
-For a repeat failure, inspect the on-screen Voice status and Android Studio Logcat filtered by `FarmPiTTS`. A useful trace should show the exact queued text followed by `speak result`, `onStart`, and either `onDone` or a specific `onError` code. This makes the speech fault observable rather than inferring it from what was heard.
+Text density changes Compose font scaling for compact, standard, or large presentation. These options are evidence for Developing Flexible IT Courses - visual flexibility, readability, contrast preference, cognitive comfort, and learner adaptation - rather than a separate graphics project. They do not change any answer fact, evidence, operation, or learning objective.
 
-The app uses only HTTPS (`https://farmpi.local/` by default). It does not install a permissive trust manager or disable certificate checks. The included network-security configuration explicitly permits a user-installed FarmPi/Caddy local CA for `farmpi.local`; install the public local CA certificate through Android Settings on each test device, then confirm the Caddy certificate includes `farmpi.local`. Do not copy a CA private key or Wi-Fi/ingest secret into the project. A deployment that distributes the app may instead bundle the public CA in `res/raw` and replace the `user` trust anchor with that resource after normal certificate rotation procedures are defined.
+## Voice behaviour and diagnostics
 
-## Android Studio build prerequisites
+Speech recognition uses `en-NZ`, free-form language, and up to five alternatives. FarmPi's server-side normaliser decides whether an alternative is meaningfully more farm-consistent. Typed input bypasses normalisation.
 
-Open `clients/android` as the Android Studio project. The supported build toolchain is:
+Text-to-speech:
 
-- Android Studio Panda 3 (2025.3.3) Patch 1 or newer, with Android SDK Platform 37 and Android SDK Build-Tools 36.0.0 installed (Android Studio normally installs the build tools automatically).
-- JDK 17 or newer (the JDK bundled with a compatible Android Studio release is suitable).
-- Android Gradle Plugin 9.1.1 and Gradle 9.3.1 (the checked-in Gradle wrapper selects the required Gradle version).
-- AGP 9's built-in Kotlin support and the Compose compiler Gradle plugin 2.3.21. Do not add the legacy `org.jetbrains.kotlin.android` plugin: AGP 9 rejects it.
+1. initialises the Android TTS engine;
+2. prefers an installed `en-NZ` voice, then any English voice;
+3. converts `FarmPi` to `Farm Pi` and `DairyNZ` to `Dairy en zed` for clearer speech;
+4. splits long responses into safe chunks and queues them in order;
+5. cancels recognition before playback so STT and TTS do not compete;
+6. cancels existing speech before a new question or Guide me request;
+7. exposes readiness, selected locale/voice, queue state, completion, stop, and error status in the UI and Logcat (`FarmPiTTS`).
 
-The app compiles with `compileSdk = 37`, but intentionally retains `targetSdk = 36` and `minSdk = 26`; installing Platform 37 does not alter the runtime behavior the app opts into. Compose dependencies are managed exclusively by the stable Compose BOM `2026.08.00`; individual Compose libraries intentionally have no explicit versions. `activity-compose:1.13.0` supplies `setContent` for the `ComponentActivity` entry point.
+If the voice is unavailable, install/enable an English TTS engine and voice in Android settings, then inspect the UI status and Logcat tag. The visible response remains usable even when speech fails.
 
-In Android Studio, install **Android SDK Platform 37** in SDK Manager if it is not already present, set the Gradle JDK to 17 or newer, sync the project, then use **Build > Make Project** (or run the `app` configuration). From a terminal, run `./gradlew assembleDebug` on macOS/Linux or `gradlew.bat assembleDebug` on Windows.
+## HTTPS and certificate trust
+
+The default base URL is `https://farmpi.local/`. The app does not disable certificate validation. `network_security_config.xml` permits the system trust store and a user-installed public CA for `farmpi.local`.
+
+For a test device:
+
+1. confirm `farmpi.local` resolves to the Pi;
+2. copy only Caddy's public local root certificate to the device;
+3. install it through Android security settings;
+4. verify the certificate served by Caddy includes `farmpi.local`;
+5. open the app and confirm `/api/status` reports the expected dependencies.
+
+Never distribute Caddy's private CA key, database credentials, or the ESP32 ingest token. A production-distributed app should use a documented certificate lifecycle, potentially bundling only a dedicated public trust anchor in `res/raw`.
+
+## API use
+
+- `GET /api/status` checks connection/dependency health.
+- `GET /api/guidance` loads reviewed onboarding and suggestions.
+- `POST /api/speech/normalize` normalises spoken alternatives.
+- `POST /api/ask` is the single conversation contract.
+
+Android displays the detailed answer and speaks `spoken_answer`. It renders server-provided charts, evidence, source category/tier, and provenance. Backend error details are surfaced when safe; connection/certificate failures remain distinct from a valid FarmPi request that could not be completed.
+
+## Build requirements
+
+- an Android Studio release that supports Android Gradle Plugin 9.1.1;
+- JDK 17 or newer;
+- Android SDK Platform 37;
+- Android Gradle Plugin 9.1.1 and Gradle 9.3.1;
+- AGP 9 built-in Kotlin support and Compose compiler plugin 2.3.21;
+- Compose BOM 2026.08.00 and `activity-compose` 1.13.0.
+
+The application uses `compileSdk=37`, `targetSdk=36`, `minSdk=26`, version code 2, and version name 0.2.0.
+
+Open `clients/android` as the Android Studio project, select a JDK 17+ Gradle runtime, install Platform 37, sync, and use **Build > Make Project**. Command line:
+
+```powershell
+cd clients/android
+$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+.\gradlew.bat assembleDebug
+```
+
+On macOS/Linux use `./gradlew assembleDebug`.
+
+## Manual acceptance checks
+
+- connection status distinguishes backend failure from request failure;
+- typed and spoken questions reach the same `/api/ask` contract;
+- speech corrections display Heard and Interpreted text;
+- a new question stops previous TTS, and Stop cancels playback immediately;
+- all six themes remain readable across Ask, Learn, settings, cards, charts, and navigation;
+- compact/standard/large text does not clip controls or evidence;
+- settings survive process restart;
+- sources/evidence remain inspectable and are not calculated by the phone;
+- certificate failure remains visible and no insecure trust bypass exists.
