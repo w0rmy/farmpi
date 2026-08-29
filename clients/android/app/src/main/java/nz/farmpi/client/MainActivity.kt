@@ -48,6 +48,10 @@ private data class ChartPayload(val type: String, val title: String, val unit: S
 private data class AskResult(val answer: String, val spokenAnswer: String, val suggestions: List<String>, val intent: String, val conversationId: String?, val chart: ChartPayload?, val evidence: List<String>, val provenance: List<String>)
 private class FarmPiApiException(message: String) : Exception(message)
 
+private fun ttsSpeechText(text: String): String = text
+    .replace(Regex("\\bFarmPi\\b"), "Farm Pi")
+    .replace(Regex("\\bDairyNZ\\b"), "Dairy en zed")
+
 private fun ttsChunks(text: String, maxChars: Int = TTS_CHUNK_LIMIT): List<String> {
     val clean = text.trim()
     if (clean.isEmpty()) return emptyList()
@@ -236,7 +240,7 @@ private fun FarmPiApp() {
     }
 
     fun speak(text: String) {
-        val clean = text.trim()
+        val clean = ttsSpeechText(text).trim()
         if (clean.isEmpty()) return
 
         // Stop recognition before playback so STT and TTS do not compete for
