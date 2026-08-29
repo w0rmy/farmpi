@@ -3,10 +3,10 @@ flowchart TB
   API[FastAPI: validation and response schema]
   ROUTE[Intent/context: deterministic actions; open learning]
   DATA[Verified analytics/evidence]
-  SOURCES[Curated NZ guidance / research / general knowledge]
+  SOURCES[Five-tier evidence: curated NZ to model knowledge]
   PROV[Explicit provenance + uncertainty]
   DB[(MariaDB)]
-  LLM[Qwen: concise teaching, no farm authority]
+  LLM[Configured model: concise teaching, no farm-fact authority]
   UI --> API --> ROUTE --> DATA --> DB
   ROUTE --> SOURCES
   DATA --> PROV --> LLM --> API

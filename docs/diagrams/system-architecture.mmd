@@ -1,16 +1,18 @@
 flowchart LR
-  E[ESP32: 16 synthetic nodes] -->|HTTPS telemetry| I[FastAPI ingest]
+  E[ESP32: 16 explicitly simulated nodes] -->|HTTPS bearer-auth telemetry| I[FastAPI ingest]
   I --> D[(MariaDB)]
-  W[Browser] --> A[FastAPI ask API]
-  N[Native Android] --> A
-  A --> R[Interpret learner intent and context]
-  R -->|farm fact or action| X[Deterministic resolver + analytics]
-  R -->|learning conversation| L[Knowledge-source selection]
-  X --> D
-  L --> S[Curated NZ guidance / research / general knowledge]
-  X --> P[Verified facts + provenance]
-  S --> P
-  P --> Q[Qwen: concise source-aware teaching]
-  X --> G[Charts + evidence]
+  W[Diagnostic browser] --> A[FastAPI learner API]
+  N[Native Android: text, voice, charts, settings] --> A
+  A --> R[Deterministic router + semantic interpretation]
+  R -->|farm fact/action| X[Approved resolver, analytics, confirmation]
+  R -->|learning/conversation| K[Knowledge-source selection]
+  X <--> D
+  X --> P[Authoritative farm evidence]
+  K --> S[Tiered external/general evidence]
+  P --> C[Provenance-labelled context]
+  S --> C
+  C --> Q[Configured Qwen/OpenAI-compatible server]
   Q --> A
+  X --> G[Charts + bounded evidence]
   G --> A
+  A -->|answer always useful when safe; never invent farm facts| N

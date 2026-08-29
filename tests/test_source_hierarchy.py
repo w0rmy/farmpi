@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.source_hierarchy import SOURCE_HIERARCHY, learning_source_contract
+from app.knowledge_sources import SOURCE_HIERARCHY, source_hierarchy_contract, sources_for_question
 
 
 class SourceHierarchyTests(unittest.TestCase):
@@ -21,10 +21,14 @@ class SourceHierarchyTests(unittest.TestCase):
         )
 
     def test_nz_dairy_preference_and_no_refusal_rule_are_in_the_model_contract(self) -> None:
-        contract = learning_source_contract()
+        contract = source_hierarchy_contract()
         self.assertIn("DairyNZ", contract)
         self.assertIn("relevant New Zealand government", contract)
         self.assertIn("do not reject a useful general answer", contract)
+
+    def test_unrelated_words_do_not_receive_irrelevant_agricultural_sources(self) -> None:
+        self.assertEqual(sources_for_question("How do rainbows form?"), ())
+        self.assertTrue(any(source.organisation == "DairyNZ" for source in sources_for_question("Why do cows get milk fever?")))
 
 
 if __name__ == "__main__":

@@ -1,105 +1,54 @@
 # FarmPi
 
-## Repository structure
+FarmPi is an embedded agricultural learning platform built around a local farm-monitoring system. The monitoring data gives the tool a real reason to exist; the capstone is the learning experience that helps a person ask natural questions, inspect evidence, understand agricultural concepts, and adapt the presentation to their needs.
 
-- `app/` — Raspberry Pi/FastAPI application, deterministic logic, and API layer.
-- `firmware/` — embedded ESP32 sensor/simulator firmware.
-- `clients/android/` — native Kotlin/Jetpack Compose user client.
-- `config/`, `tests/`, `docs/`, and `scripts/` — deployment configuration, validation, evidence, and repeatable operational helpers.
+FarmPi combines:
 
-Start with [the current implementation state](docs/current-state.md), then see [the time-sync contract](docs/time-sync-telemetry.md), [NZ synthetic simulation](docs/nz-synthetic-simulation.md), [deterministic analytics and graphs](docs/analytics-and-graphing.md), [educational grounding](docs/educational-grounding.md), [structured requests](docs/structured-requests.md), and [Android architecture](docs/android-client.md). Editable Mermaid diagram sources are in [docs/diagrams](docs/diagrams/).
+- a Raspberry Pi FastAPI service, MariaDB, Caddy HTTPS, and an OpenAI-compatible language-model endpoint;
+- one ESP32 that generates 16 clearly labelled virtual paddocks for repeatable testing;
+- deterministic farm facts, calculations, identity resolution, timestamps, and controlled mutations;
+- open agricultural learning answers with visible provenance and a five-level evidence hierarchy;
+- a native Android client with voice input/output, charts, teach-by-doing activities, settings, themes, and text-size choices.
 
-FarmPi is a local farm-monitoring alpha and a technical vehicle for a capstone in **AI and Data Sciences** and **Developing Flexible IT Courses**. The embedded learning platform is the capstone; farm monitoring supplies its real-world purpose. It deliberately produces a rich, believable **synthetic** dataset while keeping farm-specific facts, calculations, and administration deterministic. See [capstone outcome governance](docs/capstone-governance.md): hardware, connectivity and model size are enabling constraints, not success measures in their own right.
+Synthetic telemetry is test evidence, not an agronomic model, forecast, or recommendation.
 
-## Alpha stage: 16 virtual paddocks
+## Start here
 
-One physical ESP32 now simulates Paddocks A–P. Each has its own registered sensor UID (test-moisture-a … test-moisture-p) and persistent per-paddock characteristics. It sends one complete node sample every 18.75 seconds; after 16 staggered HTTPS posts, one five-minute simulation round has elapsed. The synthetic day/weather model advances once per round, never once per post.
+- [Documentation index](docs/README.md)
+- [System architecture](docs/architecture.md)
+- [Raspberry Pi installation and operations](docs/raspberry-pi-deployment.md)
+- [Android client](docs/android-client.md)
+- [ESP32 simulator and telemetry](firmware/esp32-sensor/README.md)
+- [Data, analytics, and API contract](docs/data-and-api.md)
+- [Learning design, grounding, and sources](docs/learning-and-sources.md)
+- [Testing and evaluation](docs/testing-and-evaluation.md)
+- [Capstone outcome governance](docs/capstone-governance.md)
+- [Development record](docs/development-record.md)
 
-The generator includes a synchronized real-time Waikato/NZ seasonal daylight cycle, monthly climate baselines, rainfall events, pressure and wind, plus stable paddock differences (wetter/drier, warmer/cooler, shade, pH/EC, and pasture growth). Rain affects humidity, soil moisture, light, air temperature, leaf wetness, and pressure. Occasional pasture drops simulate grazing/cutting. This is useful test telemetry, **not an agronomic model** and not farming advice.
-
-## Architecture and deterministic boundaries
-
-```text
-ESP32 virtual nodes → HTTPS ingest → FastAPI range validation → MariaDB
-Learner conversation → interpret intent/context → choose knowledge or controlled action
-                                      ├─ farm fact/action → deterministic resolver + analytics → verified facts
-                                      └─ learning question → curated guidance / research / general agricultural knowledge
-                                                                    ↓
-                                                   explicit provenance and uncertainty → Qwen teaching assistant
-```
-
-Spoken questions have one additional deterministic step before the question/action router:
+## Current topology
 
 ```text
-browser speech-to-text (en-NZ, up to five alternatives)
-        ↓
-FarmPi domain normaliser (measurement vocabulary + active paddock names)
-        ↓
-deterministic router/action layer → grounding → Qwen language response
+Android app or diagnostic browser
+             |
+             v
+     Caddy HTTPS :443
+             |
+             v
+ FastAPI / Uvicorn :8000 (localhost)
+      |             |              |
+      v             v              v
+   MariaDB     deterministic    OpenAI-compatible
+  farm data    application      language model
+               functions        endpoint
+
+ESP32 virtual nodes -- HTTPS POST /api/ingest --> FastAPI
 ```
 
-The browser remains responsible for speech recognition. Browser phrase/context biasing is inconsistent across devices and browsers, so FarmPi does not rely on it for correctness. `app/speech_normalizer.py` instead performs a small, explainable correction pass without using Qwen. It can choose a clearly more farm-consistent browser alternative and fixes the observed `Patek` → `paddock` transcription only when the surrounding wording is farm-related. Typed text bypasses this step unchanged.
+The checked-in Pi service template starts Qwen3 1.7B through `llama-server`. The development/reference setup can instead point FarmPi at LM Studio or another OpenAI-compatible server with `FARMPI_LLAMA_URL` and `FARMPI_LLM_MODEL`; current reference testing uses Qwen3.5-9B on the development PC. Model choice is a deployment constraint and evaluation variable, not the capstone thesis.
 
-The first usability finding was that phone dictation sometimes heard *paddock* as *Patek*, leading to poor routing and irrelevant responses. When FarmPi changes a spoken transcript, the interface shows both **Heard** and **Interpreted** text. This makes speech-engine errors distinguishable from FarmPi's deterministic interpretation during evaluation.
+## Quick installation on Raspberry Pi
 
-Qwen never receives database access, SQL, raw calculation responsibility, or authority to rename a paddock. It is a language interface, not the factual authority for this farm.
-
-app/measurements.py is the reviewed measurement catalogue: canonical keys, labels, units, aliases, ranges, and permitted operations. The fields are:
-
-- soil moisture; soil and air temperature; relative humidity; soil pH; soil EC;
-- light; rainfall per sample interval; barometric pressure; wind speed/direction;
-- pasture height; and leaf wetness.
-
-No fabricated N/P/K values are used; soil EC is the practical raw soil-chemistry proxy.
-
-## Implemented deterministic interactions
-
-- Farm-wide inventory: “List the paddocks”, “What paddocks are being monitored?”, “How many paddocks are we monitoring?”, and “How many paddocks are there?” return deterministic active configured names/counts without reusing stale paddock context.
-- Current paddock overview: “What stats are available on Paddock B?”, “What data do we have for Paddock B?”, and “Tell me about Paddock B” return the central measurement catalogue's latest verified values and available analytics. The screen uses readable freshness; precise timestamps and simulated provenance remain in **Show evidence** rather than routine voice output.
-- Natural paddock aliases: `Paddock 1`, `Paddock two`, and `Paddock number 2` map to the active configured order. The stable identity survives a rename, so the second paddock remains `Paddock 2` even if Paddock B becomes North Flat.
-- Short contextual follow-ups: after “What is the temperature in Paddock A?”, “What about Paddock 2?” retrieves air temperature for the second configured paddock using the API's opaque conversation token.
-- Current values for any supported measurement, including renamed paddocks: “What is the pasture height in North Flat?”
-- Current moisture: driest, wettest, and farm average.
-- Safe current rankings where listed in the catalogue, for example: “Which paddock is tallest?”
-- Expanded historical calculations: totals, min/max/average, change, range, deterministic first-to-last trend, simple baseline anomaly flagging, comparison bars, and time-series charts. Examples: “Compare soil EC across all paddocks.” and “Show a graph of soil moisture over the last 24 hours.”
-- Curated concept explanations at Simple/Normal/Technical levels: “What does soil EC mean?”, “Explain simulated data.”, “What are observed and received times?”, and “Explain refill point and field capacity.”
-- Exploration questions such as “What else can you show me?” receive a short capability overview instead of being treated as a paddock lookup.
-- Irrigation questions are a teaching exercise: FarmPi may show a resolved paddock's verified current soil moisture, explains the other decision factors, and does not recommend irrigation.
-- Learner evidence: returned charts include the selected time period/provenance and a bounded list of measurements used.
-- Derived daylight hours from historical light_lux, counting five-minute samples at or above 1,000 lux. It is not an ingest field.
-- Controlled rename: “Rename Paddock A to North Flat”, followed by “confirm” or “yes” in the same browser within five minutes.
-
-FarmPi must not present a weather forecast, irrigation decision, causal claim, agronomic recommendation, or animal-health conclusion as a farm-specific result unless a controlled, evidenced feature establishes it. LoRaWAN, MQTT, OTA, and control actions remain outside the alpha scope. When FarmPi cannot make a farm-specific conclusion, it should explain the boundary and offer the relevant evidence, trusted guidance, or next learning direction rather than giving a generic refusal.
-
-## Open agricultural learning direction (27 August 2026)
-
-The deterministic interactions above are the current implementation, not the limit of the intended learner experience. FarmPi is moving away from treating every sentence as a tightly scoped database request. Learners should be able to ask broad, imperfectly phrased questions about dairy farming, cows, sheep, pasture, soils, irrigation, weather, effluent, animal health, and related practical New Zealand agriculture without learning a command grammar.
-
-The target interaction is:
-
-```text
-natural conversation
-        ↓
-interpret learner intent and context
-        ↓
-select relevant knowledge/tools
-        ↓
-FarmPi observation or deterministic calculation
-first-class trusted evidence (FarmPi deterministic data, Experience Edge, DairyNZ and relevant .govt.nz sources)
-trusted primary sources, reputable general sources, general/unverified web, or model knowledge as appropriate
-        ↓
-state provenance and uncertainty
-        ↓
-teach concisely and offer one useful next learning direction
-```
-
-This does **not** weaken data or action safety. A paddock measurement, calculation, timestamp, comparison, device state, rename, or operational proposal remains application-controlled. What becomes open is the educational conversation: explanation, paraphrase tolerance, learner-led exploration, and carefully sourced research. Relevance controls the evidence quality and answer depth, not permission to answer: when only model knowledge is available, FarmPi gives a short, clearly labelled general answer rather than rejecting the learner.
-
-## Rename safety
-
-FarmPi resolves the source name against the active database paddock, validates the new display name, rejects duplicates, asks for confirmation, then updates paddocks.name and writes paddock_admin_audit. Readings remain linked to numeric paddocks.id/sensor_nodes.id; historical rows are neither rewritten nor orphaned. Dynamic lookup means North Flat, Back Hill, and other current names work in questions.
-
-## Install and update
+Prerequisites are a Debian-family Raspberry Pi installation, a working `llama.cpp` checkout/build in the deployment user's home directory, Caddy, Git, Python 3 with `venv`, and local DNS or mDNS resolution for `farmpi.local`.
 
 ```bash
 git clone git@github.com:w0rmy/farmpi.git ~/farmpi
@@ -108,36 +57,38 @@ cd ~/farmpi
 sudo bash ./scripts/setup-database
 ```
 
-./update performs a fast-forward pull, installs requirements, compiles and tests Python, reapplies the additive/idempotent schema, runs the rename-safe 16-node prototype data migration, and restarts the services. It stops if the deployment clone has local changes. Existing four-node installations are expanded to Paddocks A–P without moving an existing sensor away from a paddock that has been renamed.
+`./update` refuses a dirty checkout, performs a fast-forward pull, installs Python dependencies, compiles and runs the unit tests, installs both systemd units, reapplies the additive database schema/seed when configured, validates and reloads Caddy, and restarts the services.
 
-## ESP32 configuration
+After setup:
 
-Copy firmware/esp32-sensor/config.example.h to firmware/esp32-sensor/config.h, then set only:
+```bash
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/api/status
+sudo systemctl status farmpi.service farmpi-llm.service
+```
 
-- WIFI_SSID and WIFI_PASSWORD;
-- DEVICE_HOSTNAME;
-- FARMPI_INGEST_TOKEN from /etc/farmpi/farmpi.env.
+Install Caddy's public local root certificate on the Android test device so `https://farmpi.local/` is trusted. Never copy the CA private key, database password, Wi-Fi password, or ingest token into the repository or app.
 
-config.h is ignored. Do not commit Wi-Fi credentials or the bearer token. The generator's 16 UIDs are compiled into the sketch and seeded by the database.
+## Development checks
 
-The sketch preserves Wi-Fi reconnects, mDNS lookup, bearer authentication, serial diagnostics, retry-on-next-round behaviour, and the previous TLS/SNI fix: it connects to the mDNS-resolved IP while supplying farmpi.local as the TLS hostname. It uses setInsecure() only for the prototype's private-CA ESP32 path.
+From the repository root:
 
-## Capstone evidence
+```bash
+.venv/bin/python -m compileall -q app tests
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+```
 
-The implementation and evidence are documented in:
+For Android, open `clients/android` in Android Studio or run the Gradle wrapper with JDK 17 or newer and Android SDK Platform 37 installed.
 
-- [sensor ingest and simulation](docs/sensor-ingest.md)
-- [database layer and migration](docs/database-layer.md)
-- [grounding and guardrails](docs/grounding-and-guardrails.md)
-- [Flexible Learning guidance](docs/flexible-learning.md)
-- [speech recognition and domain normalisation](docs/flexible-learning.md#speech)
-- [paddock administration](docs/paddock-admin.md)
-- [firmware guide](firmware/esp32-sensor/README.md)
-- [latency method](docs/latency-optimization.md)
-- [analytics, chart, and evidence contract](docs/analytics-and-graphing.md)
-- [educational content and teach-by-doing design](docs/educational-grounding.md)
-- [structured request model](docs/structured-requests.md)
-- [testing and nontechnical evaluation plan](docs/testing-and-evaluation.md)
-- [capstone outcome governance](docs/capstone-governance.md)
+## Scope and authority
 
-The main lesson is architectural: small local models become more useful when deterministic software owns farm measurements, calculations, safety boundaries, and mutations, while the model supports understandable, source-aware agricultural learning.
+FarmPi is authoritative only for application-controlled facts and operations:
+
+- validated current and historical FarmPi readings;
+- deterministic calculations over those readings;
+- active paddock/sensor identity and controlled rename history;
+- timestamps, clock quality, deduplication state, and device-ingest state.
+
+The language model never receives SQL access or authority to invent these facts. Agricultural explanations remain available, including unrelated learner questions, but their evidence tier and uncertainty must be clear. FarmPi does not turn general knowledge into a claim about this farm and does not provide unsupported forecasts, diagnoses, irrigation decisions, or automated control.
+
+LoRa, MQTT, OTA, cloud services, remote farm control, and a full LMS are outside the current implementation. Add them only if they produce direct evidence for the defined AI and Data Sciences or Developing Flexible IT Courses outcomes.

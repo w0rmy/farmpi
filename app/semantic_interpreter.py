@@ -51,6 +51,18 @@ _EXTERNAL_SOURCE_RE = re.compile(
     re.IGNORECASE,
 )
 
+
+def is_research_question(question: str) -> bool:
+    """Return whether wording explicitly asks for external/current source work."""
+    return bool(_EXTERNAL_SOURCE_RE.search(question))
+
+
+def requires_clarification_on_failure(question: str, route: QuestionRoute) -> bool:
+    """Fail closed only when an uncertain interpretation could select an action or identity."""
+    return bool(_MUTATION_HINT_RE.search(question)) or (
+        route.intent == "paddock" and route.measurement is None
+    )
+
 _AMBIGUOUS_FAST_ROUTES = {
     "conversation",
     "interpretation-boundary",

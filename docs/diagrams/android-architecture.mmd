@@ -1,7 +1,10 @@
 flowchart LR
-  V[SpeechRecognizer / text] --> N[Compose UI]
-  N --> H[HTTPS farmpi.local]
+  V[SpeechRecognizer / typed question] --> U[Compose learner UI]
+  U --> H[HTTPS farmpi.local]
   H --> F[FastAPI]
-  F --> N
-  N --> T[Native TextToSpeech]
-  N --> P[local SharedPreferences: learning preferences]
+  F -->|answer, source tier, evidence, chart, diagnostics| U
+  U --> T[Native TextToSpeech: chunk, stop, retry, diagnostics]
+  U --> P[SharedPreferences]
+  P --> S[Explanation/guidance]
+  P --> C[Six themes]
+  P --> Z[Compact/standard/large text density]

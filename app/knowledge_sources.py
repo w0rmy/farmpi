@@ -8,6 +8,7 @@ live page was searched unless a future research provider actually performed retr
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import re
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,57 @@ class KnowledgeSource:
 
     def public_dict(self) -> dict[str, object]:
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class SourceTier:
+    """One level in FarmPi's evidence-preference hierarchy."""
+
+    key: str
+    label: str
+    use_when: str
+
+
+SOURCE_HIERARCHY: tuple[SourceTier, ...] = (
+    SourceTier(
+        "first-class-trusted",
+        "First-class trusted evidence",
+        "FarmPi deterministic data, Experience Edge, DairyNZ, and relevant .govt.nz material. Prefer DairyNZ and relevant New Zealand government material for New Zealand dairy or agricultural questions.",
+    ),
+    SourceTier(
+        "trusted-primary",
+        "Trusted primary source",
+        "An organisation speaking authoritatively about itself or its product, such as Fonterra on Fonterra or manufacturer documentation.",
+    ),
+    SourceTier(
+        "reputable-general",
+        "Reputable general source",
+        "A credible secondary source that is relevant and sufficiently specific to the question.",
+    ),
+    SourceTier(
+        "general-unverified-web",
+        "General or unverified web source",
+        "Useful only with clear qualification and never as proof of a FarmPi fact or decision.",
+    ),
+    SourceTier(
+        "model-knowledge",
+        "Model knowledge",
+        "A concise general explanation when no retrieved source is available; identify it as general knowledge rather than farm evidence.",
+    ),
+)
+
+
+def source_hierarchy_contract() -> str:
+    """Return the compact policy supplied to the teaching model."""
+
+    tiers = "\n".join(f"- {tier.label}: {tier.use_when}" for tier in SOURCE_HIERARCHY)
+    return (
+        "SOURCE HIERARCHY FOR LEARNING ANSWERS\n"
+        f"{tiers}\n"
+        "Prefer the highest relevant available evidence, but do not reject a useful general answer because a higher tier is unavailable. "
+        "First-class trusted is an evidential preference, not a blanket claim of infallibility except where the source is inherently authoritative for its own content, such as current legislation text. "
+        "Never convert external material or model knowledge into a claim about this farm."
+    )
 
 
 SOURCES: tuple[KnowledgeSource, ...] = (
@@ -91,16 +143,16 @@ def sources_for_question(question: str, limit: int = 4) -> tuple[KnowledgeSource
     lowered = question.casefold()
     scored: list[tuple[int, KnowledgeSource]] = []
     for source in SOURCES:
-        score = sum(3 if topic in lowered else 0 for topic in source.topics)
+        score = sum(
+            3
+            for topic in source.topics
+            if re.search(rf"(?<!\w){re.escape(topic.casefold())}s?(?!\w)", lowered)
+        )
         # Organisation names are strong explicit-source signals.
         if source.organisation.casefold() in lowered or source.key.split("-")[0] in lowered:
             score += 5
         if score:
             scored.append((score, source))
-    if not scored:
-        # General agricultural learning gets a small NZ source directory rather
-        # than pretending a specific source supports an unrelated claim.
-        scored = [(1, source) for source in SOURCES if source.key in {"dairynz", "mpi-animal-welfare"}]
     scored.sort(key=lambda item: (-item[0], item[1].name))
     return tuple(source for _, source in scored[:limit])
 
@@ -108,6 +160,8 @@ def sources_for_question(question: str, limit: int = 4) -> tuple[KnowledgeSource
 def format_source_context(question: str) -> tuple[str, tuple[KnowledgeSource, ...]]:
     """Return source metadata plus only the reviewed claims actually stored here."""
     sources = sources_for_question(question)
+    if not sources:
+        return "", sources
     lines = [
         "CURATED NEW ZEALAND SOURCE DIRECTORY",
         "These are reviewed source references. Do not say they were searched live. Attribute only an explicit 'Reviewed claim' below to the named organisation; a source listed without a reviewed claim is a reference suggestion, not evidence for your answer.",
