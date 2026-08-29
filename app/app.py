@@ -42,9 +42,9 @@ from .semantic_interpreter import (
 )
 from .speech_normalizer import SpeechAlternative, SpeechNormalization, current_paddock_names, normalize_speech
 
-LLAMA_BASE_URL = os.getenv("FARMPI_LLAMA_URL", "http://127.0.0.1:8080")
+LLAMA_BASE_URL = os.getenv("FARMPI_LLAMA_URL", "http://127.0.0.1:8080").rstrip("/")
 LLAMA_CHAT_URL = f"{LLAMA_BASE_URL}/v1/chat/completions"
-LLAMA_HEALTH_URL = f"{LLAMA_BASE_URL}/health"
+LLAMA_MODELS_URL = f"{LLAMA_BASE_URL}/v1/models"
 LLAMA_TIMEOUT = httpx.Timeout(connect=3.0, read=120.0, write=10.0, pool=3.0)
 LLM_MODEL = os.getenv("FARMPI_LLM_MODEL", "Qwen3-1.7B")
 
@@ -493,7 +493,7 @@ async def status() -> dict[str, Any]:
 
     try:
         client: httpx.AsyncClient = app.state.http_client
-        response = await client.get(LLAMA_HEALTH_URL, timeout=3.0)
+        response = await client.get(LLAMA_MODELS_URL, timeout=3.0)
         llm_ok = response.is_success
         llm_detail = "ok" if llm_ok else f"http-{response.status_code}"
     except httpx.HTTPError:
