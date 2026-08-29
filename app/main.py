@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 from .app import app
+from .conversation_context import install_conversation_context
 from .ingest_api import router as ingest_router
 from .llm_compat import install_llm_compat
+
+# Keep a small, short-lived conversation window so natural educational
+# follow-ups can refer to the immediately preceding exchange.  This middleware
+# also removes developer-only research diagnostics from learner responses and
+# guarantees that spoken_answer contains the actual displayed answer.
+install_conversation_context(app)
 
 # Normalise outgoing OpenAI-compatible chat requests at the integration
 # boundary.  This keeps FarmPi's reviewed prompt/grounding architecture intact
