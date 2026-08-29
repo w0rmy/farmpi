@@ -30,6 +30,26 @@ class AnalyticsAndLearningTests(unittest.TestCase):
         self.assertEqual(len(result.evidence), 2)
         self.assertTrue(result.evidence[0].simulated)
 
+    def test_generic_farm_history_becomes_one_average_series(self) -> None:
+        result = historical_analysis("soil_moisture_pct", "trend", self._rows(), "last 2 hours", "the farm")
+        self.assertEqual(len(result.chart["series"]), 1)
+        self.assertEqual(result.chart["series"][0]["name"], "Farm average")
+        self.assertEqual([point["y"] for point in result.chart["series"][0]["data"]], [9.0, 13.0])
+        self.assertIn("farm-average", result.facts[0])
+        self.assertEqual(len(result.evidence), 4)
+
+    def test_daylight_uses_recorded_light_profile_and_keeps_chart(self) -> None:
+        start = datetime(2026, 8, 27, 8, 0)
+        rows = [
+            {"name": "North Flat", "sensor_uid": "a", "value": value, "analysis_at": start + timedelta(minutes=5 * index), "simulated": True}
+            for index, value in enumerate((0.0, 1200.0, 1800.0, 900.0))
+        ]
+        result = historical_analysis("light_lux", "daylight", rows, "last 20 minutes", "North Flat")
+        self.assertIn("0.17 hours", result.facts[0])
+        self.assertIn("1,000 lux", result.facts[0])
+        self.assertIsNotNone(result.chart)
+        self.assertEqual(result.chart["series"][0]["name"], "North Flat")
+
     def test_comparison_makes_bar_payload(self) -> None:
         result = compare_paddocks("soil_moisture_pct", "average", self._rows(), "last 2 hours")
         self.assertEqual(result.chart["type"], "bar")
