@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from app.app import AskRequest, app, ask
 from app.question_router import route_question
-from app.semantic_interpreter import SemanticInterpretationError
+from app.semantic_interpreter import SemanticInterpretation, SemanticInterpretationError
 from app.semantic_interpreter import needs_semantic_interpretation
 
 
@@ -43,8 +43,9 @@ class SemanticFallbackTests(unittest.TestCase):
     def test_general_animal_health_question_fails_open_to_learning(self, _) -> None:
         response = asyncio.run(ask(AskRequest(question="Why do cows get milk fever?")))
         self.assertEqual(response.intent, "agriculture-learning")
-        self.assertIn("General agricultural explanation:", response.answer)
+        self.assertIn("General model-knowledge explanation:", response.answer)
         self.assertNotIn("cannot establish the cause", response.answer.casefold())
+        self.assertEqual(response.source_tier, "model-knowledge")
 
     @patch("app.app.prepare_rename")
     @patch("app.app.interpret_semantically", side_effect=SemanticInterpretationError("bad JSON"))
@@ -61,6 +62,18 @@ class SemanticFallbackTests(unittest.TestCase):
         self.assertEqual(response.intent, "agriculture-learning")
         self.assertTrue(response.answer.startswith("No live web research was performed."))
         self.assertEqual(response.source_category, "educational")
+
+    @patch("app.app.interpret_semantically", side_effect=SemanticInterpretationError("invalid JSON"))
+    def test_general_question_does_not_require_the_farm_database(self, _) -> None:
+        response = asyncio.run(ask(AskRequest(question="What is mastitis?")))
+        self.assertEqual(response.intent, "agriculture-learning")
+        self.assertEqual(response.source_tier, "model-knowledge")
+
+    @patch("app.app.interpret_semantically", return_value=SemanticInterpretation("clarification", "general question"))
+    def test_non_action_classifier_uncertainty_still_gets_a_learning_response(self, _) -> None:
+        response = asyncio.run(ask(AskRequest(question="How do rainbows form?")))
+        self.assertEqual(response.intent, "agriculture-learning")
+        self.assertIn("General model-knowledge explanation:", response.answer)
 
 
 if __name__ == "__main__":

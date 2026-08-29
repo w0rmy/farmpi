@@ -9,7 +9,7 @@
 
 Start with [the current implementation state](docs/current-state.md), then see [the time-sync contract](docs/time-sync-telemetry.md), [NZ synthetic simulation](docs/nz-synthetic-simulation.md), [deterministic analytics and graphs](docs/analytics-and-graphing.md), [educational grounding](docs/educational-grounding.md), [structured requests](docs/structured-requests.md), and [Android architecture](docs/android-client.md). Editable Mermaid diagram sources are in [docs/diagrams](docs/diagrams/).
 
-FarmPi is a local farm-monitoring alpha and capstone technical medium for Artificial Intelligence/Data Science and Flexible Learning. It deliberately produces a rich, believable **synthetic** dataset while keeping factual queries, calculations, and administration deterministic.
+FarmPi is a local farm-monitoring alpha and a technical vehicle for a capstone in **AI and Data Sciences** and **Developing Flexible IT Courses**. The embedded learning platform is the capstone; farm monitoring supplies its real-world purpose. It deliberately produces a rich, believable **synthetic** dataset while keeping farm-specific facts, calculations, and administration deterministic. See [capstone outcome governance](docs/capstone-governance.md): hardware, connectivity and model size are enabling constraints, not success measures in their own right.
 
 ## Alpha stage: 16 virtual paddocks
 
@@ -17,13 +17,15 @@ One physical ESP32 now simulates Paddocks A–P. Each has its own registered sen
 
 The generator includes a synchronized real-time Waikato/NZ seasonal daylight cycle, monthly climate baselines, rainfall events, pressure and wind, plus stable paddock differences (wetter/drier, warmer/cooler, shade, pH/EC, and pasture growth). Rain affects humidity, soil moisture, light, air temperature, leaf wetness, and pressure. Occasional pasture drops simulate grazing/cutting. This is useful test telemetry, **not an agronomic model** and not farming advice.
 
-## Architecture and guardrails
+## Architecture and deterministic boundaries
 
 ```text
 ESP32 virtual nodes → HTTPS ingest → FastAPI range validation → MariaDB
-                                                     ↓
-question/action router → deterministic farm action → verified facts
-                         ↘ approved learning context → Qwen teaching assistant
+Learner conversation → interpret intent/context → choose knowledge or controlled action
+                                      ├─ farm fact/action → deterministic resolver + analytics → verified facts
+                                      └─ learning question → curated guidance / research / general agricultural knowledge
+                                                                    ↓
+                                                   explicit provenance and uncertainty → Qwen teaching assistant
 ```
 
 Spoken questions have one additional deterministic step before the question/action router:
@@ -40,7 +42,7 @@ The browser remains responsible for speech recognition. Browser phrase/context b
 
 The first usability finding was that phone dictation sometimes heard *paddock* as *Patek*, leading to poor routing and irrelevant responses. When FarmPi changes a spoken transcript, the interface shows both **Heard** and **Interpreted** text. This makes speech-engine errors distinguishable from FarmPi's deterministic interpretation during evaluation.
 
-Qwen never receives database access, SQL, raw calculation responsibility, or authority to rename a paddock. It is a language interface, not the factual authority.
+Qwen never receives database access, SQL, raw calculation responsibility, or authority to rename a paddock. It is a language interface, not the factual authority for this farm.
 
 app/measurements.py is the reviewed measurement catalogue: canonical keys, labels, units, aliases, ranges, and permitted operations. The fields are:
 
@@ -50,7 +52,7 @@ app/measurements.py is the reviewed measurement catalogue: canonical keys, label
 
 No fabricated N/P/K values are used; soil EC is the practical raw soil-chemistry proxy.
 
-## Supported deterministic interactions
+## Implemented deterministic interactions
 
 - Farm-wide inventory: “List the paddocks”, “What paddocks are being monitored?”, “How many paddocks are we monitoring?”, and “How many paddocks are there?” return deterministic active configured names/counts without reusing stale paddock context.
 - Current paddock overview: “What stats are available on Paddock B?”, “What data do we have for Paddock B?”, and “Tell me about Paddock B” return the central measurement catalogue's latest verified values and available analytics. The screen uses readable freshness; precise timestamps and simulated provenance remain in **Show evidence** rather than routine voice output.
@@ -67,7 +69,31 @@ No fabricated N/P/K values are used; soil EC is the practical raw soil-chemistry
 - Derived daylight hours from historical light_lux, counting five-minute samples at or above 1,000 lux. It is not an ingest field.
 - Controlled rename: “Rename Paddock A to North Flat”, followed by “confirm” or “yes” in the same browser within five minutes.
 
-Weather forecasts, irrigation decisions, causal claims, agronomic recommendations, LoRaWAN, MQTT, OTA, and control actions remain outside FarmPi's authority. Rather than a generic refusal, FarmPi explains the relevant boundary, what it can show, and one useful next learning direction.
+FarmPi must not present a weather forecast, irrigation decision, causal claim, agronomic recommendation, or animal-health conclusion as a farm-specific result unless a controlled, evidenced feature establishes it. LoRaWAN, MQTT, OTA, and control actions remain outside the alpha scope. When FarmPi cannot make a farm-specific conclusion, it should explain the boundary and offer the relevant evidence, trusted guidance, or next learning direction rather than giving a generic refusal.
+
+## Open agricultural learning direction (27 August 2026)
+
+The deterministic interactions above are the current implementation, not the limit of the intended learner experience. FarmPi is moving away from treating every sentence as a tightly scoped database request. Learners should be able to ask broad, imperfectly phrased questions about dairy farming, cows, sheep, pasture, soils, irrigation, weather, effluent, animal health, and related practical New Zealand agriculture without learning a command grammar.
+
+The target interaction is:
+
+```text
+natural conversation
+        ↓
+interpret learner intent and context
+        ↓
+select relevant knowledge/tools
+        ↓
+FarmPi observation or deterministic calculation
+first-class trusted evidence (FarmPi deterministic data, Experience Edge, DairyNZ and relevant .govt.nz sources)
+trusted primary sources, reputable general sources, general/unverified web, or model knowledge as appropriate
+        ↓
+state provenance and uncertainty
+        ↓
+teach concisely and offer one useful next learning direction
+```
+
+This does **not** weaken data or action safety. A paddock measurement, calculation, timestamp, comparison, device state, rename, or operational proposal remains application-controlled. What becomes open is the educational conversation: explanation, paraphrase tolerance, learner-led exploration, and carefully sourced research. Relevance controls the evidence quality and answer depth, not permission to answer: when only model knowledge is available, FarmPi gives a short, clearly labelled general answer rather than rejecting the learner.
 
 ## Rename safety
 
@@ -112,5 +138,6 @@ The implementation and evidence are documented in:
 - [educational content and teach-by-doing design](docs/educational-grounding.md)
 - [structured request model](docs/structured-requests.md)
 - [testing and nontechnical evaluation plan](docs/testing-and-evaluation.md)
+- [capstone outcome governance](docs/capstone-governance.md)
 
-The main lesson is architectural: small local models become more useful when deterministic software owns measurements, calculations, safety boundaries, and mutations, while the model owns understandable language.
+The main lesson is architectural: small local models become more useful when deterministic software owns farm measurements, calculations, safety boundaries, and mutations, while the model supports understandable, source-aware agricultural learning.

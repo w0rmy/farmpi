@@ -464,7 +464,7 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
     if intent in {"conversation", "agriculture-learning"}:
         return GroundingData(intent, (
             "FarmPi may provide a general agricultural explanation, not a claim about this farm.",
-            "No live web research, current external guidance lookup, or external citation has been performed for this response.",
+            "No retrieved external source has been supplied for this response, so any explanation must be labelled as general model knowledge.",
             "If a question needs a farm-specific value, calculation, paddock identity, or operation, FarmPi will use a deterministic route rather than guess it.",
         ), source_category="educational")
     if intent == "farm_inventory_count":

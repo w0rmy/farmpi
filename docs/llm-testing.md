@@ -2,7 +2,7 @@
 
 ## 16-paddock synthetic-data stage
 
-The next alpha stage turns the connected ESP32 into a 16-node synthetic telemetry generator. This expands the data available for AI/Data Science and Flexible Learning evaluation without claiming real agronomy. The experiment deliberately keeps pressure, rainfall, soil moisture, light, EC, temperature and pasture-height relationships in deterministic application/firmware code; Qwen only receives verified results. This provides a useful evaluation dataset while preserving the original conclusion that the local model should not calculate farm facts, propose irrigation, or make causal agricultural claims.
+The next alpha stage turns the connected ESP32 into a 16-node synthetic telemetry generator. This expands the data available for AI/Data Science and Flexible Learning evaluation without claiming real agronomy. The experiment deliberately keeps pressure, rainfall, soil moisture, light, EC, temperature and pasture-height relationships in deterministic application/firmware code; for farm-data requests, Qwen receives only verified results. This provides a useful evaluation dataset while preserving the original conclusion that the local model should not calculate farm facts, propose irrigation, or make causal agricultural claims about the learner's farm.
 
 ## Purpose
 
@@ -245,7 +245,7 @@ The intended architecture does not require the LLM to:
 - determine minima, maxima, averages or trends;
 - generate statistical conclusions;
 - independently establish factual results;
-- act as a general-purpose farming expert.
+- act as an unqualified factual authority for the learner's farm.
 
 Instead, deterministic software can perform these functions and provide the LLM with compact verified information such as:
 
@@ -306,6 +306,12 @@ HTTPS will be required for the browser-based speech interface because browser mi
 ## Current Raspberry Pi 4 Assessment
 
 The Raspberry Pi 4 has successfully demonstrated that a local LLM can operate as part of the proposed architecture.
+
+### 27 August 2026 learning-architecture update
+
+The benchmark findings remain valid: deterministic software must establish FarmPi measurements and calculations, and prompt/context size matters on the Pi 4. The capstone's conversational scope has since broadened from a restricted data-query task to open agricultural learning. This does not make the model a farm-data authority or remove the need for concise responses. Instead, FarmPi must select and label the source of an answer: a FarmPi observation, deterministic calculation, curated authoritative New Zealand guidance, external research when implemented, or general agricultural explanation.
+
+Consequently, future reliability tests should cover natural learner wording and provenance handling as well as deterministic fact rendering. A smaller local model may remain suitable as the conversational layer only if it can preserve those labels and uncertainties, avoid converting guidance into a farm-specific recommendation, and remain responsive. Any live research capability must be application-mediated and evaluated separately from local model inference timing.
 
 However, testing has identified a significant performance constraint.
 
@@ -388,7 +394,7 @@ Testing has demonstrated that:
 
 ## Next Testing
 
-The next stage should test whether Qwen3 0.6B is sufficiently reliable for the actual restricted task rather than assessing it as a general-purpose LLM.
+The next stage should test whether Qwen3 0.6B is sufficiently reliable for the actual source-aware FarmPi learning task rather than assessing it as a general-purpose LLM.
 
 Testing should concentrate on whether it can reliably:
 

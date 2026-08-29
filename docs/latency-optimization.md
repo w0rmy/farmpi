@@ -6,6 +6,8 @@ The Raspberry Pi 4 proof of concept is functionally successful, but local Qwen3 
 
 The optimisation does not move factual reasoning into the LLM. MariaDB and deterministic Python functions remain authoritative.
 
+The 27 August 2026 open-learning architecture does not change this deterministic farm-data path. It adds separate, provenance-aware learning-source selection for questions that do not require a farm lookup or action. Curated-source retrieval, external research when implemented, and source rendering must be timed and evaluated as distinct stages; they must not be hidden inside `llm_ms` or represented as verified FarmPi data.
+
 ## Changes implemented
 
 ### 1. Per-request timing
@@ -87,7 +89,7 @@ Qwen3 0.6B
 Brief natural-language answer
 ```
 
-Qwen still cannot query MariaDB directly and is not asked to calculate farm statistics.
+Qwen still cannot query MariaDB directly and is not asked to calculate farm statistics. Open agricultural explanation does not authorise it to create a farm-specific fact, decision or action.
 
 ## Test method
 

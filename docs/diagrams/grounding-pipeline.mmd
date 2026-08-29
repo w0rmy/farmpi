@@ -1,12 +1,16 @@
 flowchart LR
   T[Learner question] --> S[Speech/domain normalisation]
-  S --> R{Deterministic action needed?}
-  R -->|farm fact/action| M[MariaDB + deterministic resolver/analytics]
-  R -->|capability/topic| K[Curated educational content]
-  R -->|ordinary learning language| C[Controlled conversational context]
-  M --> F[Verified farm facts]
-  K --> G[Approved learning material]
-  C --> G
+  S --> R{Farm fact/action needed?}
+  R -->|yes| M[MariaDB + deterministic resolver/analytics]
+  R -->|no: learning| K[Select learning source]
+  K --> C[Curated NZ guidance]
+  K --> X[External research when implemented]
+  K --> H[General agricultural knowledge]
+  M --> F[Verified farm facts/calculation]
+  C --> G[Labelled guidance]
+  X --> G
+  H --> G
   F --> E[Evidence/chart]
-  F --> L[Qwen teaching assistant]
-  G --> L
+  F --> P[Explicit provenance + uncertainty]
+  G --> P
+  P --> L[Qwen: concise teaching]

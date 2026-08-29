@@ -3,12 +3,14 @@ flowchart LR
   I --> D[(MariaDB)]
   W[Browser] --> A[FastAPI ask API]
   N[Native Android] --> A
-  A --> R[Action router / conversational boundary]
-  R -->|farm action| X[Deterministic resolver + analytics]
-  R -->|learning language| L[Curated learning context]
+  A --> R[Interpret learner intent and context]
+  R -->|farm fact or action| X[Deterministic resolver + analytics]
+  R -->|learning conversation| L[Knowledge-source selection]
   X --> D
-  X --> Q[Qwen teaching assistant]
-  L --> Q
+  L --> S[Curated NZ guidance / research / general knowledge]
+  X --> P[Verified facts + provenance]
+  S --> P
+  P --> Q[Qwen: concise source-aware teaching]
   X --> G[Charts + evidence]
   Q --> A
   G --> A

@@ -24,8 +24,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
@@ -40,9 +42,9 @@ import javax.net.ssl.HttpsURLConnection
 private data class SpeechResult(val heard: String, val interpreted: String, val changed: Boolean)
 private data class ChartPoint(val label: String, val value: Double)
 private data class ChartPayload(val type: String, val title: String, val unit: String, val period: String, val provenance: String, val series: List<Pair<String, List<ChartPoint>>>)
-private data class AskResult(val answer: String, val spokenAnswer: String, val suggestions: List<String>, val intent: String, val conversationId: String?, val chart: ChartPayload?, val evidence: List<String>)
+private data class AskResult(val answer: String, val spokenAnswer: String, val suggestions: List<String>, val intent: String, val conversationId: String?, val chart: ChartPayload?, val evidence: List<String>, val sourceTier: String)
 
-private val FarmPiColours = darkColorScheme(
+private val NeutralColours = darkColorScheme(
     primary = Color(0xFF9ACBA6),
     onPrimary = Color(0xFF12351E),
     secondary = Color(0xFFB7C3B9),
@@ -56,15 +58,47 @@ private val FarmPiColours = darkColorScheme(
 )
 
 @Composable
-private fun FarmPiTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = FarmPiColours, content = content)
+private fun FarmPiTheme(theme: String, displayDensity: String, content: @Composable () -> Unit) {
+    val colours = when (theme) {
+        "nz" -> lightColorScheme(
+            primary = Color(0xFF003F7F), onPrimary = Color.White, secondary = Color(0xFFC8102E), onSecondary = Color.White,
+            background = Color(0xFFF8F9FC), onBackground = Color(0xFF172033), surface = Color.White, onSurface = Color(0xFF172033),
+            surfaceVariant = Color(0xFFE5ECF6), onSurfaceVariant = Color(0xFF263A5A),
+        )
+        "natural" -> lightColorScheme(
+            primary = Color(0xFF2F6B3C), onPrimary = Color.White, secondary = Color(0xFF7B5E2F), onSecondary = Color.White,
+            background = Color(0xFFF7FAF4), onBackground = Color(0xFF1A271C), surface = Color(0xFFFFFFFF), onSurface = Color(0xFF1A271C),
+            surfaceVariant = Color(0xFFE2ECDD), onSurfaceVariant = Color(0xFF314735),
+        )
+        "high-contrast" -> darkColorScheme(
+            primary = Color(0xFFFFFFFF), onPrimary = Color.Black, secondary = Color(0xFF00E5FF), onSecondary = Color.Black,
+            background = Color.Black, onBackground = Color.White, surface = Color(0xFF121212), onSurface = Color.White,
+            surfaceVariant = Color(0xFF2B2B2B), onSurfaceVariant = Color.White,
+        )
+        "high-visibility" -> darkColorScheme(
+            primary = Color(0xFFFFFF00), onPrimary = Color.Black, secondary = Color(0xFFFFFF00), onSecondary = Color.Black,
+            background = Color.Black, onBackground = Color(0xFFFFFF00), surface = Color(0xFF111111), onSurface = Color(0xFFFFFF00),
+            surfaceVariant = Color(0xFF252500), onSurfaceVariant = Color(0xFFFFFF00),
+        )
+        "muted" -> lightColorScheme(
+            primary = Color(0xFF5C6170), onPrimary = Color.White, secondary = Color(0xFF7B7085), onSecondary = Color.White,
+            background = Color(0xFFF3F1F0), onBackground = Color(0xFF29282D), surface = Color(0xFFF9F7F6), onSurface = Color(0xFF29282D),
+            surfaceVariant = Color(0xFFE5E1E0), onSurfaceVariant = Color(0xFF5A5559),
+        )
+        else -> NeutralColours
+    }
+    val density = LocalDensity.current
+    val fontScale = when (displayDensity) { "compact" -> 0.90f; "large" -> 1.25f; else -> 1.0f }
+    CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+        MaterialTheme(colorScheme = colours, content = content)
+    }
 }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { FarmPiTheme { FarmPiApp() } }
+        setContent { FarmPiApp() }
     }
 }
 
@@ -80,14 +114,23 @@ private fun FarmPiApp() {
     var suggestions by remember { mutableStateOf(listOf<String>()) }
     var explanation by remember { mutableStateOf("normal") }
     var guidance by remember { mutableStateOf("normal") }
+    var theme by remember { mutableStateOf("neutral") }
+    var displayDensity by remember { mutableStateOf("standard") }
+    var showSettings by remember { mutableStateOf(false) }
     var learnTab by remember { mutableStateOf(false) }
     var asking by remember { mutableStateOf(false) }
     var chart by remember { mutableStateOf<ChartPayload?>(null) }
     var evidence by remember { mutableStateOf(emptyList<String>()) }
+    var sourceTier by remember { mutableStateOf<String?>(null) }
     var showEvidence by remember { mutableStateOf(false) }
     var conversationId by remember { mutableStateOf<String?>(null) }
     val preferences = remember { context.getSharedPreferences("farmpi-learning", 0) }
-    LaunchedEffect(Unit) { explanation = preferences.getString("explanation", "normal") ?: "normal"; guidance = preferences.getString("guidance", "normal") ?: "normal" }
+    LaunchedEffect(Unit) {
+        explanation = preferences.getString("explanation", "normal") ?: "normal"
+        guidance = preferences.getString("guidance", "normal") ?: "normal"
+        theme = preferences.getString("theme", "neutral") ?: "neutral"
+        displayDensity = preferences.getString("display_density", "standard") ?: "standard"
+    }
     val tts = remember { TextToSpeech(context) { } }
     DisposableEffect(Unit) { onDispose { tts.shutdown() } }
 
@@ -106,7 +149,7 @@ private fun FarmPiApp() {
             question = routedQuestion
             val result = FarmPiApi.ask(routedQuestion, explanation, guidance, conversationId)
             conversationId = result.conversationId ?: conversationId
-            answer = result.answer; suggestions = result.suggestions; chart = result.chart; evidence = result.evidence; showEvidence = false; connection = "FarmPi connected"; speak(result.spokenAnswer)
+            answer = result.answer; suggestions = result.suggestions; chart = result.chart; evidence = result.evidence; sourceTier = result.sourceTier; showEvidence = false; connection = "FarmPi connected"; speak(result.spokenAnswer)
         } catch (_: Exception) { answer = "FarmPi is unavailable. Check the local connection and certificate trust."; connection = "FarmPi is unavailable" }
         asking = false
     }
@@ -148,15 +191,18 @@ private fun FarmPiApp() {
     }
 
     LaunchedEffect(Unit) { checkStatus() }
-    Scaffold(bottomBar = { NavigationBar {
-        NavigationBarItem(selected = !learnTab, onClick = { learnTab = false }, icon = { Text("💬") }, label = { Text("Ask") })
-        NavigationBarItem(selected = learnTab, onClick = { learnTab = true }, icon = { Text("✓") }, label = { Text("Learn") })
-    } }) { padding ->
+    FarmPiTheme(theme, displayDensity) {
+    Scaffold(
+        topBar = { TopAppBar(title = { Text("FarmPi") }, actions = { IconButton(onClick = { showSettings = true }) { Text("⚙", style = MaterialTheme.typography.titleLarge) } }) },
+        bottomBar = { NavigationBar {
+            NavigationBarItem(selected = !learnTab, onClick = { learnTab = false }, icon = { Text("💬") }, label = { Text("Ask") })
+            NavigationBarItem(selected = learnTab, onClick = { learnTab = true }, icon = { Text("✓") }, label = { Text("Learn") })
+        } },
+    ) { padding ->
         if (learnTab) LearnArea(Modifier.padding(padding)) { prompt -> learnTab = false; question = prompt; ask(prompt) } else Column(
             modifier = Modifier.padding(padding).padding(20.dp).fillMaxSize().verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("FarmPi", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
             Text(connection, style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(18.dp))
             OutlinedTextField(value = question, onValueChange = { question = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Ask about your farm data") }, minLines = 3)
@@ -167,10 +213,10 @@ private fun FarmPiApp() {
                 Button(onClick = { ask(question) }, enabled = !asking) { Text("Ask FarmPi") }
                 OutlinedButton(onClick = { guideMe() }) { Text("Guide me") }
             }
-            Preferences(explanation, guidance, { explanation = it; preferences.edit().putString("explanation", it).apply() }, { guidance = it; preferences.edit().putString("guidance", it).apply() })
             if (heard != null) Text("Heard: $heard", modifier = Modifier.fillMaxWidth().padding(top = 14.dp), style = MaterialTheme.typography.bodySmall)
             if (interpreted != null) Text("Interpreted: $interpreted", modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
             Card(modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) { Text(answer, modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodyLarge) }
+            sourceTier?.let { Text("Evidence: ${it.replace('-', ' ')}", modifier = Modifier.fillMaxWidth().padding(top = 6.dp), style = MaterialTheme.typography.bodySmall) }
             chart?.let { ChartCard(it) }
             if (evidence.isNotEmpty()) {
                 TextButton(onClick = { showEvidence = !showEvidence }) { Text(if (showEvidence) "Hide evidence" else "Show evidence / data") }
@@ -178,6 +224,15 @@ private fun FarmPiApp() {
             }
             suggestions.forEach { suggestion -> TextButton(onClick = { question = suggestion; ask(suggestion) }) { Text(suggestion, textAlign = TextAlign.Start) } }
         }
+    }
+    if (showSettings) SettingsDialog(
+        explanation, guidance, theme, displayDensity,
+        setExplanation = { explanation = it; preferences.edit().putString("explanation", it).apply() },
+        setGuidance = { guidance = it; preferences.edit().putString("guidance", it).apply() },
+        setTheme = { theme = it; preferences.edit().putString("theme", it).apply() },
+        setDisplayDensity = { displayDensity = it; preferences.edit().putString("display_density", it).apply() },
+        close = { showSettings = false },
+    )
     }
 }
 
@@ -206,11 +261,31 @@ private fun ChartCard(chart: ChartPayload) {
 }
 
 @Composable
-private fun Preferences(explanation: String, guidance: String, setExplanation: (String) -> Unit, setGuidance: (String) -> Unit) {
-    Text("Explanation", modifier = Modifier.padding(top = 14.dp), fontWeight = FontWeight.Bold)
-    Row { listOf("simple", "normal", "technical").forEach { value -> FilterChip(selected = explanation == value, onClick = { setExplanation(value) }, label = { Text(value) }, modifier = Modifier.padding(end = 6.dp)) } }
-    Text("Guidance", modifier = Modifier.padding(top = 8.dp), fontWeight = FontWeight.Bold)
-    Row { listOf("more", "normal", "less").forEach { value -> FilterChip(selected = guidance == value, onClick = { setGuidance(value) }, label = { Text(value) }, modifier = Modifier.padding(end = 6.dp)) } }
+private fun SettingsDialog(
+    explanation: String, guidance: String, theme: String, displayDensity: String,
+    setExplanation: (String) -> Unit, setGuidance: (String) -> Unit, setTheme: (String) -> Unit,
+    setDisplayDensity: (String) -> Unit, close: () -> Unit,
+) = AlertDialog(
+    onDismissRequest = close,
+    title = { Text("Display and learning settings") },
+    text = { Column(Modifier.verticalScroll(rememberScrollState())) {
+        Text("Explanation depth", fontWeight = FontWeight.Bold)
+        SettingChips(listOf("simple", "normal", "technical"), explanation, setExplanation)
+        Text("Guidance prompts", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
+        SettingChips(listOf("more", "normal", "less"), guidance, setGuidance)
+        Text("Presentation theme", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
+        listOf("neutral" to "Neutral", "nz" to "NZ red, white and blue", "natural" to "Green / natural", "high-contrast" to "Dark high contrast", "high-visibility" to "Yellow / black", "muted" to "Muted / low stimulation").forEach { (key, label) ->
+            FilterChip(selected = theme == key, onClick = { setTheme(key) }, label = { Text(label) }, modifier = Modifier.padding(end = 6.dp, bottom = 4.dp))
+        }
+        Text("Text size and density", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
+        SettingChips(listOf("compact", "standard", "large"), displayDensity, setDisplayDensity)
+    } },
+    confirmButton = { TextButton(onClick = close) { Text("Done") } },
+)
+
+@Composable
+private fun SettingChips(values: List<String>, selected: String, setValue: (String) -> Unit) = Row {
+    values.forEach { value -> FilterChip(selected = selected == value, onClick = { setValue(value) }, label = { Text(value) }, modifier = Modifier.padding(end = 6.dp)) }
 }
 
 @Composable
@@ -245,7 +320,7 @@ private object FarmPiApi {
     }
     suspend fun ask(question: String, explanation: String, guidance: String, conversationId: String?): AskResult = withContext(Dispatchers.IO) {
         val body = JSONObject().put("question", question).put("preferences", JSONObject().put("explanation_level", explanation).put("guidance_level", guidance)); if (conversationId != null) body.put("conversation_id", conversationId); val json = request("api/ask", "POST", body)
-        AskResult(json.getString("answer"), json.optString("spoken_answer", json.getString("answer")), json.optJSONArray("suggestions").strings(), json.optString("intent"), json.optString("conversation_id").takeIf { it.isNotBlank() }, json.optJSONObject("chart")?.chart(), json.optJSONArray("evidence")?.let { evidence -> (0 until evidence.length()).map { evidence.getJSONObject(it).toString() } } ?: emptyList())
+        AskResult(json.getString("answer"), json.optString("spoken_answer", json.getString("answer")), json.optJSONArray("suggestions").strings(), json.optString("intent"), json.optString("conversation_id").takeIf { it.isNotBlank() }, json.optJSONObject("chart")?.chart(), json.optJSONArray("evidence")?.let { evidence -> (0 until evidence.length()).map { evidence.getJSONObject(it).toString() } } ?: emptyList(), json.optString("source_tier", "first-class-trusted"))
     }
     private fun JSONObject.chart(): ChartPayload {
         val entries = optJSONArray("series") ?: JSONArray()

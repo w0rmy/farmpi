@@ -8,9 +8,27 @@ The central design principle is:
 
 > Qwen is the language interface, not the factual authority.
 
-FarmPi grounds farm facts and actions deterministically; it does not attempt to enumerate every valid learner sentence. An earlier deny-by-default language router was too restrictive and could interpret ordinary grammar as a paddock name. This pass introduces a controlled conversational path: Qwen may interpret learner intent and explain approved learning material, while every farm measurement, paddock resolution, calculation, database query, mutation, confirmation, and operational decision boundary remains application-controlled.
+FarmPi grounds farm facts and actions deterministically; it does not attempt to enumerate every valid learner sentence. An earlier deny-by-default language router was too restrictive and could interpret ordinary grammar as a paddock name. The 27 August 2026 architecture correction makes the distinction explicit: the controls are for farm-specific facts, deterministic calculations and actions, not a command grammar for all learning conversation. Qwen may interpret learner intent, explain and support exploration, while every farm measurement, paddock resolution, calculation, database query, mutation, confirmation and operational decision boundary remains application-controlled.
 
-The LLM does not query MariaDB directly, does not decide which SQL to run, does not calculate farm statistics, and is not allowed to invent measurements, causes, or recommendations.
+The LLM does not query MariaDB directly, decide which SQL to run, calculate farm statistics, authorise an action, or present an invented measurement, cause, recommendation or diagnosis as a fact about this farm.
+
+## Open learning, controlled claims
+
+FarmPi is evolving toward an open conversational agricultural learning assistant. A learner should be able to explore dairy farming, cows, sheep, pasture, soils, irrigation, weather, effluent, animal health and related practical New Zealand agriculture in ordinary language. The application should choose the useful knowledge source rather than reject the question because it has no deterministic query route.
+
+The corresponding rule is simple: **conversation, explanation, paraphrase tolerance, exploration and research can be open; actions and farm-specific factual claims remain controlled.** Responses must make their provenance clear: a FarmPi observation, deterministic calculation, reviewed authoritative guidance, external research, or general agricultural explanation. The current alpha supplies observations, calculations and version-controlled educational concepts. Curated NZ-source integration and external research are target capabilities, not claims of existing deployment.
+
+## Evidence preference, not an answer-permission gate
+
+FarmPi uses a five-level evidence hierarchy. It prefers the highest relevant available evidence; it does not use the hierarchy to refuse a useful question.
+
+1. **First-class trusted evidence:** FarmPi deterministic data, Experience Edge, DairyNZ, and relevant `.govt.nz` sources. For New Zealand dairy and agricultural questions, prefer DairyNZ and the relevant New Zealand government source. This tier is a strong evidential preference, not a blanket claim of infallibility; current legislation text is an example of a source authoritative for its own content.
+2. **Trusted primary sources:** an organisation speaking authoritatively about itself or its product, such as Fonterra about Fonterra or manufacturer documentation.
+3. **Reputable general sources:** credible secondary material appropriate to the topic.
+4. **General or unverified web:** material requiring clear qualification and never used as proof of a FarmPi fact or decision.
+5. **Model knowledge:** a concise general explanation when no retrieved source is available, explicitly labelled as such.
+
+Relevance determines which tier is sought and how much supporting detail is useful. It does not determine whether FarmPi is allowed to reply. If an unrelated question is asked in the farm app, FarmPi assumes the learner may see it as relevant and offers a short useful answer with suitable uncertainty. Farm-system facts - readings, history, timestamps, comparisons and device state - remain deterministic and are never invented.
 
 ## Layered control path
 
@@ -25,17 +43,17 @@ ESP32 sensor telemetry
         ↓
 4. deterministic speech/domain normalisation (spoken input only)
         ↓
-5. deterministic action routing / conversational boundary
+5. interpret learner intent; route controlled actions/farm data deterministically
         ↓
 6. approved deterministic retrieval/calculation
         ↓
-7. VERIFIED FARM FACTS and/or APPROVED LEARNING MATERIAL grounding
+7. select FarmPi facts/calculations and/or labelled educational source
         ↓
-8. LLM system instructions
+8. apply explicit provenance, uncertainty and farm-claim boundary
         ↓
 Qwen natural-language response
         ↓
-9. deterministic user guidance / suggested next questions
+9. concise teaching and useful next learning direction
 ```
 
 These layers together are what this project informally calls the guardrails. There is no single `guardrails.conf` file.
@@ -91,9 +109,9 @@ The response contains the raw and interpreted transcript when a change occurs, a
 
 Typed questions bypass this layer. Normalisation may make a spoken rename routeable, but it does not execute it: the normal deterministic confirmation boundary below still applies.
 
-## 5. Deterministic question routing — `app/question_router.py`
+## 5. Deterministic action and farm-data routing — `app/question_router.py`
 
-`app/question_router.py` interprets the user's wording and selects an approved application operation before Qwen receives any farm facts.
+`app/question_router.py` interprets wording only where a controlled application operation or farm-data lookup is needed. It is intentionally not responsible for forcing every agricultural learning question into a deterministic operation.
 
 The router currently recognises:
 
@@ -106,13 +124,13 @@ The router currently recognises:
 - current named-paddock measurements;
 - current measurement snapshots;
 - broader soil-moisture questions using a safe deterministic fallback;
-- unsupported questions.
+- questions that have no current deterministic farm-data operation.
 
 It also maps natural-language measurement terms such as `temperature`, `humidity`, `pH`, `EC`, `how wet`, and `lux` to explicit internal field names. Plain `temperature` selects air temperature; `soil temperature` remains explicit.
 
 Paddock references pass through one database-backed resolver shared by every API client. It prioritises current display name, audited previous name, canonical letter, and then the active configured numeric/word-number order (`Paddock 2`, `Paddock two`, or `Paddock number 2`). The resolver returns a specific unknown, ambiguous, out-of-range, no-current-reading, or no-active-paddocks result rather than a generic unavailable answer. The API's short opaque conversation token can reuse the preceding approved current measurement for “What about Paddock 2?”; it does not provide free-form LLM memory.
 
-The router does **not** generate SQL and does not ask the LLM to decide which database function to execute.
+The router does **not** generate SQL and does not ask the LLM to decide which database function to execute. A question without a deterministic farm-data route is an educational-source selection problem, not permission to invent an implied lookup.
 
 A useful alpha failure occurred when the phrase `which paddock is driest` could fall through an earlier recogniser and the generic paddock regex interpreted the word `is` as a paddock identifier, producing `Paddock IS`. The router now contains paddock stop-words and regression tests so ordinary grammar cannot be treated as a paddock name.
 
@@ -141,7 +159,7 @@ Paddock A air temperature: 16.50 °C.
 
 Qwen is not asked to calculate or infer that value.
 
-## 7. Grounding context — `app/farm_data.py`
+## 7. Grounding and source context — `app/farm_data.py`
 
 The deterministic result is converted to a compact context headed:
 
@@ -149,9 +167,9 @@ The deterministic result is converted to a compact context headed:
 VERIFIED FACTS
 ```
 
-Only the facts appropriate to the selected route are supplied to Qwen. This reduces prompt size and reduces the opportunity for the model to answer from unrelated information.
+Only the facts appropriate to the selected route are supplied to Qwen. This reduces prompt size and reduces the opportunity for the model to answer from unrelated information. For a learning response, the equivalent discipline is to supply or identify the selected source category rather than silently treating guidance or model background knowledge as a FarmPi fact.
 
-The provenance of synthetic telemetry is carried through the grounding layer and retained in the evidence payload. It is shown as a visual label and under **Show evidence**; routine TTS uses the API's concise spoken answer, so it does not repeat simulated-test provenance unless it is relevant or explicitly requested.
+The provenance of synthetic telemetry is carried through the grounding layer and retained in the evidence payload. It is shown as a visual label and under **Show evidence**; routine TTS uses the API's concise spoken answer, so it does not repeat simulated-test provenance unless it is relevant or explicitly requested. The target source model extends this label to reviewed New Zealand guidance, research and general agricultural explanation; it does not replace observational evidence with a single generic "source" label.
 
 ## 8. LLM instructions and orchestration — `app/app.py`
 
@@ -166,14 +184,14 @@ question
 → answer
 ```
 
-Its system prompt tells Qwen to:
+For deterministic farm-data routes, its system prompt tells Qwen to:
 
-- use only `VERIFIED FACTS` supplied by FarmPi;
+- use only `VERIFIED FACTS` supplied by FarmPi for farm-specific assertions;
 - never calculate or invent facts, causes, or recommendations;
-- say information is unavailable when it is absent;
+- say a farm-specific fact or decision is unavailable when the evidence is absent;
 - explain FarmPi's capabilities helpfully when capability facts are supplied.
 
-The prompt is therefore one guardrail, but it is deliberately the final guardrail rather than the only one.
+For open-learning routes, the target instruction set must instead require an identified source category, clear uncertainty and a boundary between general guidance and the learner's farm. The prompt is therefore one guardrail, but it is deliberately the final guardrail rather than the only one.
 
 ## 9. User guidance — `app/guidance.py`
 
@@ -186,11 +204,11 @@ The first Flexible Learning scaffold is kept deterministic as well.
 - initial example questions;
 - context-sensitive suggested follow-up questions.
 
-The browser can therefore prompt the user with useful next questions without allowing the LLM to invent capabilities or farm advice.
+The browser can therefore prompt the user with useful next questions without allowing the LLM to invent capabilities or farm advice. As the knowledge model broadens, suggestions should include safe exploration of agricultural concepts and sources, not merely a catalogue of supported database questions.
 
 When the user taps **Guide me**, the request is routed through the normal grounded LLM path. Qwen may phrase the explanation naturally, but the list of what FarmPi can and cannot do is supplied by deterministic application facts.
 
-## 9. Controlled rename
+## 10. Controlled rename
 
 Rename wording is routed to a deterministic administrative action. FarmPi
 resolves the active paddock by identity/name, validates a non-duplicate display
@@ -213,15 +231,17 @@ They preserve behaviours such as:
 
 The `update` script runs the Python unit tests before restarting FarmPi, so routing-policy regressions should stop deployment.
 
-## What remains deliberately unsupported
+## What remains deliberately unsupported as FarmPi-specific authority
 
 At this stage FarmPi does not deterministically establish:
 
 - weather forecasts;
 - irrigation decisions;
-- agronomic recommendations;
-- causal explanations such as why a pH value changed;
+- agronomic recommendations for this farm;
+- causal explanations such as why this farm's pH value changed;
 - rankings or summaries not enabled by the measurement catalogue.
+
+This does not mean FarmPi must refuse to explain these subjects. It can teach the relevant general concepts or identify trusted guidance/research, provided it does not turn them into an unsupported claim or decision about the learner's farm.
 
 `daylight_hours` is intentionally not an ingest field. It is now a documented deterministic historical derivation from `light_lux`, using a 1,000-lux threshold and five-minute sample interval.
 
@@ -229,7 +249,7 @@ At this stage FarmPi does not deterministically establish:
 
 The layered design demonstrates an important AI/Data Science distinction: a fluent LLM response is not itself evidence that the answer is correct. FarmPi therefore establishes provenance, validation, retrieval, calculation, and scope before the language model is allowed to phrase the result.
 
-It also supports the Flexible Learning component because user guidance can become more adaptive without weakening factual controls. Explanation style, onboarding depth, repeated hints, and user preferences can change independently of the deterministic factual authority underneath them.
+It also supports the Flexible Learning component because user guidance can become more adaptive and more open without weakening factual controls. Explanation style, onboarding depth, repeated hints, user preferences, research and next learning directions can change independently of the deterministic factual authority underneath them.
 # Current implementation note
 
-FarmPi now returns a labelled observational, educational, or combined source category, plus deterministic chart/evidence payloads when useful. Curated concepts are separate from MariaDB readings and Qwen still has no authority to calculate, query, mutate, or make causal/agronomic claims. See [educational grounding](educational-grounding.md), [structured requests](structured-requests.md), and [the grounding diagram](diagrams/grounding-pipeline.mmd).
+FarmPi currently returns a labelled observational, educational, or combined source category, plus deterministic chart/evidence payloads when useful. Curated concepts are separate from MariaDB readings and Qwen still has no authority to calculate, query, mutate, or make causal/agronomic claims about this farm. The next source categories - curated authoritative NZ guidance, external research and general agricultural explanation - are documented targets, not present API claims. See [educational grounding](educational-grounding.md), [structured requests](structured-requests.md), and [the grounding diagram](diagrams/grounding-pipeline.mmd).

@@ -14,7 +14,7 @@ This page is the short source-oriented index for the FarmPi alpha. It describes 
 | Educational grounding | Version-controlled concept cards provide Simple, Normal, and Technical explanations and limitations independently of telemetry, including an irrigation decision-factor card marked for future NZ source integration. | `app/education.py`, `app/learning.py`, `app/guidance.py` |
 | Browser client | The built-in HTML page is a diagnostic/fallback client with typed questions, browser speech recognition, speech-normalisation display, suggestions, and browser TTS. It currently speaks `answer`. | `app/app.py` |
 | Android client | The native Compose client has voice input, local learning preferences, suggestions, charts, evidence, a neutral FarmPi palette, and native TTS. It displays `answer` and speaks `spoken_answer`. | `clients/android/` |
-| Local model boundary | Qwen may interpret normal learner phrasing and explain supplied approved material, but it does not choose a farm action, query MariaDB, calculate, resolve a paddock, rename, or make causal/agronomic claims. Direct deterministic answers do not need a model call. | `app/app.py`, `docs/grounding-and-guardrails.md` |
+| Local model boundary | Qwen may interpret normal learner phrasing and explain supplied material, but it does not choose a farm action, query MariaDB, calculate, resolve a paddock, rename, or turn guidance into an unsupported farm-specific cause, decision, or claim. Direct deterministic answers do not need a model call. | `app/app.py`, `docs/grounding-and-guardrails.md` |
 
 ## Farm-wide list and recovery behaviour
 
@@ -33,6 +33,12 @@ These return active configured names or counts; they do not inherit a prior padd
 
 The authoritative data/evidence path retains full timestamp and provenance fields. Current screen text uses readable freshness such as `Updated 2 minutes ago` or `Last reading: 9:42 am`. The response contract can include precise evidence plus a `spoken_answer`, so Android avoids routine raw timestamp/provenance speech. The browser remains intentionally documented as an older diagnostic client and still speaks the detailed `answer`; changing that behavior is a separate client change rather than a documentation claim.
 
+## 27 August 2026 architectural direction
+
+The checked-in alpha remains a controlled farm-data and curated-learning implementation. Its next architectural direction is an open conversational agricultural learning assistant: natural conversation is interpreted for learner intent and context, then FarmPi selects the relevant farm facts/calculations, curated authoritative NZ material, external research when implemented and appropriate, or general agricultural knowledge. The response must identify whether it is a FarmPi observation, deterministic calculation, reviewed guidance, research, or general explanation, and state uncertainty where needed.
+
+This is deliberately not a claim that live research or all external source integration is already implemented. It records the capstone design direction. Actions, mutations, and farm-specific factual claims remain deterministic/application-controlled; explanation, paraphrase tolerance, exploration and research become more open. See [Flexible Learning](flexible-learning.md), [educational grounding](educational-grounding.md), and [grounding/guardrails](grounding-and-guardrails.md).
+
 ## Detailed documents and visuals
 
 - [Telemetry time and idempotency](time-sync-telemetry.md) and [NZ simulation](nz-synthetic-simulation.md)
@@ -43,7 +49,7 @@ The authoritative data/evidence path retains full timestamp and provenance field
 
 ## Deliberate boundaries
 
-FarmPi does not implement LoRa, MQTT, cloud services, OTA, irrigation control, forecasts, agronomic recommendations, causal diagnosis, a full LMS, or arbitrary model-generated SQL/calculation. The existing telemetry contract is transport-neutral so a future transport can preserve the same acknowledgement and data semantics.
+FarmPi does not implement LoRa, MQTT, cloud services, OTA, irrigation control, a full LMS, or arbitrary model-generated SQL/calculation. It must not present forecasts, agronomic recommendations, causal diagnoses, or animal-health conclusions as FarmPi-verified farm facts without an evidenced controlled feature. The learning architecture may still explain these topics from clearly identified authoritative guidance, research, or general knowledge. The existing telemetry contract is transport-neutral so a future transport can preserve the same acknowledgement and data semantics.
 
 ## Documentation maintenance rule
 

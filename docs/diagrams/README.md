@@ -24,6 +24,6 @@ flowchart LR
   ESP32 -->|telemetry| FarmPi
   Learner -->|voice/text| FarmPi
   FarmPi --> MariaDB
-  FarmPi -->|verified facts only| Qwen
+  FarmPi -->|facts and labelled learning context| Qwen
   FarmPi -->|chart + evidence| Learner
 ```

@@ -30,6 +30,7 @@ from .learning import activity_payload
 from .question_router import route_question
 from .paddock_admin import RenameProposal, RenameRejected, confirm_rename, prepare_rename
 from .guidance import INITIAL_SUGGESTIONS, WELCOME_TEXT, follow_up_suggestions
+from .source_hierarchy import learning_source_contract
 from .semantic_interpreter import (
     SemanticInterpretationError,
     interpret_semantically,
@@ -58,11 +59,10 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="FarmPi", version="0.6.0", lifespan=lifespan)
 
 SYSTEM_PROMPT = """You are FarmPi, a concise teaching assistant for farm monitoring.
-FARM-SPECIFIC VERIFIED FACTS supplied by FarmPi are authoritative: never invent, calculate, alter, or infer farm measurements, causes, forecasts, or decisions.
-You may use APPROVED LEARNING MATERIAL for general educational explanations, but do not turn it into a claim about this farm.
-When the context says no live web research was performed, do not claim to have searched, checked current guidance, or cite an external source. Present the answer as general agricultural explanation.
-If FarmPi cannot support an operational decision, explain what is known, what other factors matter, and offer one useful next learning step; never recommend an action.
-Use the supplied context only. Answer in 1–3 short sentences and at most one follow-up question. Give deeper detail only when asked.
+FARM-SPECIFIC VERIFIED FACTS supplied by FarmPi are authoritative: never invent, calculate, alter, or infer farm measurements, causes, forecasts, device state, timestamps, historical values, comparisons, or decisions.
+For a general learning question, give a useful short answer even when no retrieved source is available. Label it as general model knowledge and do not imply live research, a source citation, current guidance, or a FarmPi observation.
+Relevance controls the evidence quality and depth of the answer; it is not permission to reject a learner's question. If FarmPi cannot support an operational decision, explain what is known, what other factors matter, and offer one useful next learning step; never recommend an action.
+Use supplied FarmPi facts exactly. Do not turn external or general knowledge into a claim about this farm. Answer in 1–3 short sentences and at most one follow-up question. Give deeper detail only when asked.
 """
 
 
@@ -138,6 +138,7 @@ class AskResponse(BaseModel):
     chart: dict[str, Any] | None = None
     evidence: list[dict[str, Any]] = []
     source_category: Literal["observational", "educational", "combined"] = "observational"
+    source_tier: str = "first-class-trusted"
 
 
 class GuidanceResponse(BaseModel):
@@ -549,7 +550,7 @@ async def ask(request: AskRequest) -> AskResponse:
                 route.intent, route.measurement, route.operation, time.monotonic() + _CONVERSATION_TTL_SECONDS,
             )
 
-    def direct_action(answer: str, intent: str, confirmation_id: str | None = None, *, spoken_answer: str | None = None, chart: dict[str, Any] | None = None, evidence: list[dict[str, Any]] | None = None, source_category: Literal["observational", "educational", "combined"] = "observational") -> AskResponse:
+    def direct_action(answer: str, intent: str, confirmation_id: str | None = None, *, spoken_answer: str | None = None, chart: dict[str, Any] | None = None, evidence: list[dict[str, Any]] | None = None, source_category: Literal["observational", "educational", "combined"] = "observational", source_tier: str | None = None) -> AskResponse:
         remember_conversation()
         total_ms = (time.perf_counter() - total_start) * 1000
         return AskResponse(
@@ -564,6 +565,7 @@ async def ask(request: AskRequest) -> AskResponse:
             chart=chart,
             evidence=evidence or [],
             source_category=source_category,
+            source_tier=source_tier or ("first-class-trusted" if source_category == "observational" else "model-knowledge" if source_category == "educational" else "mixed"),
             timings=AskTimings(
                 routing_ms=round(routing_ms, 2),
                 database_ms=round(total_ms - routing_ms, 2),
@@ -625,7 +627,11 @@ async def ask(request: AskRequest) -> AskResponse:
             if requires_clarification_on_failure(question_text, route):
                 route = replace(route, intent="clarification")
             else:
-                route = replace(route, intent=semantic.intent)
+                # For a non-action question, uncertainty in the lightweight
+                # classifier is not a reason to deny the learner a response.
+                # The answer path still carries no farm snapshot and labels
+                # its result as model knowledge.
+                route = replace(route, intent="agriculture-learning" if semantic.intent == "clarification" else semantic.intent)
         routing_ms = (time.perf_counter() - route_start) * 1000
 
     if route.intent == "contextual-follow-up-missing":
@@ -661,24 +667,31 @@ async def ask(request: AskRequest) -> AskResponse:
         return direct_action("\n".join(facts), "education", evidence=evidence + [{"source": "educational", "concept": concept.key}], source_category="combined" if evidence else "educational")
 
     database_start = time.perf_counter()
-    try:
-        if route.intent in {"historical", "comparison"} and route.measurement and route.operation:
-            grounding_data = await asyncio.to_thread(analytics_grounding, route.measurement, route.operation, route.window_minutes, route.time_label, route.paddock_name, route.intent == "comparison")
-        elif route.intent == "summary":
-            grounding_data = await asyncio.to_thread(paddock_summary, route.paddock_name, route.window_minutes, route.time_label)
-        else:
-            grounding_data = await asyncio.to_thread(get_grounding_data, route.intent, route.paddock_name, route.measurement, route.operation, route.window_minutes)
-    except DatabaseUnavailable as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="The FarmPi database is unavailable.",
-        ) from exc
-    except NoFarmData as exc:
-        raise HTTPException(
-            status_code=503,
-            detail="No current soil-moisture readings are available.",
-        ) from exc
-    database_ms = (time.perf_counter() - database_start) * 1000
+    if route.intent == "agriculture-learning":
+        # Broad learning remains available when telemetry/MariaDB is offline.
+        # It carries no snapshot because that would make model knowledge look
+        # like an observation and would needlessly block a useful answer.
+        grounding_data = get_grounding_data(route.intent)
+        database_ms = 0.0
+    else:
+        try:
+            if route.intent in {"historical", "comparison"} and route.measurement and route.operation:
+                grounding_data = await asyncio.to_thread(analytics_grounding, route.measurement, route.operation, route.window_minutes, route.time_label, route.paddock_name, route.intent == "comparison")
+            elif route.intent == "summary":
+                grounding_data = await asyncio.to_thread(paddock_summary, route.paddock_name, route.window_minutes, route.time_label)
+            else:
+                grounding_data = await asyncio.to_thread(get_grounding_data, route.intent, route.paddock_name, route.measurement, route.operation, route.window_minutes)
+        except DatabaseUnavailable as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="The FarmPi database is unavailable.",
+            ) from exc
+        except NoFarmData as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="No current soil-moisture readings are available.",
+            ) from exc
+        database_ms = (time.perf_counter() - database_start) * 1000
 
     # Calculated responses and unavailable-boundary explanations are already
     # complete deterministic teaching material.  They do not need a language
@@ -702,6 +715,7 @@ async def ask(request: AskRequest) -> AskResponse:
         "model": "Qwen3-0.6B",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": learning_source_contract()},
             {"role": "system", "content": f"Use a {preferences.explanation_level} explanation level. Keep the farm-fact and decision boundaries in the system contract."},
             {"role": "system", "content": grounding_context},
             {"role": "user", "content": question_text},
@@ -720,6 +734,13 @@ async def ask(request: AskRequest) -> AskResponse:
         result = response.json()
         answer = result["choices"][0]["message"]["content"].strip()
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
+        if route.intent == "agriculture-learning":
+            return direct_action(
+                "I cannot generate a full general explanation while the local learning model is unavailable. I can still help with verified FarmPi readings, or you can try the question again shortly.",
+                route.intent,
+                source_category="educational",
+                source_tier="model-knowledge",
+            )
         raise HTTPException(
             status_code=503,
             detail="The local language model is unavailable or returned an invalid response.",
@@ -727,16 +748,18 @@ async def ask(request: AskRequest) -> AskResponse:
     llm_ms = (time.perf_counter() - llm_start) * 1000
 
     if not answer:
-        raise HTTPException(
-            status_code=503,
-            detail="The local language model returned an empty response.",
-        )
+        if route.intent == "agriculture-learning":
+            return direct_action(
+                "I do not have a generated explanation for that question yet. I can still help you inspect verified FarmPi data, or you can try again shortly.",
+                route.intent,
+                source_category="educational",
+                source_tier="model-knowledge",
+            )
+        raise HTTPException(status_code=503, detail="The local language model returned an empty response.")
 
     if route.intent == "agriculture-learning":
-        if is_research_question(question_text):
-            answer = f"No live web research was performed. This is a general agricultural explanation: {answer}"
-        else:
-            answer = f"General agricultural explanation: {answer}"
+        prefix = "No live web research was performed. General model-knowledge explanation:" if is_research_question(question_text) else "General model-knowledge explanation:"
+        answer = f"{prefix} {answer}"
 
     # Keep the observation identical but make explanation levels demonstrably
     # instructional rather than only changing Qwen's token limit.  These notes
@@ -778,4 +801,5 @@ async def ask(request: AskRequest) -> AskResponse:
         chart=grounding_data.chart,
         evidence=list(grounding_data.evidence),
         source_category=source_category,
+        source_tier="model-knowledge" if route.intent == "agriculture-learning" else "first-class-trusted" if source_category == "observational" else "mixed" if source_category == "combined" else "model-knowledge",
     )
