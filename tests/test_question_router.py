@@ -118,6 +118,30 @@ class QuestionRouterTests(unittest.TestCase):
         self.assertEqual(route.intent, "moisture-fallback")
         self.assertIsNone(route.paddock_name)
 
+    def test_generic_graph_requests_are_farm_wide_history_not_fake_paddocks(self) -> None:
+        cases = (
+            "Can you show me the soil moisture over 24 hours?",
+            "Show me a soil moisture graph",
+            "Can you show me a light day profile graph?",
+            "Show a day-night lighting graph please",
+        )
+        expected = ("soil_moisture_pct", "soil_moisture_pct", "light_lux", "light_lux")
+        for question, measurement in zip(cases, expected):
+            with self.subTest(question=question):
+                route = route_question(question)
+                self.assertEqual(route.intent, "historical")
+                self.assertEqual(route.measurement, measurement)
+                self.assertEqual(route.operation, "trend")
+                self.assertEqual(route.window_minutes, 1440)
+                self.assertIsNone(route.paddock_name)
+
+    def test_daylight_hours_route_keeps_graph_presentation(self) -> None:
+        route = route_question("Can you show me a graph relating to daylight hours?")
+        self.assertEqual((route.intent, route.measurement, route.operation), ("historical", "light_lux", "daylight"))
+        self.assertEqual(route.window_minutes, 1440)
+        self.assertEqual(route.presentation, "graph")
+        self.assertIsNone(route.paddock_name)
+
     def test_dynamic_names_history_rankings_and_rename_are_routed(self) -> None:
         route = route_question("What is the pasture height in North Flat?")
         self.assertEqual((route.intent, route.paddock_name, route.measurement), ("paddock-field", "North Flat", "pasture_height_cm"))
