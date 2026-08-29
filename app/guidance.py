@@ -3,26 +3,27 @@
 from __future__ import annotations
 
 WELCOME_TEXT = (
-    "FarmPi can list or count active paddocks and help you explore current verified sensor readings. "
-    "You can ask about soil moisture, temperature, humidity, pH, EC, light, rain, "
-    "pressure, wind, pasture height, and leaf wetness. Tap Guide me for examples."
+    "FarmPi is a conversational agricultural learning assistant. Ask naturally about your monitored farm data "
+    "or practical farming topics such as cows, sheep, pasture, soils, irrigation, weather, effluent, and animal health. "
+    "FarmPi keeps verified farm observations separate from general explanations and sourced guidance."
 )
 
 HELP_FACTS = (
-    "FarmPi can answer current verified moisture, soil/air temperature, humidity, pH, EC, light, rainfall, pressure, wind, pasture height, and leaf wetness readings.",
-    "FarmPi can deterministically identify the driest/wettest paddock, average moisture, approved rankings, rainfall totals, and limited historical change.",
-    "Useful example questions include: How many paddocks are we monitoring? What stats are available on Paddock B? What is Paddock 2's temperature? How much rainfall was there over the last 24 hours?",
+    "FarmPi can teach practical agricultural concepts and discuss dairy farming, cows, sheep, pasture, soils, irrigation, weather, effluent, animal health, farm systems, and related New Zealand agriculture.",
+    "FarmPi can also answer current verified soil moisture, soil/air temperature, humidity, pH, EC, light, rainfall, pressure, wind, pasture height, and leaf wetness questions from its monitored data.",
+    "FarmPi deterministically calculates supported farm averages, rankings, comparisons, rainfall totals, trends, and bounded historical analytics instead of asking the language model to invent or calculate those values.",
+    "Curated New Zealand sources include DairyNZ, MPI, Earth Sciences New Zealand, and Irrigation New Zealand. FarmPi labels source provenance and must not claim live research unless retrieval actually occurred.",
     "The current ESP32 readings are synthetic test telemetry and are marked as simulated in FarmPi.",
-    "FarmPi does not provide weather forecasts, irrigation recommendations, or agronomic causes. It can explain the factors that matter and its data limits. Daylight is a deterministic historical light-derived value.",
-    "FarmPi clarifies unknown paddocks, missing readings, interpretation limits, and genuine service failures rather than guessing farm facts.",
+    "For farm-specific decisions or diagnoses, FarmPi explains what is known, what other factors matter, and what can be learned next rather than pretending the available evidence proves an answer.",
+    "You do not need to learn a FarmPi command grammar: polite, indirect, colloquial, and ordinary learner wording can be interpreted semantically before controlled FarmPi operations are executed.",
 )
 
 INITIAL_SUGGESTIONS = (
-    "How many paddocks are we monitoring?",
-    "List the paddocks.",
+    "What can I learn about?",
+    "Why does soil moisture matter for pasture?",
+    "What does DairyNZ say about irrigation scheduling?",
     "What stats are available on Paddock B?",
-    "What is Paddock 2's temperature?",
-    "How do I use FarmPi?",
+    "Why do dairy cows get milk fever?",
 )
 
 
@@ -31,22 +32,29 @@ def follow_up_suggestions(
     paddock_name: str | None = None,
     measurement: str | None = None,
 ) -> tuple[str, ...]:
-    """Return small deterministic next-question prompts for the user interface."""
+    """Return a small set of next learning directions for the user interface."""
     if intent in {"help", "capability"}:
         return INITIAL_SUGGESTIONS[:3]
+
+    if intent in {"agriculture-learning", "agriculture-research", "conversation"}:
+        return (
+            "Can you explain that more simply?",
+            "What should I learn about next?",
+            "Is there a New Zealand source I can read about that?",
+        )
 
     if intent == "farm_inventory_count":
         return (
             "What stats are available on Paddock B?",
-            "What is the temperature in Paddock 2?",
             "Which paddock is driest?",
+            "Why does soil moisture vary between paddocks?",
         )
 
     if intent == "farm_inventory_list":
         return (
-            "How many paddocks are we monitoring?",
             "What stats are available on Paddock 2?",
             "Which paddock is driest?",
+            "What measurements are useful for understanding pasture conditions?",
         )
 
     if paddock_name:
@@ -55,40 +63,46 @@ def follow_up_suggestions(
             f"What is {paddock_name}'s air temperature?",
             f"What is {paddock_name}'s soil EC?",
             f"What is the pasture height in {paddock_name}?",
-            f"What is the rainfall in {paddock_name}?",
             f"How has {paddock_name} soil moisture changed over the last 24 hours?",
-            f"What does {measurement or 'soil moisture'} mean?",
+            "Why does soil moisture matter for pasture growth?",
+            "What does soil EC tell us and what can affect it?",
         )
         if measurement == "air_temperature_c":
-            return (candidates[2], candidates[0], candidates[5])
+            return (candidates[5], candidates[0], candidates[4])
         if measurement == "relative_humidity_pct":
-            return (candidates[1], candidates[0], candidates[5])
+            return ("How are humidity and temperature related?", candidates[0], candidates[4])
         if measurement in {"soil_ph", "soil_ec_ms_cm"}:
-            return (candidates[0], candidates[1], candidates[5])
+            return (candidates[6], candidates[0], candidates[4])
         if measurement in {"light_lux", "pasture_height_cm"}:
-            return (candidates[1], candidates[2], candidates[5])
-        return (candidates[1], candidates[2], candidates[5])
+            return ("What factors affect pasture growth?", candidates[1], candidates[4])
+        return (candidates[5], candidates[1], candidates[4])
 
-    if intent in {"driest", "wettest", "average", "moisture-fallback"}:
+    if intent in {"driest", "wettest", "average", "farm-average", "ranking", "comparison", "historical", "moisture-fallback"}:
         return (
-            "Which paddock is tallest?",
-            "What is Paddock A's soil EC?",
-            "Compare soil EC across all paddocks.",
-            "Show a graph of soil moisture over the last 24 hours.",
+            "Why might paddocks differ from each other?",
+            "Show me another measurement that could help explain this.",
+            "What should I be careful about when interpreting this data?",
         )
 
     if intent == "measurement-fallback":
         return (
-            "Which paddock is driest?",
-            "What is Paddock A's soil moisture?",
-            "How do I use FarmPi?",
+            "Compare that measurement across the paddocks.",
+            "What does that measurement mean?",
+            "Why is that useful on a farm?",
         )
 
-    if intent in {"unsupported", "irrigation-decision", "operational-decision", "forecast-boundary", "causal-boundary", "interpretation-boundary"}:
+    if intent in {"irrigation-decision", "operational-decision"}:
         return (
-            "How do I use FarmPi?",
-            "What is Paddock A's soil moisture?",
-            "Explain refill point and field capacity.",
+            "Explain the other factors that matter for that decision.",
+            "What does DairyNZ say about this topic?",
+            "What information would I need before making that decision?",
+        )
+
+    if intent in {"forecast-boundary", "causal-boundary", "interpretation-boundary", "semantic-clarification"}:
+        return (
+            "Can you explain what you do know about this topic?",
+            "What information would help answer this better?",
+            "What should I learn about next?",
         )
 
     return INITIAL_SUGGESTIONS[:3]

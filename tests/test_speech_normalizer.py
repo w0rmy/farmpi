@@ -15,6 +15,14 @@ class SpeechNormalizerTests(unittest.TestCase):
         self.assertTrue(result.correction_applied)
         self.assertEqual(result.correction_reason, "known-paddock-confusion")
 
+    def test_padlock_becomes_paddock_only_with_farm_context(self) -> None:
+        result = normalize_speech("What is the temperature in padlock B?")
+        self.assertEqual(result.normalized_transcript, "What is the temperature in paddock B?")
+        self.assertTrue(result.correction_applied)
+        unrelated = normalize_speech("The padlock is broken")
+        self.assertEqual(unrelated.normalized_transcript, "The padlock is broken")
+        self.assertFalse(unrelated.correction_applied)
+
     def test_patek_is_not_rewritten_without_farm_context(self) -> None:
         result = normalize_speech("Is Patek a good watch brand?")
         self.assertEqual(result.normalized_transcript, "Is Patek a good watch brand?")

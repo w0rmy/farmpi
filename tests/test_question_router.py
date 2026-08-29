@@ -26,6 +26,33 @@ class QuestionRouterTests(unittest.TestCase):
             "average",
         )
 
+    def test_farm_wide_current_average_and_rankings(self) -> None:
+        route = route_question("What is the average temperature across all fields?")
+        self.assertEqual((route.intent, route.measurement, route.operation), ("farm-average", "air_temperature_c", "average"))
+        self.assertIsNone(route.paddock_name)
+
+        route = route_question("What is the average air temperature across all paddocks?")
+        self.assertEqual((route.intent, route.measurement), ("farm-average", "air_temperature_c"))
+
+        route = route_question("What is the highest temperature?")
+        self.assertEqual((route.intent, route.measurement, route.operation), ("ranking", "air_temperature_c", "highest"))
+
+        route = route_question("Which field is coldest?")
+        self.assertEqual((route.intent, route.measurement, route.operation), ("ranking", "air_temperature_c", "lowest"))
+
+        route = route_question("Which field is hottest?")
+        self.assertEqual((route.intent, route.measurement, route.operation), ("ranking", "air_temperature_c", "highest"))
+
+    def test_field_is_a_paddock_alias(self) -> None:
+        self.assertEqual(route_question("List all fields").intent, "farm_inventory_list")
+        self.assertEqual(route_question("How many fields are we monitoring?").intent, "farm_inventory_count")
+
+        route = route_question("What is the temperature in Field 2?")
+        self.assertEqual((route.intent, route.paddock_name, route.measurement), ("paddock-field", "Paddock 2", "air_temperature_c"))
+
+        route = route_question("What is Field B's humidity?")
+        self.assertEqual((route.intent, route.paddock_name, route.measurement), ("paddock-field", "Paddock B", "relative_humidity_pct"))
+
     def test_help_and_onboarding(self) -> None:
         for question in (
             "How do I use FarmPi?",

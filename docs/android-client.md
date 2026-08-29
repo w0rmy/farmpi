@@ -4,11 +4,30 @@
 
 The initial learner client provides FarmPi status, typed input, a large native `SpeechRecognizer` control (up to five alternatives), native `TextToSpeech`, conversation display, Guide me/suggestions, Heard versus Interpreted speech display, explanation depth, guidance frequency, and a teach-by-doing Learn tab. It renders the backend's compact native bar/time-series chart payloads and can reveal the bounded evidence/data list; charts are never calculated on the phone. Explanation and guidance preferences are saved in device-local `SharedPreferences`, not in a learner account. The purpose-built FarmPi palette uses neutral charcoal surfaces with restrained green/grey accents rather than default pink/purple Material colours.
 
-The top-right settings cog moves secondary controls off the Ask screen to reduce cognitive load. It contains explanation depth, guidance frequency, six whole-app presentation presets (neutral, NZ red/white/blue, green/natural, dark high-contrast, yellow/black high-visibility, muted/low-stimulation), and compact/standard/large text density. These options apply consistently through Compose `MaterialTheme` and local display density, are stored in `SharedPreferences`, and never alter the facts or operations FarmPi exposes. They are bounded visual-flexibility evidence for Developing Flexible IT Courses - readability, contrast preference, cognitive comfort and learner adaptation - rather than an Android graphics or animation workstream.
+The large Speak control is also the immediate TTS stop control. While FarmPi is speaking it changes to **Stop**; tapping it cancels the current utterance immediately, and asking a new question also cancels any previous speech before the next response is spoken. The reply and suggested follow-up questions are shown before the Explanation and Guidance preference controls so the learner does not have to scroll past settings to read the answer.
 
 Speech alternatives are sent to `POST /api/speech/normalize`; FarmPi's existing deterministic server-side normalizer selects/corrects farm language before `POST /api/ask`. Typed text bypasses normalization. `POST /api/ask` is the single conversational contract; it may contain `answer`, `spoken_answer`, `intent`, suggestions, chart, evidence, source category, and speech-normalisation details. Android displays the detailed answer but speaks the concise `spoken_answer`, keeping precise timestamps and routine simulation provenance in the visual evidence path.
 
-The current client understands observational, educational and combined source categories. The 27 August 2026 learning architecture requires the contract/UI to expand, when those capabilities are implemented, to distinguish a FarmPi observation, deterministic calculation, curated authoritative New Zealand guidance, external research and general agricultural explanation. The app must not make a researched or general explanation look like a sensor fact; source, uncertainty and any supporting link should remain inspectable without making normal spoken answers cumbersome.
+## Text-to-speech diagnostics and robustness
+
+The Android client treats TTS as a separate presentation layer from the FarmPi answer itself. A correct text answer on screen therefore remains available even if the device speech engine fails.
+
+The client now:
+
+- waits for Android `TextToSpeech` initialisation before queuing speech;
+- checks for `en-NZ` support and falls back to an installed English locale when necessary;
+- selects an available English voice explicitly where Android exposes one;
+- cancels `SpeechRecognizer` before playback so STT and TTS are not competing for the same audio session;
+- gives each utterance a unique ID;
+- splits unusually long responses into bounded chunks before queuing them;
+- checks the return value from every `TextToSpeech.speak()` call;
+- records detailed `UtteranceProgressListener` success/error callbacks, including Android's TTS error code when available;
+- displays a small live Voice status line in the FarmPi UI; and
+- logs the exact text handed to the speech engine, the selected engine/locale/voice, chunk sizes, queue return values, and callback results using the Logcat tag `FarmPiTTS`.
+
+This diagnostic path was added after testing found cases where the full FarmPi response displayed correctly but the Android voice output said only a short unrelated word such as `no`. Because the display and voice are fed from the same returned guidance/answer payload, the diagnostics are intended to distinguish a backend-content problem from a device TTS engine, locale, voice, queue, or audio-session problem.
+
+For a repeat failure, inspect the on-screen Voice status and Android Studio Logcat filtered by `FarmPiTTS`. A useful trace should show the exact queued text followed by `speak result`, `onStart`, and either `onDone` or a specific `onError` code. This makes the speech fault observable rather than inferring it from what was heard.
 
 The app uses only HTTPS (`https://farmpi.local/` by default). It does not install a permissive trust manager or disable certificate checks. The included network-security configuration explicitly permits a user-installed FarmPi/Caddy local CA for `farmpi.local`; install the public local CA certificate through Android Settings on each test device, then confirm the Caddy certificate includes `farmpi.local`. Do not copy a CA private key or Wi-Fi/ingest secret into the project. A deployment that distributes the app may instead bundle the public CA in `res/raw` and replace the `user` trust anchor with that resource after normal certificate rotation procedures are defined.
 

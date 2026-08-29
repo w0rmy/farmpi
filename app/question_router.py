@@ -26,7 +26,8 @@ class QuestionRoute:
 
 _RENAME_RE = re.compile(r"^\s*rename\s+(.+?)\s+to\s+(.+?)[?.! ]*\s*$", re.IGNORECASE)
 _PADDOCK_RE = re.compile(r"\b(paddock\s+[a-z0-9_-]+)\b", re.IGNORECASE)
-_NUMBERED_PADDOCK_RE = re.compile(r"\b(?:paddock\s+)?number\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen)\b", re.IGNORECASE)
+_FIELD_RE = re.compile(r"\b(field\s+(?:\d+|[a-p]))\b", re.IGNORECASE)
+_NUMBERED_PADDOCK_RE = re.compile(r"\b(?:(?:paddock|field)\s+)?number\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen)\b", re.IGNORECASE)
 _POSSESSIVE_RE = re.compile(r"\b([a-z][a-z0-9 '&-]{0,98}?)'s\s+(?:soil\s+)?(?:moisture|temperature|humidity|ph|ec|light|rainfall|pressure|wind|pasture|grass|leaf)", re.IGNORECASE)
 _MEASUREMENT_LOCATION_RE = re.compile(r"\b(?:in|for|at)\s+([a-z][a-z0-9 '&-]{0,98}?)(?=\s+(?:over|during|in)\s+(?:the\s+)?(?:last|past)\b|[?!.]|$)", re.IGNORECASE)
 _WINDOW_RE = re.compile(r"\b(?:over|during|in)\s+(?:the\s+)?(?:last|past)\s+(?:(\d+)\s*)?(minutes?|mins?|hours?|hrs?|days?)\b", re.IGNORECASE)
@@ -53,20 +54,21 @@ _DECISION_RE = re.compile(r"\b(?:should|when\s+should|need\s+to|recommend(?:atio
 _CAUSAL_RE = re.compile(r"\b(?:why|reason(?:s)?|cause(?:d|s|ing)?)\b", re.IGNORECASE)
 _FORECAST_RE = re.compile(r"\b(?:weather|forecast)\b", re.IGNORECASE)
 _LEARNING_TOPIC_RE = re.compile(r"\b(?:field\s+capacity|refill\s+point|evapotranspiration|soil\s+water\s+holding\s+capacity)\b", re.IGNORECASE)
-_COMPARE_RE = re.compile(r"\b(?:compare|across\s+all\s+paddocks|all\s+paddocks|which\s+paddock.{0,30}(?:most|highest|lowest|least))\b", re.IGNORECASE)
+_COMPARE_RE = re.compile(r"\bcompare\b|\bacross\s+all\s+(?:paddocks?|fields?)\b|\ball\s+(?:paddocks?|fields?)\b", re.IGNORECASE)
+_FARM_SCOPE_RE = re.compile(r"\b(?:across|over)\s+(?:all\s+)?(?:paddocks?|fields?)\b|\bacross\s+the\s+farm\b|\bfarm(?:-|\s+)wide\b", re.IGNORECASE)
 _TODAY_RE = re.compile(r"\b(?:today|this\s+morning)\b", re.IGNORECASE)
 _GRAPH_RE = re.compile(r"\b(?:show\s+(?:a\s+)?graph|chart|trend\s+graph)\b", re.IGNORECASE)
 _EVIDENCE_RE = re.compile(r"\b(?:show\s+(?:the\s+)?(?:data|evidence)|why\??)\b", re.IGNORECASE)
-_INVENTORY_RE = re.compile(r"\bhow\s+many\s+(?:active\s+)?(?:paddocks?|sensor\s+nodes?)\b|\b(?:count|number)\s+of\s+(?:active\s+)?(?:paddocks?|sensor\s+nodes?)\b", re.IGNORECASE)
+_INVENTORY_RE = re.compile(r"\bhow\s+many\s+(?:active\s+)?(?:paddocks?|fields?|sensor\s+nodes?)\b|\b(?:count|number)\s+of\s+(?:active\s+)?(?:paddocks?|fields?|sensor\s+nodes?)\b", re.IGNORECASE)
 _INVENTORY_LIST_RE = re.compile(
-    # The wording is intentionally broad but requires a plural/farm-wide
-    # paddock target.  It therefore catches "list the names of all paddocks"
-    # without stealing a named-paddock request such as "tell me about Paddock B".
-    r"\b(?:list|show|name|identify|give\s+(?:me|us)|tell\s+(?:me|us))\b(?:\s+[a-z]+){0,8}\s+\bpaddocks\b"
-    r"|\bwhat\s+paddocks?\s+(?:are\s+)?(?:being\s+)?(?:monitored|active)\b"
-    r"|\bwhat\s+are\s+(?:the\s+)?(?:names?\s+of\s+)?(?:all\s+|active\s+|current\s+|monitored\s+)?paddocks?\b"
-    r"|\bwhich\s+paddocks?\s+(?:are\s+)?active\b"
-    r"|\blist\s+of\s+(?:all\s+)?(?:current\s+)?paddocks?\b",
+    # Field/fields are conversational aliases for paddock/paddocks; no new
+    # database entity is introduced by this wording.
+    r"\b(?:list|show|name|identify|give\s+(?:me|us)|tell\s+(?:me|us))\b(?:\s+[a-z]+){0,8}\s+\b(?:paddocks|fields)\b"
+    r"|\bwhat\s+(?:paddocks|fields)\s+(?:are\s+)?(?:being\s+)?(?:monitored|active)\b"
+    r"|\bwhat\s+are\s+(?:the\s+)?(?:names?\s+of\s+)?(?:all\s+|active\s+|current\s+|monitored\s+)?(?:paddocks|fields)\b"
+    r"|\bwhat\s+are\s+(?:the\s+)?(?:paddock|field)\s+names?\b"
+    r"|\bwhich\s+(?:paddocks|fields)\s+(?:are\s+)?active\b"
+    r"|\blist\s+of\s+(?:all\s+)?(?:current\s+)?(?:paddocks|fields)\b",
     re.IGNORECASE,
 )
 _PADDOCK_SUMMARY_RE = re.compile(r"\b(?:what\s+(?:stats|data|measurements?)\s+(?:are|do)\s+(?:available|we\s+have)|what\s+are\s+we\s+monitoring|tell\s+me\s+about|what\s+do\s+we\s+know\s+about)\b", re.IGNORECASE)
@@ -76,7 +78,11 @@ _SUMMARY_TARGET_RE = re.compile(r"\b(?:tell\s+me\s+about|what\s+do\s+we\s+know\s
 
 def _canonical_paddock_name(name: str) -> str:
     name = " ".join(name.split())
-    if name.casefold().startswith("paddock "):
+    folded = name.casefold()
+    if folded.startswith("field "):
+        name = "Paddock " + name[6:].strip()
+        folded = name.casefold()
+    if folded.startswith("paddock "):
         suffix = name[8:].strip()
         return f"Paddock {suffix.upper() if suffix.isalpha() and len(suffix) <= 3 else suffix}"
     return name
@@ -84,13 +90,14 @@ def _canonical_paddock_name(name: str) -> str:
 
 def _extract_paddock(question: str, *, allow_measurement_location: bool = False) -> str | None:
     """Extract only a candidate; dynamic resolution happens against MariaDB."""
-    direct_matches = _PADDOCK_RE.findall(question)
-    if len(direct_matches) > 1:
+    paddock_matches = _PADDOCK_RE.findall(question)
+    field_matches = _FIELD_RE.findall(question)
+    if len(paddock_matches) + len(field_matches) > 1:
         return None
     numbered = _NUMBERED_PADDOCK_RE.search(question)
-    if numbered and ("paddock" in question.casefold() or _FOLLOW_UP_RE.match(question) or measurement_for_text(question)):
+    if numbered and (("paddock" in question.casefold() or "field" in question.casefold()) or _FOLLOW_UP_RE.match(question) or measurement_for_text(question)):
         return _canonical_paddock_name(numbered.group(0))
-    direct = _PADDOCK_RE.search(question)
+    direct = _PADDOCK_RE.search(question) or _FIELD_RE.search(question)
     if direct and direct.group(1).casefold() not in {"paddock is", "paddock are"}:
         return _canonical_paddock_name(direct.group(1))
     possessive = _POSSESSIVE_RE.search(question)
@@ -104,7 +111,7 @@ def _extract_paddock(question: str, *, allow_measurement_location: bool = False)
     if location:
         candidate = location.group(1).strip(" '")
         candidate = re.sub(r"\s+(?:today|this\s+morning)$", "", candidate, flags=re.IGNORECASE)
-        if candidate.casefold() not in {"the farm", "farm", "a paddock", "paddock"} and not candidate.casefold().startswith(("last ", "past ")):
+        if candidate.casefold() not in {"the farm", "farm", "a paddock", "paddock", "a field", "field"} and not candidate.casefold().startswith(("last ", "past ")):
             return _canonical_paddock_name(candidate)
     summary_target = _SUMMARY_TARGET_RE.search(question)
     if summary_target:
@@ -173,7 +180,9 @@ def route_question(question: str) -> QuestionRoute:
     time_label = today_match.group(0).casefold() if today_match else None
     if time_label and not window:
         window = 1440
-    comparison = bool(_COMPARE_RE.search(question))
+    farm_scope = bool(_FARM_SCOPE_RE.search(question))
+    explicit_compare = bool(re.search(r"\bcompare\b", question, re.IGNORECASE))
+    comparison = explicit_compare or (bool(_COMPARE_RE.search(question)) and not (farm_scope and bool(_AVERAGE_RE.search(question))))
 
     follow_up = _FOLLOW_UP_RE.match(question)
     if follow_up and paddock:
@@ -223,19 +232,18 @@ def route_question(question: str) -> QuestionRoute:
     if measurement == "soil_moisture_pct" and _AVERAGE_RE.search(question):
         return QuestionRoute("average")
 
-    if measurement and RANKING in BY_KEY[measurement].operations:
-        if _RANK_HIGH_RE.search(question):
+    if measurement and _AVERAGE_RE.search(question):
+        if AVERAGE in BY_KEY[measurement].operations and paddock is None:
+            return QuestionRoute("farm-average", measurement=measurement, operation=AVERAGE, presentation=presentation)
+        return QuestionRoute("interpretation-boundary", measurement=measurement)
+
+    if measurement:
+        if _RANK_HIGH_RE.search(question) and (RANKING in BY_KEY[measurement].operations or MAXIMUM in BY_KEY[measurement].operations):
             return QuestionRoute("ranking", measurement=measurement, operation="highest", presentation=presentation)
-        if _RANK_LOW_RE.search(question):
+        if _RANK_LOW_RE.search(question) and (RANKING in BY_KEY[measurement].operations or MINIMUM in BY_KEY[measurement].operations):
             return QuestionRoute("ranking", measurement=measurement, operation="lowest", presentation=presentation)
 
-    if measurement and (_RANK_HIGH_RE.search(question) or _RANK_LOW_RE.search(question) or _AVERAGE_RE.search(question)):
-        # “Field” is a natural learner synonym for paddock, but is not a
-        # configured FarmPi entity name.  Do not expand this fast router with
-        # paraphrase-specific rules; allow semantic interpretation to resolve
-        # the farm-wide request against the approved context instead.
-        if re.search(r"\b(?:all|every)\s+(?:the\s+)?fields?\b", question, re.IGNORECASE):
-            return QuestionRoute("conversation", measurement=measurement)
+    if measurement and (_RANK_HIGH_RE.search(question) or _RANK_LOW_RE.search(question)):
         return QuestionRoute("interpretation-boundary", measurement=measurement)
 
     if paddock:

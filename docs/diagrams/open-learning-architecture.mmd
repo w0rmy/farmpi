@@ -1,0 +1,29 @@
+flowchart TD
+    U["Learner\nTyped or spoken natural language"] --> S["Speech/domain normalisation\nwhen applicable"]
+    S --> R["Fast deterministic router\nfor obvious requests"]
+    R -->|"ambiguous / colloquial / source-oriented / action-like"| I["Semantic learner-intent interpreter\nstructured intent + confidence"]
+    R -->|"unambiguous"| X["Reviewed FarmPi operation"]
+    I -->|"high confidence"| X
+    I -->|"low confidence action"| C["Ask learner to clarify"]
+
+    X --> D{"What does the learner need?"}
+    D --> O["FarmPi observations\nMariaDB / validated telemetry"]
+    D --> A["Deterministic analytics\naverage / ranking / trend / comparison"]
+    D --> K["Curated NZ agricultural sources\nDairyNZ / MPI / ESNZ / IrrigationNZ"]
+    D --> G["General agricultural explanation"]
+    D --> M["State-changing action"]
+
+    M --> V["Deterministic validation\nidentity / permissions / confirmation"]
+    V --> DB["Database mutation + audit"]
+
+    O --> P["Provenance-labelled context"]
+    A --> P
+    K --> P
+    G --> P
+    P --> L["Qwen teaching / explanation\nshort, adaptive response"]
+    L --> N["One useful next learning direction"]
+
+    O -. "authoritative for this farm" .-> P
+    A -. "authoritative FarmPi calculation" .-> P
+    K -. "attribute only reviewed/retrieved claims" .-> P
+    G -. "general knowledge, not farm evidence" .-> P
