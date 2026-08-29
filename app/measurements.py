@@ -55,7 +55,7 @@ MEASUREMENTS: tuple[Measurement, ...] = (
                 frozenset({CURRENT, AVERAGE, MINIMUM, MAXIMUM, CHANGE, TREND, RANGE, COMPARISON}), "line", "soil_ph"),
     Measurement("soil_ec_ms_cm", "soil electrical conductivity", "mS/cm", ("soil electrical conductivity", "soil ec", "electrical conductivity", "ec"), 0, 20, 2,
                 frozenset({CURRENT, RANKING, AVERAGE, MINIMUM, MAXIMUM, CHANGE, TREND, RANGE, COMPARISON, ANOMALY}), "line", "soil_ec"),
-    Measurement("light_lux", "light", "lux", ("light level", "light", "lux", "illumination", "brightness"), 0, 200000, 0,
+    Measurement("light_lux", "light", "lux", ("light level", "light", "lighting", "daylight", "lux", "illumination", "brightness"), 0, 200000, 0,
                 frozenset({CURRENT, AVERAGE, MINIMUM, MAXIMUM, CHANGE, DAYLIGHT, TREND, RANGE, COMPARISON}), "line", "light_lux"),
     Measurement("rainfall_mm", "rainfall", "mm", ("rainfall", "rain"), 0, 100, 2,
                 frozenset({CURRENT, RANKING, AVERAGE, MAXIMUM, SUM, TREND, COMPARISON}), "bar", "rainfall"),
