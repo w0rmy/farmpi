@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from statistics import fmean, pstdev
+from statistics import fmean, median, pstdev
 from typing import Any, Iterable
 
-from .measurements import SUM, format_measurement, measurement
+from .measurements import DAYLIGHT, SUM, format_measurement, measurement
 
 
 @dataclass(frozen=True)
@@ -43,6 +43,24 @@ def evidence_from_rows(rows: Iterable[dict[str, Any]]) -> tuple[EvidenceItem, ..
     return tuple(result)
 
 
+def _farm_average_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse simultaneous paddock observations into one farm-average time series."""
+    grouped: dict[object, list[dict[str, Any]]] = {}
+    for row in rows:
+        grouped.setdefault(row.get("analysis_at"), []).append(row)
+    averaged: list[dict[str, Any]] = []
+    for when, items in grouped.items():
+        averaged.append({
+            "name": "Farm average",
+            "sensor_uid": None,
+            "value": fmean(float(item["value"]) for item in items),
+            "analysis_at": when,
+            "simulated": any(bool(item.get("simulated")) for item in items),
+        })
+    averaged.sort(key=lambda row: row.get("analysis_at") or datetime.min)
+    return averaged
+
+
 def line_chart(key: str, rows: list[dict[str, Any]], period: str, title_scope: str) -> dict[str, Any] | None:
     if len(rows) < 2:
         return None
@@ -74,10 +92,16 @@ def historical_analysis(key: str, operation: str, rows: list[dict[str, Any]], pe
     """Calculate approved descriptive facts from already validated rows."""
     if not rows:
         return AnalyticsResult((f"No verified {measurement(key).label} history is available for {scope} over {period}.",), ())
-    values = [float(row["value"]) for row in rows]
-    item = measurement(key)
+
+    # Generic history/graph questions with no named paddock represent the farm
+    # as one readable average time series. The raw paddock rows remain the
+    # evidence trail; only the visual/analytic presentation is aggregated.
     evidence = evidence_from_rows(rows)
-    chart = line_chart(key, rows, period, scope)
+    analysis_rows = _farm_average_rows(rows) if scope == "the farm" and len({str(row.get("name")) for row in rows}) > 1 else rows
+    values = [float(row["value"]) for row in analysis_rows]
+    item = measurement(key)
+    chart = line_chart(key, analysis_rows, period, "farm average" if analysis_rows is not rows and scope == "the farm" else scope)
+
     if operation == SUM:
         value, name = sum(values), "total"
     elif operation == "average":
@@ -90,13 +114,31 @@ def historical_analysis(key: str, operation: str, rows: list[dict[str, Any]], pe
         value, name = max(values) - min(values), "range"
     elif operation == "change":
         value, name = values[-1] - values[0], "change"
+    elif operation == DAYLIGHT:
+        times = [row.get("analysis_at") for row in analysis_rows if isinstance(row.get("analysis_at"), datetime)]
+        intervals = [
+            (later - earlier).total_seconds() / 60
+            for earlier, later in zip(times, times[1:])
+            if later > earlier
+        ]
+        sample_minutes = median(intervals) if intervals else 5.0
+        daylight_hours = sum(1 for value in values if value >= 1000) * sample_minutes / 60
+        return AnalyticsResult(
+            (
+                f"Recorded daylight for {scope} over {period}: about {daylight_hours:.2f} hours with light at or above 1,000 lux.",
+                "This is derived from the recorded light profile, not an astronomical sunrise/sunset calculation.",
+            ),
+            evidence,
+            chart,
+        )
     elif operation == "trend":
-        first, last = rows[0], rows[-1]
+        first, last = analysis_rows[0], analysis_rows[-1]
         first_time, last_time = first.get("analysis_at"), last.get("analysis_at")
         hours = ((last_time - first_time).total_seconds() / 3600) if isinstance(first_time, datetime) and isinstance(last_time, datetime) else 0
         rate = (values[-1] - values[0]) / hours if hours > 0 else 0.0
         direction = "rising" if rate > 0.0001 else "falling" if rate < -0.0001 else "stable"
-        return AnalyticsResult((f"{scope} {item.label} trend over {period}: {direction} at {format_measurement(abs(rate), key)} per hour (first-to-last deterministic rate).", "This describes the selected observations; it is not a forecast or causal claim."), evidence, chart)
+        scope_label = "farm-average" if analysis_rows is not rows and scope == "the farm" else scope
+        return AnalyticsResult((f"{scope_label} {item.label} trend over {period}: {direction} at {format_measurement(abs(rate), key)} per hour.", "This describes the selected observations; it is not a forecast or causal claim."), evidence, chart)
     elif operation == "anomaly":
         baseline = fmean(values)
         deviation = pstdev(values) if len(values) >= 2 else 0.0
@@ -107,8 +149,9 @@ def historical_analysis(key: str, operation: str, rows: list[dict[str, Any]], pe
             message = f"Latest {item.label} is not a simple two-standard-deviation outlier against this period's baseline."
         return AnalyticsResult((message, "This is descriptive anomaly flagging, not a diagnosis."), evidence, chart)
     else:
-        return AnalyticsResult(("The requested deterministic operation is unavailable for this measurement.",), evidence, chart)
-    return AnalyticsResult((f"{scope} {name} {item.label} over {period}: {format_measurement(value, key)}.",), evidence, chart)
+        return AnalyticsResult((f"I can show the recorded {item.label}, but that calculation is not available for this view.",), evidence, chart)
+    scope_label = "farm-average" if analysis_rows is not rows and scope == "the farm" else scope
+    return AnalyticsResult((f"{scope_label} {name} {item.label} over {period}: {format_measurement(value, key)}.",), evidence, chart)
 
 
 def compare_paddocks(key: str, operation: str, rows: list[dict[str, Any]], period: str) -> AnalyticsResult:
