@@ -284,8 +284,6 @@ private fun FarmPiApp() {
         val clean = ttsSpeechText(text).trim()
         if (clean.isEmpty()) return
 
-        // Stop recognition before playback so STT and TTS do not compete for
-        // the same audio session on devices which manage them aggressively.
         recognizerHolder[0]?.cancel()
         tts.stop()
         isSpeaking = false
@@ -481,7 +479,18 @@ private fun FarmPiApp() {
                 sourceTier?.let {
                     Text("Evidence tier: ${it.replace('-', ' ')}", modifier = Modifier.fillMaxWidth().padding(top = 6.dp), style = MaterialTheme.typography.bodySmall)
                 }
-                chart?.let { ChartCard(it) }
+                chart?.let { chartPayload ->
+                    EnhancedChartCard(
+                        title = chartPayload.title,
+                        unit = chartPayload.unit,
+                        period = chartPayload.period,
+                        provenance = chartPayload.provenance,
+                        baseType = chartPayload.type,
+                        series = chartPayload.series.map { (name, points) ->
+                            GraphSeries(name, points.map { GraphPoint(it.label, it.value) })
+                        },
+                    )
+                }
                 if (evidence.isNotEmpty() || provenance.isNotEmpty()) {
                     TextButton(onClick = { showEvidence = !showEvidence }) {
                         Text(if (showEvidence) "Hide sources / evidence" else "Show sources / evidence")
@@ -665,9 +674,13 @@ private object FarmPiApi {
             .put("preferences", JSONObject().put("explanation_level", explanation).put("guidance_level", guidance))
         if (conversationId != null) body.put("conversation_id", conversationId)
         val json = request("api/ask", "POST", body)
+        val answerText = json.getString("answer")
+        val spokenText = (json.opt("spoken_answer") as? String)
+            ?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) && !it.equals("none", ignoreCase = true) }
+            ?: answerText
         AskResult(
-            json.getString("answer"),
-            json.optString("spoken_answer", json.getString("answer")),
+            answerText,
+            spokenText,
             json.optJSONArray("suggestions").strings(),
             json.optString("intent"),
             json.optString("conversation_id").takeIf { it.isNotBlank() },
