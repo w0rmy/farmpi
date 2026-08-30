@@ -21,6 +21,7 @@ Synthetic telemetry is test evidence, not an agronomic model, forecast, or recom
 - [ESP32 simulator and telemetry](firmware/esp32-sensor/README.md)
 - [Data, analytics, and API contract](docs/data-and-api.md)
 - [Learning design, grounding, and sources](docs/learning-and-sources.md)
+- [Embedded flexible IT course design](docs/course-design.md)
 - [Testing and evaluation](docs/testing-and-evaluation.md)
 - [Capstone outcome governance](docs/capstone-governance.md)
 - [Development record](docs/development-record.md)

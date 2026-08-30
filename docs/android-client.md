@@ -15,7 +15,9 @@ The Android app deliberately performs presentation and device I/O only. It does 
 - immediate Stop behaviour on the same large button while speech is active;
 - robust TTS chunking, state, diagnostics, and pronunciation adjustments for `FarmPi` and `DairyNZ`;
 - Ask and Learn tabs, Guide me, and context-sensitive next questions;
-- teach-by-doing prompts for data, agricultural learning, source use, and safety boundaries;
+- a backend-controlled five-module course with a visible Learn → Try → Ask → Check → Continue pattern, free module navigation, and a recommended return path;
+- local-only current-module and Try/check/module progress that survives restart; no learner account, cloud sync, grades, badges, or analytics;
+- Return to Module and contextual Learn about this actions that reuse the normal Ask conversation rather than create a second conversation engine;
 - backend-supplied line/bar charts and bounded evidence;
 - expandable source/provenance display;
 - explanation depth and guidance-frequency preferences;
@@ -34,7 +36,7 @@ Themes are lightweight Material colour schemes applied consistently across the a
 - yellow/black high visibility;
 - muted/low stimulation.
 
-Text density changes Compose font scaling for compact, standard, or large presentation. These options are evidence for Developing Flexible IT Courses - visual flexibility, readability, contrast preference, cognitive comfort, and learner adaptation - rather than a separate graphics project. They do not change any answer fact, evidence, operation, or learning objective.
+Text size changes Compose font scaling for compact, standard, or large presentation. These options are evidence for Developing Flexible IT Courses - visual flexibility, readability, contrast preference, cognitive comfort, and learner adaptation - rather than a separate graphics project. They do not change any answer fact, evidence, operation, or learning objective.
 
 ## Voice behaviour and diagnostics
 
@@ -70,8 +72,9 @@ Never distribute Caddy's private CA key, database credentials, or the ESP32 inge
 
 - `GET /api/status` checks connection/dependency health.
 - `GET /api/guidance` loads reviewed onboarding and suggestions.
+- `GET /api/learning/course` loads the reviewed aim, outcomes, modules, Try/check metadata, and context-to-module mappings.
 - `POST /api/speech/normalize` normalises spoken alternatives.
-- `POST /api/ask` is the single conversation contract.
+- `POST /api/ask` is the single conversation contract. A course launch supplies only the reviewed `course_module_id`; the server validates it and never accepts client-provided course prompt text.
 
 Android displays the detailed answer and speaks `spoken_answer`. It renders server-provided charts, evidence, source category/tier, and provenance. Backend error details are surfaced when safe; connection/certificate failures remain distinct from a valid FarmPi request that could not be completed.
 
@@ -105,5 +108,8 @@ On macOS/Linux use `./gradlew assembleDebug`.
 - all six themes remain readable across Ask, Learn, settings, cards, charts, and navigation;
 - compact/standard/large text does not clip controls or evidence;
 - settings survive process restart;
+- the course loads, all five modules are reachable, the recommended sequence and free navigation both work, and local progress survives restart;
+- Try completion is recognised after its real response intent, Check remains a self-reflection rather than a grade, and Return to Module preserves the active module after follow-ups;
+- course quick actions retain module context; contextual Learn about this links open the relevant module;
 - sources/evidence remain inspectable and are not calculated by the phone;
 - certificate failure remains visible and no insecure trust bypass exists.

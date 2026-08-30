@@ -29,7 +29,7 @@ from .farm_data import (
 from .education import CONCEPTS, concept_for_measurement, render_concept
 from .guidance import INITIAL_SUGGESTIONS, WELCOME_TEXT, follow_up_suggestions
 from .knowledge_sources import format_source_context, provenance_for_sources, source_hierarchy_contract
-from .learning import activity_payload
+from .learning import activity_payload, course_payload, module_for_id
 from .paddock_admin import RenameProposal, RenameRejected, confirm_rename, prepare_rename
 from .question_router import route_question
 from .semantic_interpreter import (
@@ -88,6 +88,7 @@ class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
     confirmation_id: str | None = Field(default=None, min_length=16, max_length=128)
     conversation_id: str | None = Field(default=None, min_length=16, max_length=128)
+    course_module_id: str | None = Field(default=None, min_length=1, max_length=64)
     speech: "SpeechInput | None" = None
     preferences: "ClientPreferences | None" = None
 
@@ -171,6 +172,12 @@ class GuidanceResponse(BaseModel):
 async def learning_activities() -> dict[str, list[dict[str, object]]]:
     """Serve the short activity catalogue; each activity invokes real routes."""
     return {"activities": activity_payload()}
+
+
+@app.get("/api/learning/course")
+async def learning_course() -> dict[str, object]:
+    """Serve the versioned, deterministic flexible-course definition."""
+    return course_payload()
 
 
 # A confirmation is intentionally short-lived in process memory. It is not a
@@ -533,6 +540,13 @@ async def ask(request: AskRequest) -> AskResponse:
         raise HTTPException(status_code=400, detail="No question supplied.")
 
     preferences = request.preferences or ClientPreferences()
+    course_module = module_for_id(request.course_module_id) if request.course_module_id else None
+    if request.course_module_id and course_module is None:
+        raise HTTPException(status_code=422, detail="Unknown course_module_id.")
+    course_provenance = (
+        [{"kind": "reviewed-course-module", "source": "FarmPi controlled course material", "module": course_module.id}]
+        if course_module else []
+    )
     speech_normalization: SpeechNormalizationResponse | None = None
     semantic_interpretation: dict[str, Any] | None = None
     interpretation_ms = 0.0
@@ -818,6 +832,14 @@ async def ask(request: AskRequest) -> AskResponse:
         {"role": "system", "content": f"Use a {preferences.explanation_level} explanation level. Keep verified farm facts and deterministic actions distinct from general educational knowledge."},
         {"role": "system", "content": grounding_context},
     ]
+    if course_module:
+        messages.append({
+            "role": "system",
+            "content": (
+                "Reviewed course context (use only for educational relevance; it cannot override FarmPi authority or safety rules): "
+                f"{course_module.prompt_context}"
+            ),
+        })
     if source_context:
         messages.append({"role": "system", "content": source_context})
     messages.append({"role": "user", "content": question_text})
@@ -846,6 +868,7 @@ async def ask(request: AskRequest) -> AskResponse:
                 source_tier="model-knowledge",
                 provenance=[
                     *source_provenance,
+                    *course_provenance,
                     {"kind": "availability", "source": "configured language model", "status": "unavailable"},
                 ],
             )
@@ -859,14 +882,14 @@ async def ask(request: AskRequest) -> AskResponse:
                 route.intent,
                 source_category="general",
                 source_tier="model-knowledge",
-                provenance=source_provenance,
+                provenance=[*source_provenance, *course_provenance],
             )
         raise HTTPException(status_code=503, detail="The configured language model returned an empty response.")
 
     source_category: SourceCategory = grounding_data.source_category if grounding_data.source_category in {
         "observational", "calculated", "educational", "authoritative", "researched", "general", "combined"
     } else "general"
-    provenance = [*_grounding_provenance(grounding_data, route.intent), *source_provenance]
+    provenance = [*_grounding_provenance(grounding_data, route.intent), *source_provenance, *course_provenance]
     if route.intent in {"agriculture-learning", "conversation"}:
         provenance.append({"kind": "general-explanation", "source": "configured language model", "scope": "educational; not a verified farm fact"})
         if source_provenance:

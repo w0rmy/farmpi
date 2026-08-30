@@ -11,7 +11,7 @@ python -m unittest discover -s tests -v
 python -m compileall -q app tests
 ```
 
-The suite covers measurement validation, telemetry time/sequence behaviour, database operations, deterministic analytics, paddock identity and rename confirmation, speech normalisation, semantic interpretation, source hierarchy, LLM compatibility, response provenance, and fallback behaviour. Add a controlled fixture whenever a new calculation, route, source claim, or state-changing operation is introduced.
+The suite covers measurement validation, telemetry time/sequence behaviour, database operations, deterministic analytics, paddock identity and rename confirmation, speech normalisation, semantic interpretation, source hierarchy, LLM compatibility, response provenance, fallback behaviour, and the course contract (unique IDs, outcome/next-module/intents mappings, deterministic payload, invalid module rejection, and controlled reviewed prompt context). Add a controlled fixture whenever a new calculation, route, source claim, or state-changing operation is introduced.
 
 Farm facts must be testable without an LLM. Tests for current readings, history, comparisons, device state, timestamps, and calculations must assert exact deterministic results and must not substitute generated text for database evidence.
 
@@ -23,7 +23,9 @@ Build the debug client from `clients/android`:
 .\gradlew.bat :app:assembleDebug
 ```
 
-Then test on a device that trusts the FarmPi development certificate. Check text and speech input, visible and spoken output, TTS stop/retry behaviour, charts, evidence/provenance, all six themes, compact/standard/large text density, preference persistence, and operation when TTS is unavailable. Exercise both portrait and landscape layouts and at least one small display.
+Then test on a device that trusts the FarmPi development certificate. Check text and speech input, visible and spoken output, TTS stop/retry behaviour, charts, evidence/provenance, all six themes, compact/standard/large text size, preference persistence, and operation when TTS is unavailable. Exercise both portrait and landscape layouts and at least one small display.
+
+For the course, confirm that it loads, every one of the five modules opens, the recommended sequence and direct navigation both work, progress survives a restart, a matching real response marks a Try complete, and Check is not represented as a grade. Launch Try/Ask, ask several quick/follow-up questions, use Return to Module, and confirm the original module remains active. Check contextual Learn about this links, evidence/source inspection, all themes and text sizes on the course screens, and portrait/landscape/small-screen behaviour.
 
 ## Raspberry Pi deployment checks
 

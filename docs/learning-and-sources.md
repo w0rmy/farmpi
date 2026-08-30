@@ -66,7 +66,11 @@ The response's source category summarises the mix (`observational`, `calculated`
 
 Simple, Normal, and Technical change instructional depth, not the underlying fact. More, Normal, and Less change the number of proactive suggestions. The Android app stores these choices locally.
 
-`GET /api/learning/activities` exposes real tasks covering onboarding, a named paddock, comparisons, moisture extrema, a trend, measurement meaning, provenance, irrigation-decision limits, and evidence inspection. Success is based on actual route intents, not a static course checkbox. There is no account system, grading engine, or full LMS.
+`GET /api/learning/course` exposes the controlled course aim, four learning outcomes, five modules, reviewed Try prompts, success intents, lightweight self-checks, next-module references, and bounded response-intent mappings. It is source-controlled deterministic content, not an LLM-generated course. `GET /api/learning/activities` remains as a compatible concise activity catalogue.
+
+The Android Learn tab presents the five modules as **Learn → Try → Ask → Check → Continue**. A Try becomes complete from a matching real returned intent where possible; a Check is learner reflection, not an assessment or grade. It stores only current/last module and completed Try/check/module markers in device-local preferences. Learners may follow the recommended sequence or open any module directly, and can return after a bounded ordinary `/api/ask` follow-up conversation.
+
+Course-aware requests send a validated module id only. The backend supplies the corresponding reviewed context to model-assisted explanations and records it in provenance. It never treats Android text as system/course prompt material. Small course quick actions use the existing `conversation_id`; contextual Learn about this links use the reviewed response-intent mappings rather than cluttering every response with generic help.
 
 The Android settings cog also offers six whole-app presentation themes and compact/standard/large text density. These support readability, contrast preference, cognitive comfort, and learner adaptation without changing content or facts. No custom artwork or animation workstream is intended.
 

@@ -11,6 +11,7 @@ This directory describes the current FarmPi implementation. The repository code 
 | [Android client](android-client.md) | Build requirements, HTTPS trust, UI, voice behaviour, settings, themes, and API consumption. |
 | [Data and API](data-and-api.md) | Measurements, ingest contract, clocks, storage, analytics, response payloads, and rename operation. |
 | [Learning and sources](learning-and-sources.md) | Flexible-learning design, grounding, semantic routing, source hierarchy, provenance, and safety. |
+| [Course design](course-design.md) | Aim, outcomes, module alignment, flexible pathways, AI limits, and scope control for the embedded course. |
 | [Testing and evaluation](testing-and-evaluation.md) | Automated checks, deployment validation, usability evaluation, and capstone evidence collection. |
 | [Capstone governance](capstone-governance.md) | Immutable outcome focus and IoT scope-control gate. |
 | [Development record](development-record.md) | Material design decisions, rationale, scope controls, evidence mapping, and verification. |

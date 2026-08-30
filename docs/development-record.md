@@ -2,6 +2,41 @@
 
 This record captures material design decisions and their outcome/evidence rationale. Current operating instructions live in the subject guides; historical performance measurements live under `docs/history`.
 
+## 30 August 2026 - formal embedded flexible IT course
+
+### Problem
+
+FarmPi already supported natural-language Ask/Guide me, real teach-by-doing prompts, explanation and guidance adaptation, voice, themes, text sizing, charts, evidence/provenance, and bounded follow-up conversations. However, the Android Learn tab was a separate hard-coded flat prompt list while the backend exposed a different activity catalogue. The implementation demonstrated useful learning facilities but not a recognisable, coherent course with an aim, outcomes, sequence, return point, or authentic completion activity.
+
+### Research-informed design decisions
+
+- Replaced the flat catalogue as the primary learning model with one reviewed, version-controlled deterministic course definition in `app/learning.py`. It has an explicit aim, four learning outcomes, five modules, linked outcomes, controlled content, real Try instructions, success intents, quick prompts, lightweight checks, next-module references, and response-intent mappings. The older activities endpoint remains as a compatible projection rather than becoming a competing curriculum.
+- Made the five modules visible as **Learn → Try → Ask → Check → Continue**: Getting Started; Understanding the Application; Using the AI Learning Assistant; Getting Help and Solving Problems; and Putting It Together. The final module is an authentic evidence-informed FarmPi enquiry, not a large multiple-choice quiz.
+- Chose a recommended pathway without lock-in. Learners can open modules directly and return after exploration. Local preferences retain only the current/last module plus completed Try/check/module markers, deliberately avoiding accounts, cloud sync, grades, badges, profiles, or analytics.
+- Reused real route intents as Try evidence. A matching genuine response can mark a Try complete, while Check is explicitly a learner reflection and not a claimed measure of competence.
+- Kept the ordinary `/api/ask` conversation as the sole AI path. Quick actions request simpler/deeper/example explanations or one short learner-facing understanding question; they reuse the existing bounded conversation token and retain course context.
+- Added bounded course-aware context. Android can supply only `course_module_id`; the API validates it against the canonical course and contributes only the matching reviewed context to model-assisted messages. It records reviewed-course-module provenance. Client text cannot inject course/system instructions, and deterministic farm authority, source hierarchy, and confirmation boundaries remain unchanged.
+- Made Module 3 state the AI/data distinction directly: AI can explain and be challenged, but is not automatically correct; deterministic FarmPi observations/calculations and model knowledge differ; important information should be checked. Module 4 also explains clarification, provenance, and the absence of live web search.
+- Reused the six existing themes, compact/standard/large text-size choices, voice, explanation depth, guidance frequency, and selectable charts. Settings wording now says Accessibility and learning settings / Text size. This provides adaptable presentation without claiming WCAG or other accessibility compliance.
+
+### Outcome, scope, and evidence mapping
+
+| Change | Outcome contribution | Scope control |
+|---|---|---|
+| Controlled aim/outcomes/modules and coherent learning pattern | Developing Flexible IT Courses: constructive alignment, guided and self-directed pathways, authentic activity | No LMS, gradebook, accounts, or content generator |
+| Local progress and Return to Module | Developing Flexible IT Courses: temporal flexibility and learner agency | Device-local minimal state only; no cloud or learner analytics |
+| Contextual AI quick actions and reviewed module context | Developing Flexible IT Courses: iterative explanation and help; AI and Data Sciences: constrained, inspectable model context | One existing conversation/API; no AI agent or arbitrary client prompt authority |
+| Evidence/chart/source-aware modules and AI limitations | AI and Data Sciences: provenance, deterministic authority, critical model use | No farm decision, new control function, or live web-search claim |
+| Theme/text/voice/chart reuse across course UI | Developing Flexible IT Courses: presentation/access flexibility | No custom artwork, animation, or broad Android redesign |
+
+This passes the capstone outcome gate because each change directly supports Developing Flexible IT Courses and/or AI and Data Sciences. It does not add farm-monitoring, IoT, sensor, LoRa, cloud, control, or unrelated platform scope.
+
+### Verification and limitations
+
+- Added course-contract tests for unique module/outcome IDs, linked outcomes, next-module references, accepted success/context intents, deterministic course payload, invalid module handling, reviewed context isolation, and provenance.
+- Python: `.venv\Scripts\python.exe -m compileall -q app tests` completed successfully; `.venv\Scripts\python.exe -m unittest discover -s tests -p 'test_*.py' -v` passed **121 tests**; `git diff --check` passed.
+- Android: the documented JDK 17/Gradle debug build was attempted. The first sandboxed attempt could not create the normal Gradle wrapper-cache lock; the approved normal-cache attempt reached Gradle but failed before Kotlin compilation with `Unable to establish loopback connection`, a managed-environment restriction. Device acceptance remains necessary for certificate trust, voice services, physical screen sizes, and observed learner use; documentation now lists the course-specific checks. No learner effectiveness, accessibility conformance, or agronomic claim is inferred from implementation or automated tests.
+
 ## 29 August 2026 - interactive visual analytics expansion
 
 ### Context
