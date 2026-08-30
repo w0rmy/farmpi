@@ -60,7 +60,22 @@ class LearningCourseTests(unittest.TestCase):
         for module in first["modules"]:
             self.assertIn("try", module)
             self.assertIn("understanding_check", module)
+            self.assertIn("continue_content", module)
             self.assertIn("response_intents", module)
+
+    def test_getting_started_module_teaches_only_client_use_and_links_to_module_two(self) -> None:
+        module = next(module for module in MODULES if module.id == "getting-started")
+        self.assertEqual(module.title, "Getting Started with FarmPi")
+        self.assertEqual(module.learning_outcomes, ("LO1",))
+        self.assertEqual(module.next_module_id, "understanding-the-application")
+        self.assertEqual(module.try_activity.success_intents, ("capability",))
+        self.assertIn("Ask and Learn", module.learn_content)
+        self.assertIn("Guide me", module.learn_content)
+        self.assertIn("Explanation depth: Simple, Normal, or Technical", module.learn_content)
+        self.assertIn("connection administration", module.prompt_context)
+        self.assertIn("too technical", module.understanding_check.prompt)
+        self.assertIn("not sure what to ask next", module.understanding_check.prompt)
+        self.assertIn("next module", module.continue_content)
 
     def test_unknown_course_module_is_rejected(self) -> None:
         with TestClient(app) as client:

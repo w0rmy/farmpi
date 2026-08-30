@@ -792,6 +792,7 @@ private object FarmPiApi {
             CourseTry(tryObject.getString("id"), tryObject.getString("title"), tryObject.getString("instruction"), tryObject.getString("example_question"), tryObject.optJSONArray("success_intents").strings().toSet()),
             optJSONArray("ai_quick_prompts").strings(),
             CourseCheck(checkObject.getString("prompt"), checkObject.getString("reflection_hint")),
+            getString("continue_content"),
             optString("next_module_id").takeIf { it.isNotBlank() && it != "null" },
             optJSONArray("response_intents").strings().toSet(),
         )

@@ -27,6 +27,8 @@ Then test on a device that trusts the FarmPi development certificate. Check text
 
 For the course, confirm that it loads, every one of the five modules opens, the recommended sequence and direct navigation both work, progress survives a restart, a matching real response marks a Try complete, and Check is not represented as a grade. Launch Try/Ask, ask several quick/follow-up questions, use Return to Module, and confirm the original module remains active. Check contextual Learn about this links, evidence/source inspection, all themes and text sizes on the course screens, and portrait/landscape/small-screen behaviour.
 
+For Module 1 specifically, start from a connected client without changing any connection configuration. Move between Ask and Learn; identify the settings cog and connection-status message; type “What can FarmPi help me with?”; ask another question by microphone; and stop spoken output. Use Guide me, select a suggested question and a follow-up. In Settings, change text size and theme, compare Simple and Technical explanation depth with similar questions, and retain a preferred configuration. Confirm the Check remains practical and ungraded, asks what to change when an explanation is too technical and what to use when no next question is clear, and that Continue opens Module 2.
+
 ## Raspberry Pi deployment checks
 
 After install or update:

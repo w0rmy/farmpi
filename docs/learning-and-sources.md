@@ -66,7 +66,7 @@ The response's source category summarises the mix (`observational`, `calculated`
 
 Simple, Normal, and Technical change instructional depth, not the underlying fact. More, Normal, and Less change the number of proactive suggestions. The Android app stores these choices locally.
 
-`GET /api/learning/course` exposes the controlled course aim, four learning outcomes, five modules, reviewed Try prompts, success intents, lightweight self-checks, next-module references, and bounded response-intent mappings. It is source-controlled deterministic content, not an LLM-generated course. `GET /api/learning/activities` remains as a compatible concise activity catalogue.
+`GET /api/learning/course` exposes the controlled course aim, four learning outcomes, five modules, reviewed Try prompts, success intents, lightweight self-checks, reviewed Continue content, next-module references, and bounded response-intent mappings. It is source-controlled deterministic content, not an LLM-generated course. `GET /api/learning/activities` remains as a compatible concise activity catalogue.
 
 The Android Learn tab presents the five modules as **Learn → Try → Ask → Check → Continue**. A Try becomes complete from a matching real returned intent where possible; a Check is learner reflection, not an assessment or grade. It stores only current/last module and completed Try/check/module markers in device-local preferences. Learners may follow the recommended sequence or open any module directly, and can return after a bounded ordinary `/api/ask` follow-up conversation.
 

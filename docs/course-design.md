@@ -17,13 +17,19 @@ This short course is for non-specialist FarmPi users who need to use an informat
 
 | Module | Main outcomes | Authentic Try evidence | Check/continuation |
 |---|---|---|---|
-| 1. Getting Started | LO1 | Guide me / ordinary-language exploration | Choose a helpful presentation setting; continue to information interpretation. |
+| 1. Getting Started with FarmPi | LO1 | Use the visible client controls, natural-language Ask, voice/Stop, Guide me/follow-up suggestions, and a presentation comparison | Practical self-check of the controls; continue to information interpretation. |
 | 2. Understanding the Application | LO1, LO2 | Request a comparison and inspect chart/evidence | Distinguish observation from deterministic calculation. |
 | 3. Using the AI Learning Assistant | LO3, LO4 | Ask for a concept explanation and adapt it | State when important information needs checking. |
 | 4. Getting Help and Solving Problems | LO3, LO4 | Rephrase/recover and inspect provenance | Name a clarification and verification strategy. |
 | 5. Putting It Together | LO1–LO4 | Complete a trend/comparison enquiry, inspect evidence, seek an explanation, name a check | Reflect on the end-to-end evidence-informed task; revisit freely. |
 
 Every module uses the same visible **Learn → Try → Ask → Check → Continue** pattern. Try completion comes from a real returned FarmPi intent where possible; Check is a lightweight self-reflection, not grading. Module 5 is an authentic whole-app activity rather than a large multiple-choice assessment.
+
+### Module 1: Getting Started with FarmPi
+
+Module 1 starts after FarmPi has been installed, statically configured, connected, and made ready for the learner. It teaches the learner-facing client only: the bottom Ask and Learn areas, settings cog, and connection-status message. Recognising whether FarmPi is available is useful; server addresses, certificates, Raspberry Pi setup, backend configuration, and connection administration are outside the module.
+
+The short Learn content introduces FarmPi as a place to use the structured course and ask ordinary-language questions. The learner immediately switches between Ask and Learn, then practises typed and microphone questions, spoken output and Stop, Guide me, a suggested question and a follow-up. They compare Simple and Technical explanation depth, change text size and theme, and retain their preferred presentation. Settings are explicitly framed as changing presentation and guidance, not underlying facts or the required learning outcome. The practical self-check asks whether they can use those controls, including what to change when an explanation is too technical and what to use when they do not know what to ask next.
 
 ## Flexible pathways and accessibility
 

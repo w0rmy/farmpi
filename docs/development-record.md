@@ -2,6 +2,31 @@
 
 This record captures material design decisions and their outcome/evidence rationale. Current operating instructions live in the subject guides; historical performance measurements live under `docs/history`.
 
+## 30 August 2026 - Module 1: Getting Started with FarmPi
+
+### Learner need and design reasoning
+
+The existing embedded course had a general first module, but it did not give a new learner a sufficiently concrete, client-first start before moving into farm information. The learner need is to become comfortable operating FarmPi itself: find Ask and Learn, understand the visible settings and status message, use ordinary language and voice, stop spoken output, seek guidance when unsure what to ask, and make the presentation comfortable. FarmPi is assumed to be already installed, statically configured, connected, and ready. Teaching addresses, certificates, Raspberry Pi setup, backend configuration, or connection administration would distract from that learner outcome and remains out of scope.
+
+Module 1 is now **Getting Started with FarmPi**. Its canonical reviewed definition in `app/learning.py` supplies the Android Learn surface, so the learner-facing content does not have a hard-coded Android duplicate. The module follows the existing **Learn → Try → Ask → Check → Continue** sequence. Learn content is deliberately short and action-oriented: it introduces Ask, Learn, the settings cog, and the connection-status message; then typed and microphone questions, speech/Stop, Guide me, suggested/follow-up questions, Explanation depth, Guidance, themes, and Text size.
+
+The Try activity makes the learner compare Simple and Technical responses while changing text size and theme, rather than merely reading that presentation is flexible. It states that settings change how learning is presented, not underlying facts or the required learning outcome. The Check is an ungraded practical self-check: it confirms the key controls and asks what to change when an explanation is too technical and what to use when the learner is unsure what to ask next. Continue uses the learner-facing transition to the existing Module 2, **Understanding the Application**. The backend payload now has reviewed `continue_content`, and the Android client renders that field for every module instead of using a generic continuation sentence.
+
+### Outcome, scope, and reuse mapping
+
+| Change | Outcome contribution | Scope control |
+|---|---|---|
+| Client-first Module 1, practical Try, self-check, and Module 2 continuation | Developing Flexible IT Courses: coherent onboarding, constructive alignment, learner agency, and authentic practice | No LMS, account, grade, gamification, or new course engine |
+| Reused Ask, voice, spoken output/Stop, Guide me, suggestions, and Return to Module | Developing Flexible IT Courses: multiple learner interaction routes and supported exploration | No new AI agent, voice service, or second conversation path |
+| Reused explanation/guidance, six themes, and text-size settings | Developing Flexible IT Courses: presentation/access flexibility and learner preference | Presentation only; does not alter facts, assessments, or learning outcome |
+| Validated module context and reviewed canonical payload | AI and Data Sciences: constrained, inspectable use of the existing AI conversation boundary | No client-controlled prompt context, farm-data interpretation, IoT, cloud, or infrastructure work |
+
+### Verification and limitations
+
+- Added focused course-definition assertions for Module 1 title, LO1-only relationship, next-module link, valid real Try intent, learner controls, explicit non-administrative connection boundary, practical self-check prompts, and continuation text. Existing deterministic payload and reviewed-context tests continue to cover the canonical API contract.
+- Python: `.venv\Scripts\python.exe -m unittest discover -s tests -p 'test_*.py' -v` passed **122 tests**; `.venv\Scripts\python.exe -m compileall -q app tests` and `git diff --check` passed. The run emitted the existing FastAPI/Starlette TestClient deprecation warning and one expected semantic-interpreter fallback log line; neither was a test failure.
+- Android: with `JAVA_HOME` set to the installed Android Studio JBR, the documented `gradlew.bat :app:assembleDebug` build was attempted. The sandboxed attempt could not create its normal Gradle wrapper-cache lock. The approved normal-cache attempt reached Gradle but failed before Kotlin compilation with `Unable to establish loopback connection`, a managed-environment restriction. Android device acceptance still requires a trusted development certificate, available microphone/TTS services, and real portrait/landscape/small-screen observation; no learning-effectiveness or accessibility-compliance claim is inferred from implementation alone.
+
 ## 30 August 2026 - course documentation synchronization and Raspberry Pi validation evidence
 
 ### Documentation synchronization

@@ -109,6 +109,10 @@ On macOS/Linux use `./gradlew assembleDebug`.
 - compact/standard/large text does not clip controls or evidence;
 - settings survive process restart;
 - the course loads, all five modules are reachable, the recommended sequence and free navigation both work, and local progress survives restart;
+- Module 1 starts as **Getting Started with FarmPi** and its content comes from `/api/learning/course`, not an Android-only copy;
+- in Module 1, move between Ask and Learn, identify the settings cog and connection-status message, type a question, ask one by microphone, and use Stop during spoken output;
+- in Module 1, use Guide me, choose a suggested question and a follow-up, then compare Simple and Technical explanation depth while changing text size or theme; confirm the settings affect presentation rather than facts;
+- Module 1's self-check is practical and ungraded: confirm the two prompts direct learners to explanation depth and Guide me, then continue to Module 2;
 - Try completion is recognised after its real response intent, Check remains a self-reflection rather than a grade, and Return to Module preserves the active module after follow-ups;
 - course quick actions retain module context; contextual Learn about this links open the relevant module;
 - sources/evidence remain inspectable and are not calculated by the phone;

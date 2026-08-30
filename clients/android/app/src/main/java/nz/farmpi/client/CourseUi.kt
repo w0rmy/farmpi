@@ -30,6 +30,7 @@ internal data class CourseModule(
     val tryActivity: CourseTry,
     val aiQuickPrompts: List<String>,
     val understandingCheck: CourseCheck,
+    val continueContent: String,
     val nextModuleId: String?,
     val responseIntents: Set<String>,
 )
@@ -128,7 +129,7 @@ private fun ModuleArea(
     OutlinedButton(onClick = { onCompleteCheck(module) }, modifier = Modifier.padding(top = 8.dp)) {
         Text(if (module.id in progress.completedCheckIds) "Reflection noted" else "I have considered this")
     }
-    CourseStep("Continue", if (module.nextModuleId == null) "You have reached the authentic end-to-end task. Return to any module when useful." else "Continue in the recommended sequence, or revisit any module.")
+    CourseStep("Continue", module.continueContent)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
         OutlinedButton(onClick = { onSelectModule(null) }) { Text("Course overview") }
         TextButton(onClick = { onContinue(module) }) { Text(if (module.nextModuleId == null) "Finish course" else "Next module") }
