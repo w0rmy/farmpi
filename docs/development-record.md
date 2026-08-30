@@ -2,6 +2,34 @@
 
 This record captures material design decisions and their outcome/evidence rationale. Current operating instructions live in the subject guides; historical performance measurements live under `docs/history`.
 
+## 30 August 2026 - course documentation synchronization and Raspberry Pi validation evidence
+
+### Documentation synchronization
+
+After the embedded flexible IT course implementation was committed in `0011648`, the repository documentation was reviewed against the code and Android flow, then synchronized in `950f479`. The update made the course a first-class current feature rather than leaving it described only in its dedicated design document.
+
+- The root README and documentation index now identify the five-module embedded course and local course return/progress as current FarmPi capabilities.
+- The Android guide records the Ask/Course surfaces, **Learn → Try → Ask → Check → Continue** pattern, free navigation, recommended continuation, minimal device-local progress, Return to Module, contextual learning links, retained module context, and course-specific acceptance checks.
+- The Data and API guide documents `GET /api/learning/course`, the compatible `/api/learning/activities` endpoint, the validated optional `course_module_id` on `/api/ask`, HTTP 422 behaviour for an unknown module id, server-only reviewed prompt context, and reviewed-course-module provenance.
+- Architecture, learning/source, capstone-governance, testing/evaluation, and Mermaid diagram sources were updated so authority boundaries, scope control, evidence mapping, Android local state, and the one-conversation design agree with the implementation.
+- Terminology now uses **Text size**, matching the actual Compose font-scale preference, rather than implying that the application changes Android display density.
+
+This documentation work supports Developing Flexible IT Courses by making constructive alignment, learner pathway choice, local temporal flexibility, and accessibility/presentation choices inspectable. It supports AI and Data Sciences by documenting controlled model context, provenance, and the deterministic authority boundary. It introduces no new product scope.
+
+### Raspberry Pi validation evidence
+
+During the subsequent Pi update, the deployment script reported a successful Python validation run:
+
+```text
+Ran 121 tests in 0.357s
+
+OK
+```
+
+The output also showed a `StarletteDeprecationWarning` concerning `fastapi.testclient`/`httpx` and a semantic-interpreter fallback log line. Neither caused a test failure. The update then proceeded to service installation and **Applying FarmPi database schema updates**.
+
+At the time of this record, the supplied output does not confirm completion of the schema update, service restart, health checks, or Android device acceptance. Those steps must be recorded only after their actual output is available. The reported result is therefore evidence of the Python validation stage, not a claim that the entire deployment completed.
+
 ## 30 August 2026 - formal embedded flexible IT course
 
 ### Problem
