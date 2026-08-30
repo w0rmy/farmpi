@@ -5,7 +5,7 @@ sequenceDiagram
   participant D as MariaDB
   participant Q as Qwen
   U->>C: speak/type question
-  C->>F: alternatives + preferences
+  C->>F: alternatives + preferences + optional course_module_id
   F->>F: normalise; interpret learner intent/context
   opt farm fact or action requested
     F->>D: approved query only
@@ -13,6 +13,6 @@ sequenceDiagram
   end
   opt learning explanation useful
     F->>F: select labelled guidance/research/general knowledge
-    F->>Q: facts and/or source context + provenance/uncertainty
+    F->>Q: facts/source context + validated reviewed module context + provenance/uncertainty
   end
-  F-->>C: concise answer, source label, chart/evidence, next learning direction
+  F-->>C: concise answer, source label, chart/evidence, course provenance, next learning direction

@@ -1,8 +1,12 @@
 flowchart LR
-  I[Natural learner question] --> C[Interpret intent and context]
-  C -->|farm fact/action| A[Controlled FarmPi action/result]
-  C -->|learning conversation| S[Select labelled learning source]
-  A --> F[Evidence, feedback, next learning direction]
-  S --> F
-  F --> P[Explanation, guidance, theme, text density, progress]
-  P --> I
+  O[Course aim + four learning outcomes] --> M[Five reviewed modules]
+  M --> L[Learn]
+  L --> T[Try: real FarmPi interaction]
+  T --> A[Ask: one bounded conversation]
+  A --> C[Check: lightweight reflection]
+  C --> N[Continue: recommended next module or free navigation]
+  N --> M
+  T -->|matching returned intent| P[Device-local Try/check/module progress]
+  A -->|validated module id only| R[Reviewed module context + provenance]
+  R --> E[Evidence-aware explanation]
+  E --> C

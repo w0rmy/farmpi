@@ -72,7 +72,7 @@ The Android Learn tab presents the five modules as **Learn → Try → Ask → C
 
 Course-aware requests send a validated module id only. The backend supplies the corresponding reviewed context to model-assisted explanations and records it in provenance. It never treats Android text as system/course prompt material. Small course quick actions use the existing `conversation_id`; contextual Learn about this links use the reviewed response-intent mappings rather than cluttering every response with generic help.
 
-The Android settings cog also offers six whole-app presentation themes and compact/standard/large text density. These support readability, contrast preference, cognitive comfort, and learner adaptation without changing content or facts. No custom artwork or animation workstream is intended.
+The Android settings cog also offers six whole-app presentation themes and compact/standard/large text size. These support readability, contrast preference, cognitive comfort, and learner adaptation without changing content or facts. No custom artwork or animation workstream is intended.
 
 ## Decision and causal boundaries
 
@@ -96,6 +96,6 @@ The learning design should be tested with a non-technical user:
 - Can they ask broad and imperfectly phrased questions?
 - Can they distinguish observation, calculation, sourced guidance, and model knowledge?
 - Can they use evidence/source disclosure without being overwhelmed?
-- Do explanation depth, guidance level, theme, and text density improve comfort or task completion?
+- Do explanation depth, guidance level, theme, and text size improve comfort or task completion?
 - Does the system recover constructively from speech or paddock-name errors?
 - Do any controls or technical additions reduce learner agency or obscure the outcomes?

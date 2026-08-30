@@ -50,7 +50,7 @@ Every material change should link implementation, verification, and outcome evid
 | Source selection | tier/category assertions and reviewed claim/source records |
 | General conversation | useful-answer and uncertainty checks without invented farm facts |
 | State-changing actions | validation, confirmation, identity, and audit tests |
-| Flexible presentation | theme, contrast, text-density, persistence, and usability observations |
+| Flexible presentation | theme, contrast, text size, persistence, and usability observations |
 | Learning interaction | task observation, explanation-depth comparison, and source comprehension |
 | Deployment | recorded service/health checks and version/configuration used |
 
@@ -63,7 +63,7 @@ Use a small, consented group of nontechnical participants. Do not fabricate resu
 - distinguish FarmPi evidence from external guidance and general explanation;
 - recognise when farm evidence is unavailable;
 - use evidence/charts to explain an answer;
-- adjust explanation depth, guidance, theme, and text density;
+- adjust explanation depth, guidance, theme, and text size;
 - recover from a speech or paddock-name misunderstanding;
 - complete a teach-by-doing activity and identify what they learned.
 

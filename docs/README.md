@@ -8,9 +8,9 @@ This directory describes the current FarmPi implementation. The repository code 
 |---|---|
 | [Architecture](architecture.md) | Components, request flow, authority boundaries, model integration, and repository structure. |
 | [Raspberry Pi deployment](raspberry-pi-deployment.md) | Installation, configuration, systemd, Caddy, MariaDB, update process, backup, and troubleshooting. |
-| [Android client](android-client.md) | Build requirements, HTTPS trust, UI, voice behaviour, settings, themes, and API consumption. |
+| [Android client](android-client.md) | Build requirements, HTTPS trust, Ask/Course UI, voice behaviour, local progress, settings, themes, and API consumption. |
 | [Data and API](data-and-api.md) | Measurements, ingest contract, clocks, storage, analytics, response payloads, and rename operation. |
-| [Learning and sources](learning-and-sources.md) | Flexible-learning design, grounding, semantic routing, source hierarchy, provenance, and safety. |
+| [Learning and sources](learning-and-sources.md) | Flexible-learning design, controlled course context, grounding, semantic routing, source hierarchy, provenance, and safety. |
 | [Course design](course-design.md) | Aim, outcomes, module alignment, flexible pathways, AI limits, and scope control for the embedded course. |
 | [Testing and evaluation](testing-and-evaluation.md) | Automated checks, deployment validation, usability evaluation, and capstone evidence collection. |
 | [Capstone governance](capstone-governance.md) | Immutable outcome focus and IoT scope-control gate. |

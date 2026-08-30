@@ -2,10 +2,10 @@ flowchart LR
   E[ESP32: 16 explicitly simulated nodes] -->|HTTPS bearer-auth telemetry| I[FastAPI ingest]
   I --> D[(MariaDB)]
   W[Diagnostic browser] --> A[FastAPI learner API]
-  N[Native Android: text, voice, charts, settings] --> A
+  N[Native Android: Ask/Course, text, voice, charts, settings] --> A
   A --> R[Deterministic router + semantic interpretation]
   R -->|farm fact/action| X[Approved resolver, analytics, confirmation]
-  R -->|learning/conversation| K[Knowledge-source selection]
+  R -->|learning/conversation| K[Knowledge-source and reviewed course-context selection]
   X <--> D
   X --> P[Authoritative farm evidence]
   K --> S[Tiered external/general evidence]
@@ -15,4 +15,4 @@ flowchart LR
   Q --> A
   X --> G[Charts + bounded evidence]
   G --> A
-  A -->|answer always useful when safe; never invent farm facts| N
+  A -->|course payload; answer always useful when safe; never invent farm facts| N

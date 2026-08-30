@@ -9,8 +9,8 @@ These Mermaid sources describe the current implementation. Render them in any Me
 | [Open-learning architecture](open-learning-architecture.mmd) | semantic routing, evidence hierarchy, and useful-answer path |
 | [Ask/answer](ask-answer.mmd) | learner request through response/evidence |
 | [Grounding pipeline](grounding-pipeline.mmd) | deterministic farm facts versus tiered learning evidence |
-| [Android architecture](android-architecture.mmd) | native client, HTTPS, settings, and voice boundary |
-| [Flexible learning](flexible-learning.mmd) | adaptation and teach-by-doing loop |
+| [Android architecture](android-architecture.mmd) | native Ask/Course client, HTTPS, local progress, settings, and voice boundary |
+| [Flexible learning](flexible-learning.mmd) | course spine, adaptation, authentic Try, and reflection loop |
 | [Ingest and time sync](ingest-time-sync.mmd) | telemetry UTC, drift, and idempotency |
 | [Database ERD](database-erd.mmd) | persistent identities and relationships |
 | [Graphing flow](graphing-flow.mmd) | verified analytics to client chart/evidence |

@@ -1,10 +1,12 @@
 flowchart LR
-  V[SpeechRecognizer / typed question] --> U[Compose learner UI]
+  V[SpeechRecognizer / typed question] --> U[Compose Ask + Course UI]
   U --> H[HTTPS farmpi.local]
   H --> F[FastAPI]
-  F -->|answer, source tier, evidence, chart, diagnostics| U
+  F -->|course payload; answer, source tier, evidence, chart, diagnostics| U
   U --> T[Native TextToSpeech: chunk, stop, retry, diagnostics]
   U --> P[SharedPreferences]
   P --> S[Explanation/guidance]
   P --> C[Six themes]
-  P --> Z[Compact/standard/large text density]
+  P --> Z[Compact/standard/large text size]
+  P --> G[Current module + Try/check/module progress]
+  U -->|validated course_module_id with normal ask| H

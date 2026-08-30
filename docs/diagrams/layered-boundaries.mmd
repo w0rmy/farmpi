@@ -1,9 +1,9 @@
 flowchart TB
-  UI[Web / Android: voice, display, local preferences]
+  UI[Web / Android: voice, display, local preferences, course return/progress]
   API[FastAPI: validation and response schema]
   ROUTE[Intent/context: deterministic actions; open learning]
   DATA[Verified analytics/evidence]
-  SOURCES[Five-tier evidence: curated NZ to model knowledge]
+  SOURCES[Five-tier evidence + reviewed course context]
   PROV[Explicit provenance + uncertainty]
   DB[(MariaDB)]
   LLM[Configured model: concise teaching, no farm-fact authority]

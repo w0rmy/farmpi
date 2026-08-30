@@ -19,7 +19,8 @@ Model size is an implementation constraint and optimisation decision. It may aff
 | Project evidence | Outcome contribution |
 |---|---|
 | Natural-language, source-aware learning during normal farm use | Embedded learning platform; learner does not first learn a command system |
-| Explanation/guidance controls, six themes, and text-density choices | Developing Flexible IT Courses: adaptation, readability, contrast preference, cognitive comfort |
+| Formal course aim/outcomes/modules, authentic Try activities, local return/progress, and self-reflection | Developing Flexible IT Courses: constructive alignment, learner agency, temporal flexibility, and embedded learning |
+| Explanation/guidance controls, six themes, and text-size choices | Developing Flexible IT Courses: adaptation, readability, contrast preference, cognitive comfort |
 | Deterministic analytics, semantic interpretation, model compatibility, source provenance | AI and Data Sciences: governed data use, hybrid AI architecture, evaluation, and explainability |
 | Learner/usability evaluation and iteration records | Defined learning outcomes and graduate-profile evidence through reflective, evidence-led development |
 | Pi, Android, ESP32, database, telemetry, and synthetic data | Enabling context only; justified when needed to exercise or evidence the learning system |

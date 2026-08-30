@@ -8,13 +8,13 @@ flowchart TD
   Q --> O[FarmPi observation/device state]
   Q --> A[Deterministic analysis/comparison]
   Q --> M[Confirmed state change + audit]
-  Q --> E[External/general explanation]
+  Q --> E[External/general explanation or reviewed course context]
   O --> P[Label provenance and authority]
   A --> P
   M --> P
   E --> H[Five-tier source hierarchy]
   H --> P
-  P --> L[Adaptive model-assisted teaching]
+  P --> L[Adaptive model-assisted teaching with inspectable provenance]
   L --> X[Useful answer + next learning direction]
   O -. never invented .-> P
   A -. never delegated to model .-> P

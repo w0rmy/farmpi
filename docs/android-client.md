@@ -21,7 +21,7 @@ The Android app deliberately performs presentation and device I/O only. It does 
 - backend-supplied line/bar charts and bounded evidence;
 - expandable source/provenance display;
 - explanation depth and guidance-frequency preferences;
-- six presentation themes and compact/standard/large text density behind a top-right settings cog.
+- six presentation themes and compact/standard/large text-size choices behind a top-right Accessibility and learning settings cog.
 
 ## Display flexibility
 

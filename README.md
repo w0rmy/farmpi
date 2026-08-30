@@ -8,7 +8,7 @@ FarmPi combines:
 - one ESP32 that generates 16 clearly labelled virtual paddocks for repeatable testing;
 - deterministic farm facts, calculations, identity resolution, timestamps, and controlled mutations;
 - open agricultural learning answers with visible provenance and a five-level evidence hierarchy;
-- a native Android client with voice input/output, charts, teach-by-doing activities, settings, themes, and text-size choices.
+- a native Android client with voice input/output, charts, a five-module embedded course, local course return/progress, settings, themes, and text-size choices.
 
 Synthetic telemetry is test evidence, not an agronomic model, forecast, or recommendation.
 
@@ -80,6 +80,8 @@ From the repository root:
 ```
 
 For Android, open `clients/android` in Android Studio or run the Gradle wrapper with JDK 17 or newer and Android SDK Platform 37 installed.
+
+The current managed Windows environment could run the Python suite but could not complete the Gradle build because Gradle could not establish its required loopback connection. This is an environment limitation, not a successful Android build; repeat the documented build and device checks in Android Studio or a normal local shell.
 
 ## Scope and authority
 
