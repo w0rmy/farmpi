@@ -24,6 +24,7 @@ The ESP32-specific build and simulation guide lives beside the firmware in [firm
 
 | Document | Status |
 |---|---|
+| [2 September 2026 elective pivot](history/2026-09-02-elective-pivot.md) | Records the confirmed switch from Developing Flexible IT Courses to Advanced Application Development Concepts without rewriting earlier work. |
 | [Embedded flexible IT course design](course-design.md) | Superseded capstone direction retained to document the genuine earlier elective work. |
 | [Local LLM evaluation history](history/local-llm-evaluation.md) | Historical Pi model measurements and later development/reference-model decisions. |
 
