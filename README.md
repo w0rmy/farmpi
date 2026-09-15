@@ -1,30 +1,36 @@
 # FarmPi
 
-FarmPi is an embedded agricultural learning platform built around a local farm-monitoring system. The monitoring data gives the tool a real reason to exist; the capstone is the learning experience that helps a person ask natural questions, inspect evidence, understand agricultural concepts, and adapt the presentation to their needs.
+FarmPi is a local farm-monitoring application demonstrator built around a Raspberry Pi, MariaDB, a native Android client, simulated ESP32 telemetry, deterministic analytics, and an integrated language model.
 
-FarmPi combines:
+The current capstone direction is **Advanced Application Development Concepts** plus **Artificial Intelligence and Data Science**. The project is therefore evaluated as an end-to-end application: requirements, architecture, integration, data handling, mobile usability, AI/data functionality, deployment, testing, debugging, and iterative refinement.
+
+Earlier work on **Developing Flexible IT Courses** remains part of the project history, and some learning-oriented features still exist in the application, but embedded learning is no longer the primary capstone objective.
+
+FarmPi currently combines:
 
 - a Raspberry Pi FastAPI service, MariaDB, Caddy HTTPS, and an OpenAI-compatible language-model endpoint;
-- one ESP32 that generates 16 clearly labelled virtual paddocks for repeatable testing;
-- deterministic farm facts, calculations, identity resolution, timestamps, and controlled mutations;
-- open agricultural learning answers with visible provenance and a five-level evidence hierarchy;
-- a native Android client with voice input/output, charts, a five-module embedded course, local course return/progress, settings, themes, and text-size choices.
+- one ESP32 simulator that generates 16 clearly labelled virtual paddocks for repeatable testing;
+- deterministic current and historical farm facts, calculations, identity resolution, timestamps, chart data, and controlled mutations;
+- a native Android client with text/voice interaction, text-to-speech, charts, evidence/provenance, settings, and local state;
+- semantic interpretation and bounded conversation context for natural-language requests;
+- curated source metadata and provenance rules for external/general information.
 
-Synthetic telemetry is test evidence, not an agronomic model, forecast, or recommendation.
+Synthetic telemetry is test evidence, not an agronomic model, forecast, or production-farm recommendation.
 
 ## Start here
 
 - [Documentation index](docs/README.md)
+- [Capstone direction and governance](docs/capstone-governance.md)
 - [System architecture](docs/architecture.md)
 - [Raspberry Pi installation and operations](docs/raspberry-pi-deployment.md)
 - [Android client](docs/android-client.md)
 - [ESP32 simulator and telemetry](firmware/esp32-sensor/README.md)
 - [Data, analytics, and API contract](docs/data-and-api.md)
-- [Learning design, grounding, and sources](docs/learning-and-sources.md)
-- [Embedded flexible IT course design](docs/course-design.md)
+- [AI, grounding, and sources](docs/learning-and-sources.md)
 - [Testing and evaluation](docs/testing-and-evaluation.md)
-- [Capstone outcome governance](docs/capstone-governance.md)
 - [Development record](docs/development-record.md)
+
+The earlier embedded-course design remains available as a historical document in [course-design.md](docs/course-design.md), but it is no longer a current capstone design authority.
 
 ## Current topology
 
@@ -45,7 +51,7 @@ Android app or diagnostic browser
 ESP32 virtual nodes -- HTTPS POST /api/ingest --> FastAPI
 ```
 
-The checked-in Pi service template starts Qwen3 1.7B through `llama-server`. The development/reference setup can instead point FarmPi at LM Studio or another OpenAI-compatible server with `FARMPI_LLAMA_URL` and `FARMPI_LLM_MODEL`; current reference testing uses Qwen3.5-9B on the development PC. Model choice is a deployment constraint and evaluation variable, not the capstone thesis.
+The checked-in Pi service template starts Qwen3 1.7B through `llama-server`. The development/reference setup can instead point FarmPi at LM Studio or another OpenAI-compatible server with `FARMPI_LLAMA_URL` and `FARMPI_LLM_MODEL`; reference testing has also used Qwen3.5-9B on the development PC. Model choice is an implementation and evaluation variable rather than the application purpose.
 
 ## Quick installation on Raspberry Pi
 
@@ -81,17 +87,19 @@ From the repository root:
 
 For Android, open `clients/android` in Android Studio or run the Gradle wrapper with JDK 17 or newer and Android SDK Platform 37 installed.
 
-The current managed Windows environment could run the Python suite but could not complete the Gradle build because Gradle could not establish its required loopback connection. This is an environment limitation, not a successful Android build; repeat the documented build and device checks in Android Studio or a normal local shell.
-
-## Scope and authority
+## Functional authority
 
 FarmPi is authoritative only for application-controlled facts and operations:
 
 - validated current and historical FarmPi readings;
-- deterministic calculations over those readings;
+- deterministic calculations and chart values over those readings;
 - active paddock/sensor identity and controlled rename history;
 - timestamps, clock quality, deduplication state, and device-ingest state.
 
-The language model never receives SQL access or authority to invent these facts. Agricultural explanations remain available, including unrelated learner questions, but their evidence tier and uncertainty must be clear. FarmPi does not turn general knowledge into a claim about this farm and does not provide unsupported forecasts, diagnoses, irrigation decisions, or automated control.
+The language model never receives SQL access or authority to invent those facts. It supports natural-language interpretation, explanation, conversation, and general/source-oriented information. External or model knowledge must not be converted into an unsupported claim about this farm.
 
-LoRa, MQTT, OTA, cloud services, remote farm control, and a full LMS are outside the current implementation. Add them only if they produce direct evidence for the defined AI and Data Sciences or Developing Flexible IT Courses outcomes.
+## Current scope
+
+FarmPi is a prototype/concept demonstrator rather than a production farm-control product. LoRa/LoRaWAN, MQTT, OTA, cloud services, remote control, production security hardening, and agronomic certification are outside the current implementation unless a defined requirement makes them necessary.
+
+Current work should prioritise a coherent functional application: mobile usability, reliable routing and recovery, data visualisation, AI/data integration, error handling, testing, deployment, and clear evidence of architectural decisions.
