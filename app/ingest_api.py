@@ -19,22 +19,28 @@ router = APIRouter(prefix="/api", tags=["sensor-ingest"])
 
 
 class SensorReadingRequest(BaseModel):
-    """Complete instantaneous payload submitted by an ESP32 virtual node."""
+    """One instantaneous sample from a standard or expanded FarmPi node."""
 
     sensor: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
+
+    # Standard-node measurements are required for every current physical node.
     soil_moisture_pct: float
     soil_temperature_c: float
     air_temperature_c: float
     relative_humidity_pct: float
-    soil_ph: float
-    soil_ec_ms_cm: float
     light_lux: float
-    rainfall_mm: float
     barometric_pressure_hpa: float
-    wind_speed_kmh: float
-    wind_direction_deg: float
-    pasture_height_cm: float
-    leaf_wetness_pct: float
+
+    # Add-on measurements are optional capabilities. Omission means the node
+    # does not currently report that measurement; FarmPi never fabricates it.
+    soil_ph: float | None = None
+    soil_ec_ms_cm: float | None = None
+    rainfall_mm: float | None = None
+    wind_speed_kmh: float | None = None
+    wind_direction_deg: float | None = None
+    pasture_height_cm: float | None = None
+    leaf_wetness_pct: float | None = None
+
     simulated: bool = True
     # Version 1 is deliberately transport-neutral so its semantics can be
     # carried in a future LoRa acknowledgement unchanged.
@@ -45,7 +51,9 @@ class SensorReadingRequest(BaseModel):
 
     @field_validator(*tuple(BY_KEY))
     @classmethod
-    def value_in_catalogue_range(cls, value: float, info: Any) -> float:
+    def value_in_catalogue_range(cls, value: float | None, info: Any) -> float | None:
+        if value is None:
+            return None
         item = BY_KEY[info.field_name]
         if not item.minimum <= value <= item.maximum:
             raise ValueError(f"must be between {item.minimum} and {item.maximum}")
@@ -103,10 +111,15 @@ def _require_ingest_token(authorization: str | None) -> None:
 
 @router.post("/ingest", response_model=SensorReadingResponse, status_code=status.HTTP_201_CREATED)
 async def ingest_sensor_reading(request: SensorReadingRequest, authorization: str | None = Header(default=None)) -> SensorReadingResponse:
-    """Accept a fully validated, server-timestamped virtual-node sample."""
+    """Accept a validated standard-node sample plus any installed add-ons."""
     _require_ingest_token(authorization)
     received_at = datetime.now(timezone.utc)
     observed_at, clock_valid, clock_offset_seconds, clock_out_of_tolerance = _device_observation(request, received_at)
+    supplied_values = {
+        item.key: getattr(request, item.key)
+        for item in MEASUREMENTS
+        if getattr(request, item.key) is not None
+    }
     try:
         stored = await asyncio.to_thread(
             store_sensor_reading,
@@ -119,7 +132,7 @@ async def ingest_sensor_reading(request: SensorReadingRequest, authorization: st
             clock_out_of_tolerance=clock_out_of_tolerance,
             sample_seq=request.sample_seq,
             protocol_version=request.protocol_version,
-            **{item.key: getattr(request, item.key) for item in MEASUREMENTS},
+            **supplied_values,
         )
     except UnknownSensor as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown or inactive sensor node.") from exc
