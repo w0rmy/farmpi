@@ -1,18 +1,21 @@
 sequenceDiagram
-  participant U as Learner
+  participant U as User
   participant C as Client
   participant F as FarmPi
   participant D as MariaDB
   participant Q as Qwen
   U->>C: speak/type question
-  C->>F: alternatives + preferences + optional course_module_id
-  F->>F: normalise; interpret learner intent/context
+  C->>F: alternatives + preferences + optional legacy course_module_id
+  F->>F: normalise; interpret user intent/context
   opt farm fact or action requested
     F->>D: approved query only
-    F->>F: resolver / analytics / evidence
+    F->>F: resolver / analytics / evidence / graph data
   end
-  opt learning explanation useful
-    F->>F: select labelled guidance/research/general knowledge
-    F->>Q: facts/source context + validated reviewed module context + provenance/uncertainty
+  opt explanation or semantic recovery useful
+    F->>F: select source/general context and available capability metadata
+    F->>Q: validated facts/source context + provenance/uncertainty
   end
-  F-->>C: concise answer, source label, chart/evidence, course provenance, next learning direction
+  opt literal request cannot be completed
+    F->>F: inspect related measurements/operations/graphs
+  end
+  F-->>C: answer, source label, chart/evidence, diagnostics, useful alternatives
