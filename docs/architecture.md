@@ -26,33 +26,53 @@ Android client / diagnostic browser
         |
         +--> MariaDB farm data and audit history
 
-ESP32 simulator --> authenticated HTTPS ingest --> FastAPI --> MariaDB
+sensor / simulator --> transport --> authenticated ingest --> FastAPI --> MariaDB
 ```
 
 - `app/main.py` composes the FastAPI application, installs bounded conversation context and the LLM compatibility adapter, and includes sensor-ingest routes.
 - `app/app.py` owns the primary application API, browser fallback, orchestration, timings, conversation tokens, optional legacy course context, and model call.
 - `app/question_router.py` selects obvious deterministic operations; `app/semantic_interpreter.py` handles broad or varied language through a validated structured interpretation.
-- `app/farm_data.py`, `app/analytics.py`, `app/measurements.py`, and `app/paddock_resolver.py` own farm facts, calculations, measurement metadata, graph inputs, and identity resolution.
+- `app/farm_data.py`, `app/analytics.py`, `app/measurements.py`, and `app/paddock_resolver.py` own farm facts, calculations, measurement metadata/capabilities, graph inputs, and identity resolution.
 - `app/knowledge_sources.py` stores the source hierarchy, curated NZ source metadata, and reviewed claims. It is not a live search engine.
 - `app/llm_compat.py` normalises OpenAI-compatible chat requests and preserves one integration contract across supported model servers.
 - `app/education.py`, `app/learning.py`, and `app/guidance.py` are retained support/legacy modules from the earlier learning-focused direction. They remain functional where referenced but are not the current capstone architecture driver.
 - `app/ingest_api.py` and `app/sensor_ingest.py` validate, authenticate, timestamp, deduplicate, and store telemetry.
 - `clients/android` is the primary native user client. The built-in HTML page is a diagnostic fallback.
 
+## Sensor capability model
+
+The physical product model now distinguishes a **standard node** from optional add-on capabilities.
+
+Every standard node reports:
+
+- soil moisture;
+- soil temperature;
+- air temperature;
+- relative humidity;
+- ambient light;
+- barometric pressure.
+
+Optional add-ons can provide pH, EC, rainfall, wind speed/direction, pasture height, leaf wetness, and later other reviewed capabilities. The current ESP32 simulator may emit both baseline and optional measurements because it is deliberately demonstrating the broader application/data model.
+
+This distinction is enforced at the application boundary rather than by fabricating values. New ingest samples must contain the six baseline measurements. Optional fields may be omitted and are stored as `NULL`. Current paddock snapshots require a valid baseline reading but include optional fields only when actually present. Farm-wide optional analytics use only paddocks that report the requested measurement.
+
+The sensor/transport boundary remains deliberately separate from the application. Current Wi-Fi, a future LoRa/LoRaWAN gateway, or Wi-Fi HaLow can all feed the same transport-neutral ingest semantics without changing MariaDB, analytics, graphing, Android, or LLM authority.
+
 ## Ask/answer path
 
 1. Typed text is used unchanged. Spoken text can first pass through deterministic domain normalisation using measurement vocabulary and active paddock names.
 2. The fast router handles clear actions and farm-data operations. Broader language may be classified by the configured model into a tightly validated semantic schema.
 3. Application code resolves paddock identity, selects a reviewed operation, and retrieves or calculates the smallest relevant deterministic result.
-4. Generic graph/time-series requests can operate over farm-wide data when no specific paddock is supplied. Explicit named-paddock and cross-paddock requests remain distinct.
-5. Deterministic results that already form a complete answer can bypass the wording model. Requests needing explanation, semantic recovery, or broader information can call the configured LLM.
-6. The response returns answer text, concise speech text, route intent, timings, suggestions, optional chart/evidence, source category, evidence tier, provenance, and semantic interpretation diagnostics where relevant.
+4. Measurement availability is checked against the actual paddock data/capability. Optional measurements that are not installed are reported as unavailable rather than invented.
+5. Generic graph/time-series requests can operate over farm-wide data when no specific paddock is supplied. Explicit named-paddock and cross-paddock requests remain distinct.
+6. Deterministic results that already form a complete answer can bypass the wording model. Requests needing explanation, semantic recovery, or broader information can call the configured LLM.
+7. The response returns answer text, concise speech text, route intent, timings, suggestions, optional chart/evidence, source category, evidence tier, provenance, and semantic interpretation diagnostics where relevant.
 
 ## Authority boundaries
 
 Application-controlled and never invented:
 
-- sensor readings and device state;
+- sensor readings, reported capability, and device state;
 - paddock/sensor identity;
 - historical values and timestamps;
 - averages, rankings, totals, changes, trends, ranges, comparisons, anomaly flags, and daylight derivation;
@@ -68,13 +88,13 @@ Model-assisted but application-constrained:
 - conversational follow-up;
 - source/provenance wording based on supplied evidence.
 
-FarmPi does not infer a forecast, diagnosis, causal explanation, irrigation decision, or operational recommendation about this farm unless a future deterministic and evidenced feature explicitly establishes it.
+FarmPi does not infer a forecast, diagnosis, causal explanation, irrigation decision, uninstalled sensor value, or operational recommendation about this farm unless a future deterministic and evidenced feature explicitly establishes it.
 
 ## Capability discovery and recovery direction
 
 The application should avoid dead-end generic refusals when a nearby supported capability exists. If a literal request cannot be executed, the system should use semantic interpretation and the measurement/operation catalogue to look for a valid alternative before asking for clarification or reporting a limitation.
 
-This recovery behaviour is particularly important for graphs. The language model should not decide whether FarmPi can graph something based on the model's own capabilities; application code should inspect the measurements and graph/analytics functions actually available.
+This recovery behaviour is particularly important for graphs and optional sensors. The language model should not decide whether FarmPi can graph or measure something based on the model's own capabilities; application code should inspect the measurements, stored capability/data, and graph/analytics functions actually available.
 
 ## Language-model topology
 
