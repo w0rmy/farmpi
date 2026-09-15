@@ -2,6 +2,70 @@
 
 This record captures material design decisions and their outcome/evidence rationale. Current operating instructions live in the subject guides; historical performance measurements live under `docs/history`.
 
+## 15 September 2026 - capstone direction realignment and documentation cleanup
+
+### Direction change
+
+On **2 September 2026**, the agreed capstone direction changed from **Developing Flexible IT Courses** to **Advanced Application Development Concepts**, while retaining **Artificial Intelligence and Data Science**. This is a genuine project pivot, not a correction to the historical record. The learning/course work below remains valid evidence of the development process and should not be rewritten as though the current direction existed from the beginning.
+
+FarmPi is now treated as a **functional farm-monitoring application demonstrator**. The project remains a prototype/concept demonstrator rather than a production-ready farm product. The capstone evidence chain is now:
+
+**need statement -> functional, architectural, and quality requirements -> hardware/software mapping -> architecture -> implementation/integration -> deployment -> testing/evaluation evidence**
+
+The application itself is therefore central to the capstone evidence. Current priorities are coherent end-to-end behaviour, mobile usability, service/data integration, deterministic analytics and graphing, AI/data integration, failure recovery, deployment, testing, and technically defensible architecture.
+
+### Reinterpretation of existing work
+
+A substantial amount of the existing implementation remains valuable under the new electives:
+
+- Android/Compose, voice/TTS, local state, chart rendering, settings, API consumption, and error states contribute to **Advanced Application Development Concepts**.
+- FastAPI, Caddy, MariaDB, the ingest pipeline, paddock identity/audit logic, modular Python responsibilities, and Raspberry Pi deployment contribute to application architecture and integration evidence.
+- Deterministic analytics, graph payloads, semantic interpretation, bounded conversation context, model compatibility work, source/provenance handling, and model evaluation contribute to **Artificial Intelligence and Data Science**.
+- Integration faults already found - conversation follow-up failure, Qwen thinking/token behaviour, TTS `null` becoming a four-character spoken string, graph compilation/routing issues, and incorrect paddock extraction from generic graph language - are useful iterative development and debugging evidence.
+
+The earlier Learn tab, five-module course, course progress, learner-adaptation rationale, and associated tests may remain functional, but they are now legacy features from the superseded elective direction rather than the primary reason for new development.
+
+### Functional acceptance findings carried forward
+
+A current manual acceptance pass found the conversation, open-information, provenance, and deterministic-consistency areas broadly working before graph testing exposed further integration issues.
+
+Graph testing identified several application-level problems:
+
+- `Can you show me the soil moisture over 24 hours?` could be misread as requiring a paddock and could treat phrases such as `the soil moisture over 24 hours` as a paddock candidate.
+- generic light/day-profile wording could similarly drift into invalid paddock extraction;
+- daylight requests could show a valid graph while also returning an internal message that a deterministic operation was unavailable;
+- user-facing text such as `The requested deterministic operation is unavailable for this measurement` exposed internal implementation language;
+- the language model could produce a generic `I cannot produce graphs` style answer even though graph capability belongs to the FarmPi application, not to the model itself.
+
+These findings changed the desired recovery model. When a literal request cannot be completed directly, FarmPi should attempt semantic interpretation, inspect available measurements/operations/graphs, map defensible nearby concepts, offer a valid alternative, and ask for clarification only when genuinely necessary. A generic model refusal should not override application capabilities.
+
+This recovery behaviour is now treated as **application usability and resilience**, not as a learning-platform requirement.
+
+### Documentation and source realignment
+
+The current repository documentation was rewritten to reflect the new direction while preserving historical evidence:
+
+- the root README now presents FarmPi as a functional application demonstrator;
+- `docs/capstone-governance.md` now maps scope to Advanced Application Development Concepts and Artificial Intelligence and Data Science;
+- `docs/architecture.md` now describes the Android/FastAPI/MariaDB/analytics/LLM system as an integrated application architecture;
+- `docs/android-client.md` now treats the phone client, graphing, voice/TTS, state, and error recovery as mobile-application evidence and marks the course UI as legacy;
+- `docs/data-and-api.md` now describes the main application API, farm-wide/named/comparison graph semantics, and capability lookup;
+- `docs/learning-and-sources.md` has been repurposed as the current AI/grounding/source-integration guide;
+- `docs/testing-and-evaluation.md` now prioritises functional, integration, mobile, AI/data, failure-path, deployment, and performance evidence;
+- the former flexible-course design remains explicitly marked historical rather than being deleted;
+- Mermaid indexes and the semantic/grounding/Android flow diagrams were updated to use current user/application terminology;
+- `app/main.py` and `app/semantic_interpreter.py` were cleaned up so current source comments/prompts refer to users and application behaviour rather than treating every interaction as a learner interaction.
+
+A separate historical note at `docs/history/2026-09-02-elective-pivot.md` records the elective switch and rationale without rewriting the earlier entries below.
+
+### Current scope rule
+
+New work should now be challenged with:
+
+> **Does this make the FarmPi application more functional, coherent, reliable, usable, testable, or technically defensible against the current capstone requirements?**
+
+IoT expansion, production hardening, cloud services, additional radio work, or further course/LMS development remain out of scope unless a current requirement makes them necessary.
+
 ## 30 August 2026 - Module 1: Getting Started with FarmPi
 
 ### Learner need and design reasoning
