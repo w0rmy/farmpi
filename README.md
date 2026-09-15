@@ -10,12 +10,13 @@ FarmPi currently combines:
 
 - a Raspberry Pi FastAPI service, MariaDB, Caddy HTTPS, and an OpenAI-compatible language-model endpoint;
 - one ESP32 simulator that generates 16 clearly labelled virtual paddocks for repeatable testing;
+- a standard sensor capability model covering soil moisture, soil temperature, air temperature, relative humidity, light, and barometric pressure, with pH, EC, rainfall, wind, pasture height, and leaf wetness treated as optional add-ons;
 - deterministic current and historical farm facts, calculations, identity resolution, timestamps, chart data, and controlled mutations;
 - a native Android client with text/voice interaction, text-to-speech, charts, evidence/provenance, settings, and local state;
 - semantic interpretation and bounded conversation context for natural-language requests;
 - curated source metadata and provenance rules for external/general information.
 
-Synthetic telemetry is test evidence, not an agronomic model, forecast, or production-farm recommendation.
+Synthetic telemetry is test evidence, not an agronomic model, forecast, or production-farm recommendation. The current simulator deliberately emits both standard and optional measurements so the wider application can be exercised without implying that every physical node contains every sensor.
 
 ## Start here
 
@@ -48,8 +49,10 @@ Android app or diagnostic browser
   farm data    application      language model
                functions        endpoint
 
-ESP32 virtual nodes -- HTTPS POST /api/ingest --> FastAPI
+sensor / simulator -- transport --> HTTPS ingest --> FastAPI --> MariaDB
 ```
+
+The application above the ingest boundary is transport-neutral. The current demonstrator uses Wi-Fi, while a future LoRa/LoRaWAN or Wi-Fi HaLow link can feed the same time, sequence, validation, and database contract without redesigning analytics, Android, or AI behaviour.
 
 The checked-in Pi service template starts Qwen3 1.7B through `llama-server`. The development/reference setup can instead point FarmPi at LM Studio or another OpenAI-compatible server with `FARMPI_LLAMA_URL` and `FARMPI_LLM_MODEL`; reference testing has also used Qwen3.5-9B on the development PC. Model choice is an implementation and evaluation variable rather than the application purpose.
 
@@ -91,7 +94,7 @@ For Android, open `clients/android` in Android Studio or run the Gradle wrapper 
 
 FarmPi is authoritative only for application-controlled facts and operations:
 
-- validated current and historical FarmPi readings;
+- validated current and historical FarmPi readings and whether a measurement is actually available;
 - deterministic calculations and chart values over those readings;
 - active paddock/sensor identity and controlled rename history;
 - timestamps, clock quality, deduplication state, and device-ingest state.
