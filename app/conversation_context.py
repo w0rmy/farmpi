@@ -1,4 +1,4 @@
-"""Per-conversation learning context and client-response cleanup.
+"""Per-conversation context and client-response cleanup.
 
 FarmPi keeps only a tiny, short-lived conversational window. The deterministic
 farm-data layer remains authoritative; this context exists so natural follow-ups
@@ -117,7 +117,7 @@ def prepare_client_payload(payload: dict[str, Any]) -> dict[str, Any]:
     provenance = adjusted.get("provenance")
     if isinstance(provenance, list):
         # Research execution status is useful server-side diagnostic metadata,
-        # not learner-facing evidence. Keep actual source provenance visible.
+        # not user-facing evidence. Keep actual source provenance visible.
         adjusted["provenance"] = [
             item
             for item in provenance
@@ -145,7 +145,7 @@ def _json_response(response: Any, payload: Any) -> Response:
 
 
 def install_conversation_context(application: Any) -> None:
-    """Install bounded conversation memory and learner-facing response cleanup."""
+    """Install bounded conversation memory and user-facing response cleanup."""
 
     if getattr(application.state, "_farmpi_conversation_context_installed", False):
         return
