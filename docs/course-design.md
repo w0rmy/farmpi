@@ -1,8 +1,10 @@
-# FarmPi embedded flexible IT course design
+# Historical: FarmPi embedded flexible IT course design
+
+> **Status:** Superseded capstone direction. This document records genuine work completed while **Developing Flexible IT Courses** was the selected elective. On 2 September 2026 the project direction changed to **Advanced Application Development Concepts** alongside **Artificial Intelligence and Data Science**. The material below is retained as development history and is no longer a current design authority.
 
 ## Purpose and learner profile
 
-This short course is for non-specialist FarmPi users who need to use an information-rich application confidently, interpret its evidence, and use AI support without treating it as automatic authority. Farm monitoring is the authentic technical vehicle; the assessed contribution is primarily **Developing Flexible IT Courses**, with governed AI/data use contributing to **AI and Data Sciences**.
+This short course is for non-specialist FarmPi users who need to use an information-rich application confidently, interpret its evidence, and use AI support without treating it as automatic authority. Farm monitoring is the authentic technical vehicle; the assessed contribution was primarily **Developing Flexible IT Courses**, with governed AI/data use contributing to the AI/data elective.
 
 ## Aim and outcomes
 
@@ -45,8 +47,10 @@ AI is used for explanation, language interpretation, and conversational follow-u
 
 ## Evaluation approach and rationale
 
-The design reuses the project’s established embedded-learning, learner-agency, adaptation, provenance, and deterministic-authority approach. Evaluation combines automated contracts (course integrity, controlled context, intent completion) with consented task observation: can a non-specialist start, follow or depart from the pathway, interpret evidence, use/verify AI explanations, recover from misunderstanding, and choose useful presentation settings? Results must be recorded rather than assumed. Detailed checks are maintained in [testing-and-evaluation.md](testing-and-evaluation.md).
+The design reused the project’s then-current embedded-learning, learner-agency, adaptation, provenance, and deterministic-authority approach. Evaluation combined automated contracts (course integrity, controlled context, intent completion) with consented task observation: can a non-specialist start, follow or depart from the pathway, interpret evidence, use/verify AI explanations, recover from misunderstanding, and choose useful presentation settings? Results were to be recorded rather than assumed.
 
 ## Scope control
 
-This is a bounded course spine over existing FarmPi capabilities. It adds no LMS, account, cloud data, gamification, autonomous agent, uncontrolled AI-authored course content, new monitoring/control feature, sensor/network work, or unrelated visual-art work. The governing outcome gate remains in [capstone-governance.md](capstone-governance.md).
+This was designed as a bounded course spine over existing FarmPi capabilities. It added no LMS, account, cloud data, gamification, autonomous agent, uncontrolled AI-authored course content, new monitoring/control feature, sensor/network work, or unrelated visual-art work.
+
+The current scope is now governed by [capstone-governance.md](capstone-governance.md), which prioritises the functional application demonstrator and the Advanced Application Development Concepts / Artificial Intelligence and Data Science evidence chain.
