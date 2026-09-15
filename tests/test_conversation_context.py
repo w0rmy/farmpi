@@ -1,4 +1,4 @@
-"""Tests for bounded conversation continuity and learner-facing response cleanup."""
+"""Tests for bounded conversation continuity and user-facing response cleanup."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ class ConversationContextTests(unittest.TestCase):
         payload = {
             "model": "qwen/qwen3.5-9b",
             "messages": [
-                {"role": "system", "content": "You are FarmPi, an open conversational agricultural learning assistant."},
+                {"role": "system", "content": "You are FarmPi, an open conversational agricultural assistant."},
                 {"role": "user", "content": "Who wrote The Hobbit?"},
             ],
             "max_tokens": 64,
@@ -52,7 +52,7 @@ class ConversationContextTests(unittest.TestCase):
             result = normalise_chat_payload({
                 "model": "qwen/qwen3.5-9b",
                 "messages": [
-                    {"role": "system", "content": "You are FarmPi, an open conversational agricultural learning assistant."},
+                    {"role": "system", "content": "You are FarmPi, an open conversational agricultural assistant."},
                     {"role": "user", "content": "Can you explain that more simply?"},
                 ],
                 "max_tokens": 128,
@@ -73,7 +73,7 @@ class ConversationContextTests(unittest.TestCase):
             result = normalise_chat_payload({
                 "model": "qwen/qwen3.5-9b",
                 "messages": [
-                    {"role": "system", "content": "You are FarmPi's learner-intent interpreter, not the answering assistant."},
+                    {"role": "system", "content": "You are FarmPi's user-intent interpreter, not the answering assistant."},
                     {"role": "user", "content": "Can you explain that more simply?"},
                 ],
                 "max_tokens": 192,
