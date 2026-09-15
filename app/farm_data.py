@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .database import fetch_all, fetch_one
 from .analytics import AnalyticsResult, comparison_chart, compare_paddocks, historical_analysis
-from .measurements import AVERAGE, BY_KEY, CHANGE, CURRENT, DAYLIGHT, MAXIMUM, MINIMUM, RANKING, SUM, MEASUREMENTS, format_measurement, measurement
+from .measurements import AVERAGE, BY_KEY, CHANGE, CURRENT, DAYLIGHT, MAXIMUM, MINIMUM, RANKING, SUM, MEASUREMENTS, STANDARD_NODE_MEASUREMENTS, format_measurement, measurement
 from .paddock_resolver import PaddockIdentity, PaddockResolution, active_paddocks, resolve_paddock as resolve_paddock_identity
 from .education import irrigation_decision_material
 
@@ -20,7 +20,7 @@ class NoFarmData(RuntimeError):
 
 @dataclass(frozen=True)
 class PaddockEnvironment:
-    """Latest complete reading for one paddock, always linked by numeric IDs."""
+    """Latest standard-node reading for one paddock, with available add-ons."""
 
     id: int
     name: str
@@ -31,7 +31,7 @@ class PaddockEnvironment:
     contains_simulated: bool
 
     def __getattr__(self, key: str) -> float:
-        if key in BY_KEY:
+        if key in BY_KEY and key in self.values:
             return self.values[key]
         raise AttributeError(key)
 
@@ -56,7 +56,7 @@ class GroundingData:
 _SELECT_VALUES = ",\n    ".join(
     f"ROUND(AVG(r.{item.key}), {item.decimal_places}) AS {item.key}" for item in MEASUREMENTS
 )
-_COMPLETE_PREDICATE = "\n          AND ".join(f"r2.{item.key} IS NOT NULL" for item in MEASUREMENTS)
+_STANDARD_PREDICATE = "\n          AND ".join(f"r2.{item.key} IS NOT NULL" for item in STANDARD_NODE_MEASUREMENTS)
 LATEST_PADDOCK_ENVIRONMENT_SQL = f"""
 SELECT
     p.id,
@@ -71,7 +71,7 @@ JOIN sensor_nodes AS s ON s.paddock_id = p.id AND s.active = 1
 JOIN readings AS r ON r.id = (
     SELECT r2.id FROM readings AS r2
     WHERE r2.sensor_node_id = s.id
-          AND {_COMPLETE_PREDICATE}
+          AND {_STANDARD_PREDICATE}
     ORDER BY r2.received_at DESC, r2.id DESC LIMIT 1
 )
 WHERE p.active = 1
@@ -81,7 +81,7 @@ ORDER BY p.id
 
 
 def get_environment_snapshot() -> list[PaddockEnvironment]:
-    """Return the latest complete row for each active paddock."""
+    """Return the latest valid standard-node row for each active paddock."""
     snapshot: list[PaddockEnvironment] = []
     for row in fetch_all(LATEST_PADDOCK_ENVIRONMENT_SQL):
         # The fallback only supports callers/tests against the alpha projection;
@@ -93,14 +93,14 @@ def get_environment_snapshot() -> list[PaddockEnvironment]:
         snapshot.append(PaddockEnvironment(
             id=int(row["id"]),
             name=str(row["name"]),
-            values={item.key: float(row[item.key]) for item in MEASUREMENTS},
+            values={item.key: float(row[item.key]) for item in MEASUREMENTS if row.get(item.key) is not None},
             received_at=received_at,
             observed_at=observed_at,
             sensor_count=int(row["sensor_count"]),
             contains_simulated=bool(row["contains_simulated"]),
         ))
     if not snapshot:
-        raise NoFarmData("No current complete farm readings are available.")
+        raise NoFarmData("No current standard-node farm readings are available.")
     return snapshot
 
 
@@ -135,7 +135,7 @@ def _paddock_resolution_facts(resolution: PaddockResolution) -> tuple[str, ...]:
         return ("There are no active paddocks configured for monitoring.",)
     suggestions = ", ".join(resolution.suggestions)
     if resolution.status == "paddock-out-of-range":
-        count = len(resolution.suggestions)  # only used to select the empty-case message below
+        count = len(resolution.suggestions)
         return (f"{resolution.reference} is outside the active configured paddock range. Try one of: {suggestions}." if count else "There are no active paddocks configured for monitoring.",)
     if resolution.status == "ambiguous-paddock":
         return (f"I found more than one possible paddock for “{resolution.reference}”. Please choose one of: {suggestions}." if suggestions else f"I could not uniquely identify “{resolution.reference}”.",)
@@ -183,9 +183,6 @@ def _display_reading_time(received_at: datetime) -> str:
     try:
         local = timestamp.astimezone(ZoneInfo("Pacific/Auckland"))
     except ZoneInfoNotFoundError:
-        # Production Pi installations have the IANA zone database.  This
-        # fallback keeps an offline Windows/dev environment readable until
-        # requirements install `tzdata`; it does not affect evidence UTC.
         local = timestamp.astimezone()
     hour = local.hour % 12 or 12
     meridiem = "am" if local.hour < 12 else "pm"
@@ -204,7 +201,7 @@ def _current_evidence(item: PaddockEnvironment) -> tuple[dict[str, object], ...]
 
 
 def latest_paddock_summary(paddock_name: str | None) -> GroundingData:
-    """List the catalogue-backed current measurements for one paddock."""
+    """List only measurements currently available for one paddock."""
     if not paddock_name:
         return GroundingData("paddock_summary", ("Please name a paddock, for example Paddock B or Paddock 2.",))
     try:
@@ -219,11 +216,13 @@ def latest_paddock_summary(paddock_name: str | None) -> GroundingData:
     except NoFarmData:
         item = None
     if item is None:
-        return GroundingData("paddock_summary", (f"{resolution.paddock.name} is active, but has no current complete sensor reading yet.",))
+        return GroundingData("paddock_summary", (f"{resolution.paddock.name} is active, but has no current standard-node reading yet.",))
+    available = [field for field in MEASUREMENTS if field.key in item.values]
     facts = [f"{item.name} currently has these monitored measurements:"]
-    facts.extend(_measurement_fact(item, field.key) for field in MEASUREMENTS)
-    facts.extend((_display_reading_time(item.received_at), f"Active sensor nodes for this paddock: {resolution.paddock.active_sensor_count}.", "Available analytics include current, minimum, maximum, average, range, change, trend, and supported comparisons over a selected time window."))
-    spoken = (facts[0], facts[1], facts[2], "The screen shows the remaining current measurements. Ask Show evidence for exact timestamps and provenance.")
+    facts.extend(_measurement_fact(item, field.key) for field in available)
+    facts.extend((_display_reading_time(item.received_at), f"Active sensor nodes for this paddock: {resolution.paddock.active_sensor_count}.", "Available analytics depend on which standard and optional measurements this paddock currently reports."))
+    spoken_measurements = tuple(facts[1:3])
+    spoken = (facts[0], *spoken_measurements, "The screen shows the remaining available measurements. Ask Show evidence for exact timestamps and provenance.")
     return GroundingData("paddock_summary", tuple(facts), _current_evidence(item), spoken_facts=spoken)
 
 
@@ -257,13 +256,14 @@ def get_average_soil_moisture(snapshot: list[PaddockEnvironment] | None = None) 
 
 
 def get_average_measurement(key: str, snapshot: list[PaddockEnvironment] | None = None) -> float:
-    """Return the current farm-wide mean for one reviewed measurement."""
+    """Return the current mean across paddocks that report the measurement."""
     if key not in BY_KEY or AVERAGE not in BY_KEY[key].operations:
         raise ValueError("That measurement does not have a reviewed farm-wide average operation.")
-    values = snapshot if snapshot is not None else get_environment_snapshot()
+    snapshot_values = snapshot if snapshot is not None else get_environment_snapshot()
+    values = [item.values[key] for item in snapshot_values if key in item.values]
     if not values:
         raise NoFarmData(f"No current {measurement(key).label} readings are available.")
-    return fmean(item.values[key] for item in values)
+    return fmean(values)
 
 
 def _provenance_fact(items: list[PaddockEnvironment]) -> str:
@@ -271,12 +271,17 @@ def _provenance_fact(items: list[PaddockEnvironment]) -> str:
 
 
 def _measurement_fact(item: PaddockEnvironment, key: str) -> str:
+    if key not in item.values:
+        raise NoFarmData(f"{item.name} does not currently report {measurement(key).label}.")
     return f"{item.name} {measurement(key).label}: {format_measurement(item.values[key], key)}."
 
 
 def _current_average(key: str) -> GroundingData:
-    """Calculate a current cross-paddock mean from the latest verified snapshot."""
-    items = get_environment_snapshot()
+    """Calculate a current mean from paddocks that report the measurement."""
+    snapshot = get_environment_snapshot()
+    items = [item for item in snapshot if key in item.values]
+    if not items:
+        return GroundingData("farm-average", (f"No current {measurement(key).label} readings are available from the active paddocks.",))
     value = get_average_measurement(key, items)
     label = measurement(key).label
     evidence = tuple({
@@ -286,7 +291,7 @@ def _current_average(key: str) -> GroundingData:
         "value": item.values[key],
         "simulated": item.contains_simulated,
     } for item in items)
-    fact = f"Farm average {label} across {len(items)} active paddocks: {format_measurement(value, key)}."
+    fact = f"Farm average {label} across {len(items)} reporting paddocks: {format_measurement(value, key)}."
     return GroundingData(
         "farm-average",
         (fact, _provenance_fact(items)),
@@ -296,7 +301,9 @@ def _current_average(key: str) -> GroundingData:
 
 
 def _current_ranking(key: str, highest: bool) -> GroundingData:
-    items = get_environment_snapshot()
+    items = [item for item in get_environment_snapshot() if key in item.values]
+    if not items:
+        return GroundingData("ranking", (f"No current {measurement(key).label} readings are available from the active paddocks.",))
     winner = max(items, key=lambda item: item.values[key]) if highest else min(items, key=lambda item: item.values[key])
     direction = "Highest" if highest else "Lowest"
     values = dict(sorted(((item.name, item.values[key]) for item in items), key=lambda entry: entry[1], reverse=highest))
@@ -351,9 +358,6 @@ def historical_grounding(key: str, operation: str, minutes: int, paddock_name: s
     elif operation == CHANGE:
         value, description = values[-1] - values[0], "change"
     elif operation == DAYLIGHT:
-        # A five-minute sample at or above 1,000 lux counts as daylight. The
-        # virtual nodes are intentionally sampled every five minutes; this is a
-        # documented derived metric, not an ingested value or LLM estimate.
         daylight_hours = sum(1 for value in values if value >= 1000) * 5 / 60
         return GroundingData("historical", (f"Derived daylight for {scope} over {window}: {daylight_hours:.2f} hours (light ≥ 1,000 lux; 5-minute samples).", "The result is deterministically derived from historical light readings."))
     else:
@@ -368,7 +372,7 @@ def time_window_start(window_minutes: int | None, window_label: str | None) -> t
     """Resolve presentation terms to an explicit UTC database boundary.
 
     ``today`` is a Pacific/Auckland local calendar day; all stored/query times
-    remain UTC.  This prevents the old and subtle 'last 24 hours = today' bug.
+    remain UTC. This prevents the old and subtle 'last 24 hours = today' bug.
     """
     now = datetime.now(timezone.utc)
     if window_label == "today":
@@ -447,7 +451,7 @@ def irrigation_decision_grounding(paddock_name: str | None, level: str = "normal
     except NoFarmData:
         item = None
     if item is None:
-        facts.insert(1, f"{resolution.paddock.name} is active, but has no current complete soil-moisture reading.")
+        facts.insert(1, f"{resolution.paddock.name} is active, but has no current standard-node soil-moisture reading.")
         return GroundingData("irrigation-decision", tuple(facts), source_category="educational")
     facts.insert(1, _measurement_fact(item, "soil_moisture_pct"))
     return GroundingData(
@@ -462,9 +466,9 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
     """Return precisely the deterministic facts approved by a router route."""
     if intent in {"capability", "help"}:
         return GroundingData(intent, (
-            "FarmPi can show current verified soil moisture, air temperature, humidity, pH, EC, light, rainfall, pressure, wind, pasture height, and leaf wetness, plus farm-wide averages and highest/lowest paddocks, paddock comparisons, bounded history and trends, evidence/graphs, and explanations.",
-            "Field and paddock mean the same monitored area in your questions. FarmPi can also list or count active paddocks; renames require an explicit confirmation.",
-            "FarmPi does not currently provide forecasts or irrigation recommendations. Try asking: What is the average temperature across all fields? or Which paddock is hottest?",
+            "Every standard FarmPi node reports soil moisture, soil temperature, air temperature, relative humidity, light, and barometric pressure.",
+            "Optional add-on sensors can also provide pH, EC, rainfall, wind, pasture height, and leaf wetness; FarmPi only presents those measurements where a node actually reports them.",
+            "FarmPi can calculate supported averages, rankings, comparisons, bounded history, trends, evidence, and graphs from the measurements that are available. It does not currently provide forecasts or irrigation recommendations.",
         ), source_category="educational")
     if intent == "irrigation-decision":
         return irrigation_decision_grounding(paddock_name)
@@ -534,14 +538,18 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
         except NoFarmData:
             item = None
         if item is None:
-            return GroundingData(intent, (f"{resolution.paddock.name} is active, but has no current complete reading for the requested measurement.",))
+            return GroundingData(intent, (f"{resolution.paddock.name} is active, but has no current standard-node reading.",))
         key = measurement_key or "soil_moisture_pct"
         if key not in BY_KEY or CURRENT not in BY_KEY[key].operations:
             return GroundingData("interpretation-boundary", ("FarmPi does not have a reviewed current-reading operation for that measurement.",))
+        if key not in item.values:
+            return GroundingData(intent, (f"{item.name} does not currently report {measurement(key).label}. That measurement requires an installed add-on sensor for this paddock.",), _current_evidence(item))
         screen_facts = (_measurement_fact(item, key), _display_reading_time(item.received_at))
         return GroundingData(intent, screen_facts, _current_evidence(item), spoken_facts=(_measurement_fact(item, key),))
     if intent == "measurement-fallback" and measurement_key in BY_KEY:
-        snapshot = get_environment_snapshot()
+        snapshot = [item for item in get_environment_snapshot() if measurement_key in item.values]
+        if not snapshot:
+            return GroundingData(intent, (f"No active paddock currently reports {measurement(measurement_key).label}.",))
         return GroundingData(intent, (*(_measurement_fact(item, measurement_key) for item in snapshot), _provenance_fact(snapshot)))
     snapshot = get_moisture_snapshot()
     driest, wettest = get_driest_paddock(snapshot), get_wettest_paddock(snapshot)
