@@ -1,6 +1,21 @@
 # ESP32 synthetic telemetry generator
 
-The current firmware is a development and evaluation generator, not a deployed agronomic sensor product. One ESP32 represents 16 stable virtual paddock nodes and sends coherent, explicitly simulated telemetry to FarmPi. Its purpose is to provide repeatable data for the learning platform, analytics, provenance, and UI evaluation without implying that fabricated measurements came from physical sensors.
+The current firmware is a development and evaluation generator, not a deployed agronomic sensor product. One ESP32 represents 16 stable virtual paddock nodes and sends coherent, explicitly simulated telemetry to FarmPi. Its purpose is to provide repeatable data for application, analytics, provenance, and UI evaluation without implying that fabricated measurements came from physical sensors.
+
+## Standard versus optional measurements
+
+The planned standard physical FarmPi node has six baseline measurements:
+
+- soil moisture;
+- soil temperature;
+- air temperature;
+- relative humidity;
+- ambient light;
+- barometric pressure.
+
+pH, EC, rainfall, wind speed/direction, pasture height, and leaf wetness are optional/add-on capabilities in the application model. This simulator intentionally emits all of them because simulated capabilities have no hardware cost and are useful for testing the wider database, analytics, graphing, and conversational interface.
+
+The production ingest contract no longer requires those optional values. A real baseline-only node can omit them; FarmPi stores them as unavailable rather than fabricating zero/default values.
 
 ## Behaviour
 
@@ -8,6 +23,7 @@ The current firmware is a development and evaluation generator, not a deployed a
 - one node is sent every 18.75 seconds, making a five-minute 16-node round;
 - values share a New Zealand seasonal/daylight/weather state plus stable paddock differences;
 - every payload sets `simulated=true`;
+- the simulator currently sends both the six baseline fields and all supported optional fields;
 - FarmPi supplies authoritative UTC in the ingest acknowledgement;
 - `sample_seq` permits safe retry/deduplication;
 - Wi-Fi, mDNS, HTTPS bearer authentication, retries, and serial diagnostics are retained.
@@ -49,4 +65,4 @@ The sketch resolves the Pi address but presents `farmpi.local` as the TLS hostna
 
 ## Scope control
 
-LoRa, physical sensor calibration, enclosures, battery management, and production fleet management are not implemented. Add them only when they materially support a defined learning/elective/graduate-profile outcome. More IoT hardware is not capstone progress by itself; see [Capstone outcome governance](../../docs/capstone-governance.md).
+The repository firmware remains a synthetic generator. Physical sensor drivers/calibration, LoRa, enclosures, battery management, the 30-minute offline RAM buffer, and production fleet management are separate implementation steps. Add them when they materially support the current FarmPi requirements; more IoT hardware is not capstone progress by itself. See [Capstone outcome governance](../../docs/capstone-governance.md).
