@@ -37,8 +37,8 @@ class StoredReading:
         return self.received_at
 
     def __getattr__(self, key: str) -> float:
-        """Keep convenient attribute access for each catalogued measurement."""
-        if key in BY_KEY:
+        """Keep convenient attribute access for measurements this node reports."""
+        if key in BY_KEY and key in self.values:
             return self.values[key]
         raise AttributeError(key)
 
@@ -86,13 +86,20 @@ def _utc_datetime(value: Any) -> datetime:
     return value.replace(tzinfo=timezone.utc)
 
 
-def validate_reading_values(values: dict[str, float]) -> dict[str, float]:
-    """Validate all values against the reviewed measurement catalogue."""
+def validate_reading_values(values: dict[str, Any]) -> dict[str, float]:
+    """Validate baseline measurements and any supplied optional capability."""
+    unknown = set(values) - set(BY_KEY)
+    if unknown:
+        raise ValueError(f"Unknown measurement field: {sorted(unknown)[0]}")
+
     result: dict[str, float] = {}
     for item in MEASUREMENTS:
-        if item.key not in values:
-            raise ValueError(f"Missing required measurement: {item.key}")
-        value = float(values[item.key])
+        raw_value = values.get(item.key)
+        if raw_value is None:
+            if item.standard_node_required:
+                raise ValueError(f"Missing required measurement: {item.key}")
+            continue
+        value = float(raw_value)
         if not item.minimum <= value <= item.maximum:
             raise ValueError(f"{item.key} must be between {item.minimum} and {item.maximum}.")
         result[item.key] = round(value, item.decimal_places)
@@ -112,16 +119,21 @@ def store_sensor_reading(
     protocol_version: int = 1,
     **values: Any,
 ) -> StoredReading:
-    """Store a validated sample with explicit device and FarmPi time semantics.
+    """Store a validated sample with explicit capability and time semantics.
 
-    ``received_at`` is always FarmPi UTC.  An unset node clock never creates a
+    Every standard node must provide the baseline measurements defined in the
+    measurement catalogue. Optional add-on values are stored when supplied and
+    remain SQL NULL when that node does not report them; FarmPi never invents a
+    value to make a row look complete.
+
+    ``received_at`` is always FarmPi UTC. An unset node clock never creates a
     1970 observation: it is represented by the receive time plus ``clock_valid``
-    false.  A supplied sequence makes retries idempotent per sensor node.
+    false. A supplied sequence makes retries idempotent per sensor node.
     """
     sensor = fetch_one(SENSOR_LOOKUP_SQL, (sensor_uid,))
     if sensor is None:
         raise UnknownSensor(f"Unknown or inactive sensor: {sensor_uid}")
-    validated = validate_reading_values({key: float(value) for key, value in values.items()})
+    validated = validate_reading_values(values)
     received_at_utc = (received_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
     effective_clock_valid = bool(clock_valid and observed_at is not None)
     observed_at_utc = observed_at.astimezone(timezone.utc) if effective_clock_valid else received_at_utc
@@ -129,9 +141,14 @@ def store_sensor_reading(
     if sample_seq is not None:
         duplicate = fetch_one(DUPLICATE_READING_SQL, (int(sensor["sensor_node_id"]), sample_seq))
         if duplicate is not None:
+            duplicate_values = {
+                item.key: float(duplicate[item.key])
+                for item in MEASUREMENTS
+                if duplicate.get(item.key) is not None
+            }
             return StoredReading(
                 int(duplicate["id"]), str(sensor["node_uid"]), str(sensor["paddock_name"]),
-                {item.key: float(duplicate[item.key]) for item in MEASUREMENTS}, bool(duplicate["simulated"]),
+                duplicate_values, bool(duplicate["simulated"]),
                 _utc_datetime(duplicate["observed_at"]), _utc_datetime(duplicate["received_at"]),
                 bool(duplicate["clock_valid"]),
                 float(duplicate["clock_offset_seconds"]) if duplicate["clock_offset_seconds"] is not None else None,
@@ -145,7 +162,7 @@ def store_sensor_reading(
     reading_id = execute(
         INSERT_READING_SQL,
         (
-            int(sensor["sensor_node_id"]), *(validated[item.key] for item in MEASUREMENTS), bool(simulated),
+            int(sensor["sensor_node_id"]), *(validated.get(item.key) for item in MEASUREMENTS), bool(simulated),
             observed_at_db, received_at_db, received_at_db, effective_clock_valid,
             round(clock_offset_seconds, 3) if clock_offset_seconds is not None else None,
             bool(clock_out_of_tolerance), sample_seq, protocol_version,
