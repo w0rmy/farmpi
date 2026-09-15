@@ -2,7 +2,9 @@
 
 ## Purpose
 
-FarmPi is an agricultural learning platform whose real-world vehicle is a local farm-monitoring system. The learning outcomes govern the architecture: deterministic software protects farm facts and actions, while the language model supports natural interpretation and teaching.
+FarmPi is a functional farm-monitoring application demonstrator. Its architecture is intended to show how a native mobile client, local API/service layer, persistent data store, deterministic analytics, simulated sensor ingest, and a constrained language model can be integrated into one coherent system.
+
+The current capstone direction is **Advanced Application Development Concepts** plus **Artificial Intelligence and Data Science**. Earlier embedded-learning functionality remains implemented in places, but it no longer defines the architecture or current scope.
 
 ## Components
 
@@ -20,31 +22,31 @@ Android client / diagnostic browser
         |        |                    v
         |        |          OpenAI-compatible LLM endpoint
         |        |
-        |        +--> deterministic routing, analytics, learning and provenance
+        |        +--> deterministic routing, analytics, graphing and provenance
         |
         +--> MariaDB farm data and audit history
 
 ESP32 simulator --> authenticated HTTPS ingest --> FastAPI --> MariaDB
 ```
 
-- `app/main.py` composes the FastAPI application, installs the LLM compatibility adapter, and includes sensor-ingest routes.
-- `app/app.py` owns the browser fallback, learner API, orchestration, timings, conversation tokens, validated course-module context, and model call.
+- `app/main.py` composes the FastAPI application, installs bounded conversation context and the LLM compatibility adapter, and includes sensor-ingest routes.
+- `app/app.py` owns the primary application API, browser fallback, orchestration, timings, conversation tokens, optional legacy course context, and model call.
 - `app/question_router.py` selects obvious deterministic operations; `app/semantic_interpreter.py` handles broad or varied language through a validated structured interpretation.
-- `app/farm_data.py`, `app/analytics.py`, `app/measurements.py`, and `app/paddock_resolver.py` own farm facts, calculations, measurement metadata, and identity resolution.
+- `app/farm_data.py`, `app/analytics.py`, `app/measurements.py`, and `app/paddock_resolver.py` own farm facts, calculations, measurement metadata, graph inputs, and identity resolution.
 - `app/knowledge_sources.py` stores the source hierarchy, curated NZ source metadata, and reviewed claims. It is not a live search engine.
-- `app/llm_compat.py` combines system prompt fragments and optionally overrides the model identifier for stricter OpenAI-compatible chat servers such as LM Studio/Qwen3.5.
-- `app/education.py`, `app/learning.py`, and `app/guidance.py` contain reviewed concepts, the canonical deterministic course/compatible activities, onboarding, and next-question prompts.
+- `app/llm_compat.py` normalises OpenAI-compatible chat requests and preserves one integration contract across supported model servers.
+- `app/education.py`, `app/learning.py`, and `app/guidance.py` are retained support/legacy modules from the earlier learning-focused direction. They remain functional where referenced but are not the current capstone architecture driver.
 - `app/ingest_api.py` and `app/sensor_ingest.py` validate, authenticate, timestamp, deduplicate, and store telemetry.
-- `clients/android` is the primary native learner client. Its Ask and Course surfaces reuse one conversation contract; the built-in HTML page is a diagnostic fallback and does not implement the Android course flow.
+- `clients/android` is the primary native user client. The built-in HTML page is a diagnostic fallback.
 
 ## Ask/answer path
 
-1. Typed text is used unchanged. Spoken text first passes through deterministic domain normalisation using measurement vocabulary and active paddock names.
+1. Typed text is used unchanged. Spoken text can first pass through deterministic domain normalisation using measurement vocabulary and active paddock names.
 2. The fast router handles clear actions and farm-data operations. Broader language may be classified by the configured model into a tightly validated semantic schema.
 3. Application code resolves paddock identity, selects a reviewed operation, and retrieves or calculates the smallest relevant deterministic result.
-4. Learning questions receive reviewed educational context, curated NZ source metadata/claims, or clearly labelled general model knowledge. A valid course-module id may add only the matching server-controlled reviewed module context. Live retrieval is not currently configured.
-5. Deterministic results that already form a complete answer bypass the wording model. Learning/explanation paths call the configured LLM.
-6. The response returns answer text, concise speech text, route intent, timings, suggestions, optional chart/evidence, source category, evidence tier, provenance (including reviewed course material where used), and semantic interpretation diagnostics.
+4. Generic graph/time-series requests can operate over farm-wide data when no specific paddock is supplied. Explicit named-paddock and cross-paddock requests remain distinct.
+5. Deterministic results that already form a complete answer can bypass the wording model. Requests needing explanation, semantic recovery, or broader information can call the configured LLM.
+6. The response returns answer text, concise speech text, route intent, timings, suggestions, optional chart/evidence, source category, evidence tier, provenance, and semantic interpretation diagnostics where relevant.
 
 ## Authority boundaries
 
@@ -55,18 +57,24 @@ Application-controlled and never invented:
 - historical values and timestamps;
 - averages, rankings, totals, changes, trends, ranges, comparisons, anomaly flags, and daylight derivation;
 - SQL selection and database mutation;
+- chart values supplied to the Android client;
 - controlled paddock rename and its audit trail.
 
-Open but clearly scoped:
+Model-assisted but application-constrained:
 
-- agricultural explanations;
-- source-oriented learning questions;
-- paraphrases and unrelated questions a learner considers useful;
-- explanation depth and guidance frequency;
-- visual theme, contrast, and text-size preferences;
-- device-local course progress and a reviewed context selected only by a validated course-module id.
+- natural-language interpretation;
+- paraphrase and explanation;
+- broader informational questions;
+- conversational follow-up;
+- source/provenance wording based on supplied evidence.
 
 FarmPi does not infer a forecast, diagnosis, causal explanation, irrigation decision, or operational recommendation about this farm unless a future deterministic and evidenced feature explicitly establishes it.
+
+## Capability discovery and recovery direction
+
+The application should avoid dead-end generic refusals when a nearby supported capability exists. If a literal request cannot be executed, the system should use semantic interpretation and the measurement/operation catalogue to look for a valid alternative before asking for clarification or reporting a limitation.
+
+This recovery behaviour is particularly important for graphs. The language model should not decide whether FarmPi can graph something based on the model's own capabilities; application code should inspect the measurements and graph/analytics functions actually available.
 
 ## Language-model topology
 
@@ -75,7 +83,7 @@ The API reads:
 - `FARMPI_LLAMA_URL` (default `http://127.0.0.1:8080`);
 - `FARMPI_LLM_MODEL` (default `Qwen3-1.7B`).
 
-The Pi systemd template starts Qwen3 1.7B Q4_K_M through `llama-server`, context 2048, reasoning off, one slot, localhost only. During development, the same Pi application can point to Qwen3.5-9B hosted by LM Studio on the development PC. The compatibility adapter preserves one prompt/grounding design across both servers.
+The Pi systemd template starts Qwen3 1.7B Q4_K_M through `llama-server`, context 2048, reasoning off, one slot, localhost only. During development, the same Pi application can point to a larger reference model such as Qwen3.5-9B hosted by LM Studio on the development PC. The compatibility layer preserves the same application boundary across both topologies.
 
 ## Security and trust boundaries
 
@@ -89,10 +97,10 @@ The Pi systemd template starts Qwen3 1.7B Q4_K_M through `llama-server`, context
 ## Repository layout
 
 ```text
-app/                    FastAPI, routing, data, learning, source and LLM integration
-clients/android/        native Kotlin/Jetpack Compose Ask/Course client and device-local preferences
+app/                    FastAPI, routing, data, analytics, source and LLM integration
+clients/android/        native Kotlin/Jetpack Compose client and device-local preferences
 config/                 Caddy, systemd, database schema and repeatable seed
-docs/                   current architecture, deployment, learning and evaluation docs
+docs/                   current architecture, deployment, AI/data and evaluation docs
 firmware/esp32-sensor/  16-paddock synthetic telemetry firmware
 scripts/                database and service installation helpers
 tests/                  deterministic behavioural and integration-contract tests
