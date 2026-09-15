@@ -33,8 +33,17 @@ class FarmDataTests(unittest.TestCase):
             "contains_simulated": 1,
         }
 
+    def _baseline_row(self) -> dict[str, object]:
+        row = self._row()
+        for key in (
+            "soil_ph", "soil_ec_ms_cm", "rainfall_mm", "wind_speed_kmh",
+            "wind_direction_deg", "pasture_height_cm", "leaf_wetness_pct",
+        ):
+            row[key] = None
+        return row
+
     @patch("app.farm_data.fetch_all")
-    def test_current_environment_snapshot_has_all_fields(self, fetch_all) -> None:
+    def test_current_environment_snapshot_has_all_reported_fields(self, fetch_all) -> None:
         fetch_all.return_value = [self._row()]
         reading = get_environment_snapshot()[0]
         self.assertEqual(reading.air_temperature_c, 16.5)
@@ -43,6 +52,15 @@ class FarmDataTests(unittest.TestCase):
         self.assertEqual(reading.soil_ec_ms_cm, 0.52)
         self.assertEqual(reading.pasture_height_cm, 14.5)
         self.assertEqual(reading.light_lux, 12345.0)
+
+    @patch("app.farm_data.fetch_all")
+    def test_standard_node_snapshot_omits_unavailable_add_ons(self, fetch_all) -> None:
+        fetch_all.return_value = [self._baseline_row()]
+        reading = get_environment_snapshot()[0]
+        self.assertEqual(reading.soil_moisture_pct, 18.25)
+        self.assertEqual(reading.barometric_pressure_hpa, 1012.5)
+        self.assertNotIn("soil_ph", reading.values)
+        self.assertFalse(hasattr(reading, "soil_ph"))
 
     @patch("app.farm_data.fetch_all")
     def test_named_measurements_use_retrieved_latest_facts(self, fetch_all) -> None:
@@ -68,15 +86,43 @@ class FarmDataTests(unittest.TestCase):
                 self.assertEqual(grounding.evidence[0]["received_at"], "2026-08-26T09:00:00")
 
     @patch("app.farm_data.fetch_all")
+    def test_named_optional_measurement_reports_missing_add_on(self, fetch_all) -> None:
+        fetch_all.return_value = [self._baseline_row()]
+        route = route_question("What is the soil pH in Paddock A?")
+        grounding = get_grounding_data(route.intent, route.paddock_name, route.measurement)
+        self.assertIn("does not currently report soil pH", grounding.facts[0])
+        self.assertIn("add-on sensor", grounding.facts[0])
+
+    @patch("app.farm_data.fetch_all")
+    def test_paddock_summary_lists_only_available_measurements(self, fetch_all) -> None:
+        fetch_all.return_value = [self._baseline_row()]
+        grounding = get_grounding_data("paddock_summary", "Paddock A")
+        joined = " ".join(grounding.facts)
+        self.assertIn("soil moisture", joined)
+        self.assertIn("barometric pressure", joined)
+        self.assertNotIn("soil pH:", joined)
+        self.assertNotIn("pasture height:", joined)
+
+    @patch("app.farm_data.fetch_all")
     def test_farm_wide_average_temperature_uses_latest_snapshot_not_the_llm(self, fetch_all) -> None:
         second = self._row() | {"id": 2, "name": "Paddock B", "air_temperature_c": 18.5}
         fetch_all.return_value = [self._row(), second]
         route = route_question("What is the average temperature across all fields?")
         grounding = get_grounding_data(route.intent, route.paddock_name, route.measurement, route.operation)
         self.assertEqual(route.intent, "farm-average")
-        self.assertIn("Farm average air temperature across 2 active paddocks: 17.50 °C.", grounding.facts)
+        self.assertIn("Farm average air temperature across 2 reporting paddocks: 17.50 °C.", grounding.facts)
         self.assertEqual(len(grounding.evidence), 2)
-        self.assertEqual(grounding.spoken_facts, ("Farm average air temperature across 2 active paddocks: 17.50 °C.",))
+        self.assertEqual(grounding.spoken_facts, ("Farm average air temperature across 2 reporting paddocks: 17.50 °C.",))
+
+    @patch("app.farm_data.fetch_all")
+    def test_optional_average_uses_only_paddocks_that_report_it(self, fetch_all) -> None:
+        second = self._baseline_row() | {"id": 2, "name": "Paddock B"}
+        fetch_all.return_value = [self._row(), second]
+        route = route_question("What is the average soil pH across all fields?")
+        grounding = get_grounding_data(route.intent, route.paddock_name, route.measurement, route.operation)
+        self.assertIn("Farm average soil pH across 1 reporting paddocks: 6.30.", grounding.facts)
+        self.assertEqual(len(grounding.evidence), 1)
+        self.assertEqual(grounding.evidence[0]["paddock"], "Paddock A")
 
     @patch("app.farm_data.fetch_all")
     def test_current_highest_and_lowest_temperature_are_deterministic(self, fetch_all) -> None:
@@ -116,10 +162,11 @@ class FarmDataTests(unittest.TestCase):
         change = historical_grounding("pasture_height_cm", "change", 1440, "North Flat")
         self.assertIn("North Flat change pasture height over the last 1440 minutes: 2.5 cm", change.facts[0])
 
-    def test_help_grounding_uses_declared_capabilities_without_database(self) -> None:
+    def test_help_grounding_distinguishes_standard_and_optional_capabilities(self) -> None:
         grounding = get_grounding_data("help")
         self.assertEqual(grounding.intent, "help")
-        self.assertTrue(any("air temperature" in fact for fact in grounding.facts))
+        self.assertTrue(any("standard FarmPi node" in fact for fact in grounding.facts))
+        self.assertTrue(any("Optional add-on sensors" in fact for fact in grounding.facts))
         self.assertTrue(any("does not currently provide" in fact for fact in grounding.facts))
 
 
