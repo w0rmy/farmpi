@@ -124,7 +124,7 @@ def resolve_paddock(
 
     # The final recovery stage is intentionally small and transparent.  It
     # never maps a weak resemblance to a paddock; medium similarity becomes a
-    # learner-facing "Did you mean...?" prompt instead.
+    # user-facing "Did you mean...?" prompt instead.
     candidates = sorted(
         ((SequenceMatcher(None, wanted, normalise_paddock_reference(item.name)).ratio(), item) for item in items),
         key=lambda pair: pair[0],

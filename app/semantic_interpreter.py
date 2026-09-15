@@ -135,13 +135,13 @@ def build_interpretation_payload(question: str, paddock_names: tuple[str, ...] =
     measurements = ", ".join(BY_KEY.keys())
     system = f"""You are FarmPi's user-intent interpreter, not the answering assistant.
 Interpret ordinary, polite, colloquial, regional, accented/transcribed, or incomplete English by meaning rather than command grammar.
-Do not execute anything and do not answer the user's farming question.
+Do not execute anything and do not answer the user's question.
 Return ONE JSON object only, with these keys:
 intent, confidence, paddock_name, new_paddock_name, measurement, operation, window_minutes, topic, reason.
 Allowed intent values: rename, current, average, highest, lowest, comparison, history, trend, summary, list-paddocks, count-paddocks, capability, irrigation-decision, learning, research, clarify.
 Allowed measurement values: {measurements}. Use null when no FarmPi measurement is requested.
 Use field and paddock as conversational synonyms. For rename requests, separate conversational politeness from the requested name: a trailing 'please' is normally politeness, but preserve it if the user clearly says it is part of the new name.
-Use learning for general agricultural information or explanation, including cows, sheep, pasture, soils, animal health, farm systems and questions such as 'why'.
+Use learning as the compatibility intent for general informational questions, including non-farming topics, agricultural concepts and explanations such as 'why'. It does not imply a course or lesson.
 Use research when the user explicitly asks what an external organisation/source says, asks for current external information, or asks FarmPi to look something up.
 Use irrigation-decision for a farm-specific question asking whether/when to irrigate; do not make the decision yourself.
 For a farm-data request, extract only entities that are actually expressed or strongly implied. Known active paddocks: {known}.

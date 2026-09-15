@@ -1,7 +1,7 @@
 """Curated New Zealand agricultural source directory and provenance helpers.
 
 These records are source metadata, not a web-search engine. FarmPi may use reviewed
-claims included here and may direct learners to the source. It must not imply that a
+claims included here and may direct users to the source. It must not imply that a
 live page was searched unless a future research provider actually performed retrieval.
 """
 
@@ -64,11 +64,11 @@ SOURCE_HIERARCHY: tuple[SourceTier, ...] = (
 
 
 def source_hierarchy_contract() -> str:
-    """Return the compact policy supplied to the teaching model."""
+    """Return the compact evidence policy supplied to the answering model."""
 
     tiers = "\n".join(f"- {tier.label}: {tier.use_when}" for tier in SOURCE_HIERARCHY)
     return (
-        "SOURCE HIERARCHY FOR LEARNING ANSWERS\n"
+        "SOURCE HIERARCHY FOR FARMPI ANSWERS\n"
         f"{tiers}\n"
         "Prefer the highest relevant available evidence, but do not reject a useful general answer because a higher tier is unavailable. "
         "First-class trusted is an evidential preference, not a blanket claim of infallibility except where the source is inherently authoritative for its own content, such as current legislation text. "

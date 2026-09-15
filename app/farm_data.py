@@ -415,7 +415,7 @@ def analytics_grounding(key: str, operation: str, window_minutes: int | None, wi
 
 
 def paddock_summary(paddock_name: str | None, window_minutes: int | None, window_label: str | None) -> GroundingData:
-    """A compact deterministic learning summary, assembled from real operations."""
+    """A compact deterministic paddock summary, assembled from real operations."""
     item = resolve_paddock(paddock_name) if paddock_name else None
     if paddock_name and item is None:
         return GroundingData("summary", (f"No verified current reading is available for {paddock_name}.",))
@@ -463,7 +463,7 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
     if intent in {"capability", "help"}:
         return GroundingData(intent, (
             "FarmPi can show current verified soil moisture, air temperature, humidity, pH, EC, light, rainfall, pressure, wind, pasture height, and leaf wetness, plus farm-wide averages and highest/lowest paddocks, paddock comparisons, bounded history and trends, evidence/graphs, and explanations.",
-            "Field and paddock mean the same monitored area in learner questions. FarmPi can also list or count active paddocks; renames require an explicit confirmation.",
+            "Field and paddock mean the same monitored area in your questions. FarmPi can also list or count active paddocks; renames require an explicit confirmation.",
             "FarmPi does not currently provide forecasts or irrigation recommendations. Try asking: What is the average temperature across all fields? or Which paddock is hottest?",
         ), source_category="educational")
     if intent == "irrigation-decision":
@@ -488,13 +488,13 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
         ), source_category="educational")
     if intent == "interpretation-boundary":
         return GroundingData(intent, (
-            "FarmPi understood the measurement, but that calculation or interpretation is not one of its reviewed deterministic analytics.",
+            "FarmPi understood the measurement, but that calculation or interpretation is not currently supported.",
             "It can show the current reading, supported farm-wide averages or highest/lowest values, a trend, or evidence instead of estimating a result.",
             "Would you like a current value, farm-wide comparison, or trend?",
         ), source_category="educational")
     if intent in {"conversation", "agriculture-learning"}:
         return GroundingData(intent, (
-            "FarmPi may provide a general agricultural explanation, not a claim about this farm.",
+            "FarmPi may provide a general explanation on the user's topic, without making unsupported claims about this farm.",
             "No retrieved external source has been supplied for this response, so any explanation must be labelled as general model knowledge.",
             "If a question needs a farm-specific value, calculation, paddock identity, or operation, FarmPi will use a deterministic route rather than guess it.",
         ), source_category="educational")
@@ -550,7 +550,7 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
 
 
 def format_grounding_context(grounding: GroundingData) -> str:
-    heading = "APPROVED LEARNING MATERIAL" if grounding.source_category == "educational" else "FARMPI GROUNDING"
+    heading = "APPROVED REFERENCE MATERIAL" if grounding.source_category == "educational" else "FARMPI GROUNDING"
     return "\n".join([heading, *(f"- {fact}" for fact in grounding.facts)])
 
 

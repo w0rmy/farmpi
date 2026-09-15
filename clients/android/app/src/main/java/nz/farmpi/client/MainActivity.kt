@@ -177,6 +177,7 @@ private fun FarmPiApp() {
     var courseError by remember { mutableStateOf<String?>(null) }
     var selectedCourseModuleId by remember { mutableStateOf<String?>(null) }
     var activeCourseModuleId by remember { mutableStateOf<String?>(null) }
+    var answerCourseModuleId by remember { mutableStateOf<String?>(null) }
     var courseProgress by remember { mutableStateOf(CourseProgress(null, emptySet(), emptySet(), emptySet())) }
     var learnAboutModuleId by remember { mutableStateOf<String?>(null) }
     var ttsReady by remember { mutableStateOf(false) }
@@ -371,10 +372,13 @@ private fun FarmPiApp() {
         }
     }
 
-    fun ask(text: String, speechAlternatives: List<String> = emptyList(), courseModuleId: String? = activeCourseModuleId) = scope.launch {
+    // Ordinary questions do not inherit the saved course return location.
+    // Course activities and quick actions pass their module explicitly.
+    fun ask(text: String, speechAlternatives: List<String> = emptyList(), courseModuleId: String? = null) = scope.launch {
         if (text.isBlank() || asking) return@launch
         stopSpeaking()
         asking = true
+        answerCourseModuleId = null
         answer = "Asking FarmPi…"
         try {
             val speech = if (speechAlternatives.isEmpty()) null else FarmPiApi.normalise(text, speechAlternatives)
@@ -391,7 +395,7 @@ private fun FarmPiApp() {
             provenance = result.provenance
             sourceTier = result.sourceTier
             showEvidence = false
-            activeCourseModuleId = courseModuleId
+            answerCourseModuleId = courseModuleId
             courseModuleId?.let { moduleId ->
                 val module = course?.modules?.firstOrNull { it.id == moduleId }
                 if (module != null && result.intent in module.tryActivity.successIntents) {
@@ -604,7 +608,7 @@ private fun FarmPiApp() {
                         Text(suggestion, textAlign = TextAlign.Start)
                     }
                 }
-                if (activeCourseModuleId != null && answer != "Asking FarmPi…") {
+                if (answerCourseModuleId != null && !asking) {
                     Text("Course quick actions", modifier = Modifier.fillMaxWidth().padding(top = 10.dp), fontWeight = FontWeight.Bold)
                     listOf(
                         "Explain more simply" to "Explain your previous answer more simply.",
@@ -612,7 +616,7 @@ private fun FarmPiApp() {
                         "Give me an example" to "Give me an example related to your previous answer.",
                         "Check my understanding" to "Ask me one short question to check my understanding. Do not answer it for me until I reply.",
                     ).forEach { (label, prompt) ->
-                        TextButton(onClick = { question = prompt; ask(prompt, courseModuleId = activeCourseModuleId) }) { Text(label) }
+                        TextButton(onClick = { question = prompt; ask(prompt, courseModuleId = answerCourseModuleId) }) { Text(label) }
                     }
                 }
                 learnAboutModuleId?.let { moduleId ->
@@ -679,7 +683,7 @@ private fun SettingsDialog(
     setDisplayDensity: (String) -> Unit, close: () -> Unit,
 ) = AlertDialog(
     onDismissRequest = close,
-    title = { Text("Accessibility and learning settings") },
+    title = { Text("Accessibility and display settings") },
     text = { Column(Modifier.verticalScroll(rememberScrollState())) {
         Text("Explanation depth", fontWeight = FontWeight.Bold)
         SettingChips(listOf("simple", "normal", "technical"), explanation, setExplanation)

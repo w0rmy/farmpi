@@ -28,6 +28,8 @@ The returned interpretation is validated before it can become an application rou
 
 A short-lived bounded conversation context allows follow-ups such as `What about Paddock 2?` without granting unrestricted memory or execution authority.
 
+The live answering prompt describes a farm-monitoring assistant. General informational questions are answered on their own topic, without assuming a lesson or agricultural context. The interpreter retains `learning` as a compatibility intent for these questions. Reviewed measurement explanations remain available, and course context is added only when the request explicitly supplies a valid legacy module ID.
+
 Spoken input can pass through deterministic normalisation before routing. The Android client shows both Heard and Interpreted text when FarmPi changes the transcription.
 
 ## Capability recovery

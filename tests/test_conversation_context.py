@@ -5,8 +5,10 @@ from __future__ import annotations
 import unittest
 
 from app import conversation_context
+from app.app import SYSTEM_PROMPT
 from app.conversation_context import prepare_client_payload
 from app.llm_compat import normalise_chat_payload
+from app.semantic_interpreter import build_interpretation_payload
 
 
 class ConversationContextTests(unittest.TestCase):
@@ -30,7 +32,7 @@ class ConversationContextTests(unittest.TestCase):
         payload = {
             "model": "qwen/qwen3.5-9b",
             "messages": [
-                {"role": "system", "content": "You are FarmPi, an open conversational agricultural assistant."},
+                {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": "Who wrote The Hobbit?"},
             ],
             "max_tokens": 64,
@@ -52,7 +54,7 @@ class ConversationContextTests(unittest.TestCase):
             result = normalise_chat_payload({
                 "model": "qwen/qwen3.5-9b",
                 "messages": [
-                    {"role": "system", "content": "You are FarmPi, an open conversational agricultural assistant."},
+                    {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": "Can you explain that more simply?"},
                 ],
                 "max_tokens": 128,
@@ -73,7 +75,7 @@ class ConversationContextTests(unittest.TestCase):
             result = normalise_chat_payload({
                 "model": "qwen/qwen3.5-9b",
                 "messages": [
-                    {"role": "system", "content": "You are FarmPi's user-intent interpreter, not the answering assistant."},
+                    build_interpretation_payload("Can you explain that more simply?", ())["messages"][0],
                     {"role": "user", "content": "Can you explain that more simply?"},
                 ],
                 "max_tokens": 192,

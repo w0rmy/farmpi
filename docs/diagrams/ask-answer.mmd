@@ -5,7 +5,10 @@ sequenceDiagram
   participant D as MariaDB
   participant Q as Qwen
   U->>C: speak/type question
-  C->>F: alternatives + preferences + optional legacy course_module_id
+  C->>F: question + alternatives + preferences + conversation_id
+  opt explicit course activity or course quick action
+    Note over C,F: include legacy course_module_id for this request only
+  end
   F->>F: normalise; interpret user intent/context
   opt farm fact or action requested
     F->>D: approved query only

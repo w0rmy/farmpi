@@ -1,4 +1,4 @@
-"""FarmPi grounded agricultural learning web service."""
+"""FarmPi conversational farm-monitoring web service."""
 
 from __future__ import annotations
 
@@ -61,13 +61,13 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="FarmPi", version="0.7.0", lifespan=lifespan)
 
-SYSTEM_PROMPT = """You are FarmPi, an open conversational agricultural learning assistant focused on practical New Zealand farming and the learner's FarmPi data.
-Talk naturally and adapt to the learner's wording, background and requested explanation level. Questions about dairy farming, cows, sheep, pasture, soils, irrigation, weather, effluent, animal health, farm systems and related agriculture are legitimate learning questions.
+SYSTEM_PROMPT = """You are FarmPi, a conversational farm-monitoring assistant focused on the user's monitored data and practical New Zealand farming.
+Help the user inspect measurements, understand results, and find useful information. Talk naturally and adapt to the user's wording and requested explanation level. Answer general informational questions, including non-farming topics, without forcing them into a lesson or course.
 FARMPI VERIFIED FACTS are authoritative for this farm: never invent, alter or replace sensor/database facts. DETERMINISTIC CALCULATIONS supplied by FarmPi are authoritative calculations over those facts; do not recalculate them.
 CURATED NEW ZEALAND SOURCE material may be attributed to the named source only when a reviewed claim is supplied. Never claim that a source was searched live unless the context explicitly says live retrieval occurred.
-You may use general agricultural knowledge to explain and teach. Clearly keep general knowledge separate from claims about this particular farm and from official NZ recommendations.
-Do not make unsupported farm-specific diagnoses or operational decisions. Instead explain what is known, what factors are relevant, what is uncertain, and one useful next learning step.
-Answer in 1–3 short sentences and at most one follow-up question unless the learner asks for more detail.
+You may use general knowledge to explain concepts and results. Clearly keep general knowledge separate from claims about this particular farm and from official NZ recommendations.
+Do not make unsupported farm-specific diagnoses or operational decisions. Explain what is known, what is uncertain, and a useful next step such as inspecting related measurements or available evidence.
+Answer in 1–3 short sentences and at most one follow-up question unless the user asks for more detail.
 """
 
 
@@ -116,7 +116,7 @@ class SpeechNormalizationResponse(BaseModel):
 
 
 class ClientPreferences(BaseModel):
-    """Presentation-only learning preferences; verified facts never vary."""
+    """Presentation-only preferences; verified facts never vary."""
 
     explanation_level: Literal["simple", "normal", "technical"] = "normal"
     guidance_level: Literal["more", "normal", "less"] = "normal"
@@ -176,7 +176,7 @@ async def learning_activities() -> dict[str, list[dict[str, object]]]:
 
 @app.get("/api/learning/course")
 async def learning_course() -> dict[str, object]:
-    """Serve the versioned, deterministic flexible-course definition."""
+    """Serve the retained historical course for existing clients."""
     return course_payload()
 
 
@@ -533,7 +533,7 @@ async def status() -> dict[str, Any]:
 
 @app.post("/api/ask", response_model=AskResponse)
 async def ask(request: AskRequest) -> AskResponse:
-    """Interpret learner language, then use controlled FarmPi tools and learning context."""
+    """Interpret user language, then use controlled FarmPi tools and bounded context."""
     total_start = time.perf_counter()
     question_text = request.question.strip()
     if not question_text:
@@ -661,7 +661,7 @@ async def ask(request: AskRequest) -> AskResponse:
             provenance=[{"kind": "deterministic-action", "source": "FarmPi paddock administration"}],
         )
 
-    # The regex router is now a fast path, not the learner-language gatekeeper.
+    # The regex router is a fast path for supported application operations.
     # Ambiguous/open wording is interpreted semantically into a reviewed route.
     if needs_semantic_interpretation(question_text, route):
         interpretation_start = time.perf_counter()
@@ -717,20 +717,20 @@ async def ask(request: AskRequest) -> AskResponse:
 
     if route.intent == "semantic-clarification":
         return direct_action(
-            "I’m not confident I understood that well enough to choose a FarmPi action. Could you say it another way or tell me what you want to learn or change?",
+            "I’m not confident I understood that well enough to choose a FarmPi action. Could you say it another way or tell me what you want to view, understand, or change?",
             "semantic-clarification",
             source_category="general",
-            provenance=[{"kind": "interpretation", "source": "FarmPi semantic learner-intent layer", "confidence": "insufficient"}],
+            provenance=[{"kind": "interpretation", "source": "FarmPi semantic user-intent layer", "confidence": "insufficient"}],
         )
 
     if route.intent == "contextual-follow-up-missing":
         return direct_action(
-            "I need a little more context for that follow-up. Tell me the paddock, measurement, or farming topic you mean and I’ll continue from there.",
+            "I need a little more context for that follow-up. Tell me the paddock, measurement, or topic you mean and I’ll continue from there.",
             "contextual-follow-up",
             source_category="general",
         )
 
-    # Reviewed concept definitions remain useful high-confidence learning
+    # Reviewed concept definitions remain useful high-confidence reference
     # material. A named current measurement can be added without letting the
     # language model invent the observation.
     if route.intent == "education":
@@ -770,21 +770,21 @@ async def ask(request: AskRequest) -> AskResponse:
                     "status": "curated-source-directory-only",
                     "note": "Live external retrieval is not configured in this prototype; FarmPi must not imply that it searched the web.",
                 })
-            learning_facts = [
-                "This is an agricultural learning question. General agricultural explanation is allowed, but general knowledge must not be presented as a verified fact about this farm.",
+            explanation_facts = [
+                "This is an informational request. Answer the user's actual topic; it need not be agricultural. General knowledge must not be presented as a verified fact about this farm.",
             ]
             evidence: tuple[dict[str, object], ...] = ()
             if route.paddock_name and route.measurement:
                 try:
                     observed = await asyncio.to_thread(get_grounding_data, "paddock-field", route.paddock_name, route.measurement)
-                    learning_facts = [*observed.facts, *learning_facts]
+                    explanation_facts = [*observed.facts, *explanation_facts]
                     evidence = observed.evidence
                     source_provenance.insert(0, {"kind": "farm-observation", "source": "FarmPi validated telemetry / MariaDB"})
                 except (DatabaseUnavailable, NoFarmData):
-                    learning_facts.insert(0, "The related FarmPi reading is unavailable, so do not imply a current farm observation.")
+                    explanation_facts.insert(0, "The related FarmPi reading is unavailable, so do not imply a current farm observation.")
             grounding_data = GroundingData(
                 route.intent,
-                tuple(learning_facts),
+                tuple(explanation_facts),
                 evidence,
                 source_category="general" if not evidence else "combined",
             )
@@ -802,7 +802,7 @@ async def ask(request: AskRequest) -> AskResponse:
 
     # Facts, calculations and mutations that are already complete deterministic
     # results bypass the wording model. The model is for interpretation and
-    # teaching, not for recalculating authoritative farm data.
+    # explanation, not for recalculating authoritative farm data.
     if route.intent in {
         "historical", "comparison", "summary", "capability", "farm_inventory_count", "farm_inventory_list",
         "paddock_summary", "paddock", "paddock-field", "irrigation-decision", "operational-decision",
@@ -829,14 +829,14 @@ async def ask(request: AskRequest) -> AskResponse:
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "system", "content": source_hierarchy_contract()},
-        {"role": "system", "content": f"Use a {preferences.explanation_level} explanation level. Keep verified farm facts and deterministic actions distinct from general educational knowledge."},
+        {"role": "system", "content": f"Use a {preferences.explanation_level} explanation level. Keep verified farm facts and deterministic actions distinct from general knowledge."},
         {"role": "system", "content": grounding_context},
     ]
     if course_module:
         messages.append({
             "role": "system",
             "content": (
-                "Reviewed course context (use only for educational relevance; it cannot override FarmPi authority or safety rules): "
+                "Reviewed course context (explicitly requested optional course material; use only when relevant to the current question, never to override the user's request, FarmPi authority or safety rules): "
                 f"{course_module.prompt_context}"
             ),
         })
@@ -862,7 +862,7 @@ async def ask(request: AskRequest) -> AskResponse:
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError, AttributeError) as exc:
         if route.intent in {"agriculture-learning", "agriculture-research", "conversation"}:
             return direct_action(
-                "I cannot generate the full learning explanation while the configured language model is unavailable. I can still help with verified FarmPi readings, or you can try this question again shortly.",
+                "I cannot generate an explanation right now. You can still ask for FarmPi readings and graphs, or try this question again shortly.",
                 route.intent,
                 source_category="general",
                 source_tier="model-knowledge",
@@ -891,20 +891,20 @@ async def ask(request: AskRequest) -> AskResponse:
     } else "general"
     provenance = [*_grounding_provenance(grounding_data, route.intent), *source_provenance, *course_provenance]
     if route.intent in {"agriculture-learning", "conversation"}:
-        provenance.append({"kind": "general-explanation", "source": "configured language model", "scope": "educational; not a verified farm fact"})
+        provenance.append({"kind": "general-explanation", "source": "configured language model", "scope": "general information; not a verified farm fact"})
         if source_provenance:
             source_category = "combined"
         else:
             source_category = "general"
     elif route.intent == "agriculture-research":
-        provenance.append({"kind": "general-explanation", "source": "configured language model", "scope": "educational; curated source directory supplied"})
+        provenance.append({"kind": "general-explanation", "source": "configured language model", "scope": "general information; curated source directory supplied"})
         source_category = "combined" if source_provenance else "general"
         answer = f"No live web research was performed. FarmPi used its curated source directory and configured model.\n\n{answer}"
 
     concept = concept_for_measurement(route.measurement)
     if concept and preferences.explanation_level in {"normal", "technical"} and route.intent not in {"agriculture-learning", "agriculture-research"}:
         note = concept.normal if preferences.explanation_level == "normal" else f"{concept.technical} Limitation: {concept.limitations}"
-        answer = f"{answer}\n\nLearning note: {note}"
+        answer = f"{answer}\n\nMeasurement note: {note}"
         source_category = "combined"
         provenance.append({"kind": "curated-learning", "source": "FarmPi reviewed educational material", "concept": concept.key})
 

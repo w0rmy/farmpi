@@ -2,6 +2,16 @@
 
 This record captures material design decisions and their outcome/evidence rationale. Current operating instructions live in the subject guides; historical performance measurements live under `docs/history`.
 
+## 15 September 2026 - live application behaviour realignment
+
+Following the documentation pivot, the live prompts and recovery wording now describe a conversational farm-monitoring assistant. Informational requests no longer receive an automatic agricultural-learning framing. Reviewed measurement explanations, general information, source attribution rules, deterministic farm-data authority, and bounded conversation history remain available.
+
+Android now separates the saved course return location from the context of an ordinary question. Only explicit course activities and course quick actions send a module ID. Course quick actions follow the successful course response, while the Learn tab, course payloads, saved progress, and existing preference keys remain intact. Historical course content and prior development records have not been rewritten.
+
+This supports **Advanced Application Development Concepts** through client state separation, recovery, and compatibility, and **Artificial Intelligence and Data Science** through consistent prompt scope, governed interpretation, and verification that model failure cannot alter chart values.
+
+Validation: the baseline backend suite passed 122 tests. The updated suite passes 125 tests, including new API-level checks for non-farm information without farm readings, explicit course context followed by ordinary conversation, and exact graph/evidence responses during model failure. Conversation tests now exercise the actual application and interpreter prompts. The Android compilation attempt could not start its Gradle process because the environment reported `Unable to establish loopback connection`; Android compilation/device acceptance and live Raspberry Pi/model checks remain unverified.
+
 ## 15 September 2026 - capstone direction realignment and documentation cleanup
 
 ### Direction change

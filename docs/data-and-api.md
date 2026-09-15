@@ -109,6 +109,10 @@ Legacy endpoints retained from the earlier flexible-course direction:
 
 `POST /api/ask` accepts a question, optional confirmation/conversation token, optional speech alternatives, presentation preferences, and an optional legacy `course_module_id`. If supplied, the module id is limited to the server-controlled definition in `app/learning.py`; clients cannot submit arbitrary course or system prompt text.
 
+Course context applies only to the request that supplies `course_module_id`; it is not stored as a conversation setting. Android ordinary typed, spoken, and suggested questions omit it, while explicit course activities and course quick actions supply it. Saved course progress and return location remain available.
+
+Compatibility identifiers such as the interpreter's `learning` intent, response intents `agriculture-learning` and `education`, `education_key`, source category `educational`, and provenance kind `curated-learning` remain unchanged. They identify existing information/reference routes and do not require ordinary questions to be agricultural or course-related.
+
 Its response can contain:
 
 - `answer` and concise `spoken_answer`;

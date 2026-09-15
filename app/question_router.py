@@ -1,4 +1,4 @@
-"""Route deterministic farm actions without trying to parse all learner language."""
+"""Route deterministic farm actions without trying to parse all user language."""
 
 from __future__ import annotations
 
@@ -270,5 +270,5 @@ def route_question(question: str) -> QuestionRoute:
     if re.search(r"\bwhich\s+paddock\s+is\s+(?:currently\s+)?(?:the\s+)?most\s+dry\b", question, re.IGNORECASE):
         return QuestionRoute("moisture-fallback")
     # No database operation has been selected. Let the local LLM interpret
-    # ordinary learner language against a small, approved learning context.
+    # ordinary user language into a small set of approved application intents.
     return QuestionRoute("conversation")

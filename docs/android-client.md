@@ -108,6 +108,8 @@ Legacy endpoints retained from the earlier course direction:
 - `GET /api/learning/activities`;
 - optional `course_module_id` on `/api/ask`.
 
+The saved course return location is separate from the context sent with a question. Ordinary typed, spoken, and suggested questions omit `course_module_id`. Explicit course activities and course quick actions include their module; quick actions appear only for a successful course response. The Learn tab, Return to Module link, existing preference keys, and saved progress are retained.
+
 Android displays the detailed answer and speaks `spoken_answer`. It renders server-provided charts, evidence, source category/tier, and provenance. Backend errors should be converted into useful user-facing states; certificate/network failures remain distinct from a valid FarmPi request that could not be completed.
 
 ## Build requirements
@@ -145,6 +147,8 @@ On macOS/Linux use `./gradlew assembleDebug`.
 - all six themes remain readable across primary screens, cards, charts, navigation, and settings;
 - compact/standard/large text does not clip controls or evidence;
 - settings survive process restart;
+- after using a course activity, an ordinary Ask question has no course context or course quick actions, while Return to Module and saved progress still work;
+- explicit course quick actions retain their module context and ordinary follow-ups retain bounded conversation history;
 - sources/evidence remain inspectable and are not calculated by the phone;
 - certificate failure remains visible and no insecure trust bypass exists;
 - portrait, landscape, and at least one small phone display remain usable.
