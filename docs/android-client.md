@@ -2,11 +2,13 @@
 
 ## Role
 
-`clients/android` is the primary learner-facing Kotlin/Jetpack Compose client. It calls the FarmPi APIs directly and is not a WebView. The server-rendered browser page remains a diagnostic fallback.
+`clients/android` is the primary user-facing Kotlin/Jetpack Compose client. It calls the FarmPi APIs directly and is not a WebView. The server-rendered browser page remains a diagnostic fallback.
 
-The Android app deliberately performs presentation and device I/O only. It does not query MariaDB, select farm operations, calculate analytics/charts, authorise renames, or invent source provenance.
+The Android app deliberately performs presentation and device I/O only. It does not query MariaDB, select farm operations, calculate analytics/chart values, authorise renames, or invent source provenance.
 
-## Implemented experience
+The current capstone direction evaluates the Android client as part of a functional integrated application: usability, state handling, API integration, voice/TTS behaviour, graph presentation, error recovery, and mobile layout are now stronger evidence than the earlier embedded-course design.
+
+## Implemented application experience
 
 - typed questions and a large speech-recognition control;
 - up to five Android speech alternatives sent to FarmPi's deterministic normaliser;
@@ -14,18 +16,24 @@ The Android app deliberately performs presentation and device I/O only. It does 
 - native text-to-speech with en-NZ preference and English fallback;
 - immediate Stop behaviour on the same large button while speech is active;
 - robust TTS chunking, state, diagnostics, and pronunciation adjustments for `FarmPi` and `DairyNZ`;
-- Ask and Learn tabs, Guide me, and context-sensitive next questions;
-- a backend-controlled five-module course with a visible Learn → Try → Ask → Check → Continue pattern, free module navigation, and a recommended return path;
-- local-only current-module and Try/check/module progress that survives restart; no learner account, cloud sync, grades, badges, or analytics;
-- Return to Module and contextual Learn about this actions that reuse the normal Ask conversation rather than create a second conversation engine;
-- backend-supplied line/bar charts and bounded evidence;
+- Ask tab, Guide me, and context-sensitive next questions;
+- backend-supplied chart data rendered as interactive line, area/day-profile, bars, or dots where appropriate;
+- low/latest/high chart summaries and time labels;
 - expandable source/provenance display;
-- explanation depth and guidance-frequency preferences;
-- six presentation themes and compact/standard/large text-size choices behind a top-right Accessibility and learning settings cog.
+- explanation-depth and guidance-frequency preferences;
+- six presentation themes and compact/standard/large text-size choices;
+- bounded conversation continuity supplied by the backend;
+- visible connection/dependency status and differentiated request/connection failures.
 
-## Display flexibility
+## Legacy learning UI
 
-The settings cog moves secondary controls away from the Ask screen so the current learning interaction remains dominant. Preferences are stored in device-local `SharedPreferences`.
+The current build still contains the **Learn** tab and the five-module course created for the earlier **Developing Flexible IT Courses** elective. It remains functional and is useful development history, but it is no longer the primary capstone requirement.
+
+Do not expand the course, progress model, or learning-specific UI unless a current application requirement justifies it. A later mobile-interface redesign may de-emphasise or remove these surfaces after the functional requirements are reviewed.
+
+## Display and mobile usability
+
+The settings cog keeps secondary controls away from the main Ask interaction. Preferences are stored in device-local `SharedPreferences`.
 
 Themes are lightweight Material colour schemes applied consistently across the app:
 
@@ -36,7 +44,21 @@ Themes are lightweight Material colour schemes applied consistently across the a
 - yellow/black high visibility;
 - muted/low stimulation.
 
-Text size changes Compose font scaling for compact, standard, or large presentation. These options are evidence for Developing Flexible IT Courses - visual flexibility, readability, contrast preference, cognitive comfort, and learner adaptation - rather than a separate graphics project. They do not change any answer fact, evidence, operation, or learning objective.
+Text size changes Compose font scaling for compact, standard, or large presentation. Under the current project direction these are treated as **mobile usability and presentation features**, not as evidence for a flexible-learning elective. They must not change answer facts, graph values, evidence, or operations.
+
+Current mobile work should favour a clear phone interface, readable graph cards, obvious recovery/error states, and low interaction cost rather than adding presentation options for their own sake.
+
+## Graph presentation
+
+The Android client receives verified chart payloads from the backend and chooses only how to display them.
+
+- time-series data can be viewed as line, area, bars, or dots;
+- light/lux defaults to an area-style **Day profile** view;
+- comparison datasets can be viewed as bars or dots;
+- changing display mode must not change any underlying value;
+- farm-wide, named-paddock, and cross-paddock comparisons are separate backend meanings even if they use the same renderer.
+
+The phone must never infer or fabricate missing chart values locally.
 
 ## Voice behaviour and diagnostics
 
@@ -52,7 +74,9 @@ Text-to-speech:
 6. cancels existing speech before a new question or Guide me request;
 7. exposes readiness, selected locale/voice, queue state, completion, stop, and error status in the UI and Logcat (`FarmPiTTS`).
 
-If the voice is unavailable, install/enable an English TTS engine and voice in Android settings, then inspect the UI status and Logcat tag. The visible response remains usable even when speech fails.
+A previous integration fault allowed JSON `null` for `spoken_answer` to become the literal four-character string `"null"` through Android `JSONObject.optString`. Both server and client now fall back to the visible answer when spoken text is null/blank. This should remain part of regression testing.
+
+If voice is unavailable, the visible response must remain usable.
 
 ## HTTPS and certificate trust
 
@@ -66,17 +90,25 @@ For a test device:
 4. verify the certificate served by Caddy includes `farmpi.local`;
 5. open the app and confirm `/api/status` reports the expected dependencies.
 
-Never distribute Caddy's private CA key, database credentials, or the ESP32 ingest token. A production-distributed app should use a documented certificate lifecycle, potentially bundling only a dedicated public trust anchor in `res/raw`.
+Never distribute Caddy's private CA key, database credentials, or the ESP32 ingest token.
 
 ## API use
 
-- `GET /api/status` checks connection/dependency health.
-- `GET /api/guidance` loads reviewed onboarding and suggestions.
-- `GET /api/learning/course` loads the reviewed aim, outcomes, modules, Try/check metadata, and context-to-module mappings.
-- `POST /api/speech/normalize` normalises spoken alternatives.
-- `POST /api/ask` is the single conversation contract. A course launch supplies only the reviewed `course_module_id`; the server validates it and never accepts client-provided course prompt text.
+Current primary endpoints:
 
-Android displays the detailed answer and speaks `spoken_answer`. It renders server-provided charts, evidence, source category/tier, and provenance. Backend error details are surfaced when safe; connection/certificate failures remain distinct from a valid FarmPi request that could not be completed.
+- `GET /api/status` checks connection/dependency health;
+- `GET /api/guidance` loads reviewed onboarding/suggestions;
+- `POST /api/speech/normalize` normalises spoken alternatives;
+- `POST /api/ask` is the main conversation/data-query contract;
+- `POST /api/ingest` is used by sensor/simulator clients, not the Android UI.
+
+Legacy endpoints retained from the earlier course direction:
+
+- `GET /api/learning/course`;
+- `GET /api/learning/activities`;
+- optional `course_module_id` on `/api/ask`.
+
+Android displays the detailed answer and speaks `spoken_answer`. It renders server-provided charts, evidence, source category/tier, and provenance. Backend errors should be converted into useful user-facing states; certificate/network failures remain distinct from a valid FarmPi request that could not be completed.
 
 ## Build requirements
 
@@ -105,15 +137,16 @@ On macOS/Linux use `./gradlew assembleDebug`.
 - typed and spoken questions reach the same `/api/ask` contract;
 - speech corrections display Heard and Interpreted text;
 - a new question stops previous TTS, and Stop cancels playback immediately;
-- all six themes remain readable across Ask, Learn, settings, cards, charts, and navigation;
+- no JSON null/`"null"` value is spoken;
+- current-value, historical, farm-wide, named-paddock, and cross-paddock requests display correctly;
+- soil-moisture and light/day-profile graphs work without inventing a paddock when none was requested;
+- line/area/bars/dots switches change presentation only, not values;
+- unsupported graph requests return a useful capability/alternative message rather than a generic `I cannot create graphs` response;
+- all six themes remain readable across primary screens, cards, charts, navigation, and settings;
 - compact/standard/large text does not clip controls or evidence;
 - settings survive process restart;
-- the course loads, all five modules are reachable, the recommended sequence and free navigation both work, and local progress survives restart;
-- Module 1 starts as **Getting Started with FarmPi** and its content comes from `/api/learning/course`, not an Android-only copy;
-- in Module 1, move between Ask and Learn, identify the settings cog and connection-status message, type a question, ask one by microphone, and use Stop during spoken output;
-- in Module 1, use Guide me, choose a suggested question and a follow-up, then compare Simple and Technical explanation depth while changing text size or theme; confirm the settings affect presentation rather than facts;
-- Module 1's self-check is practical and ungraded: confirm the two prompts direct learners to explanation depth and Guide me, then continue to Module 2;
-- Try completion is recognised after its real response intent, Check remains a self-reflection rather than a grade, and Return to Module preserves the active module after follow-ups;
-- course quick actions retain module context; contextual Learn about this links open the relevant module;
 - sources/evidence remain inspectable and are not calculated by the phone;
-- certificate failure remains visible and no insecure trust bypass exists.
+- certificate failure remains visible and no insecure trust bypass exists;
+- portrait, landscape, and at least one small phone display remain usable.
+
+Legacy Learn/course features should continue to avoid crashes while they remain in the build, but they are not the primary acceptance target for the current capstone direction.
