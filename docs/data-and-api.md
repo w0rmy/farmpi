@@ -2,7 +2,7 @@
 
 ## Measurement catalogue
 
-`app/measurements.py` is the single reviewed catalogue for stored keys, labels, units, input ranges, natural-language aliases, permitted operations, educational concepts, and chart type.
+`app/measurements.py` is the single reviewed catalogue for stored keys, labels, units, input ranges, natural-language aliases, permitted operations, explanatory concept metadata, and preferred chart type.
 
 | Measurement | Key | Unit | Accepted range |
 |---|---|---:|---:|
@@ -76,15 +76,19 @@ When device time is missing, invalid, or more than 30 seconds from FarmPi, the r
 
 `sample_seq` is unique per sensor when present. Retrying the same sensor/sequence returns the original reading rather than inserting a duplicate. The acknowledgement semantics are transport-neutral so a future LoRa transport could carry the same time and sequence contract without changing the database authority.
 
-## Deterministic analytics
+## Deterministic analytics and graph data
 
-The application permits only catalogue-listed operations, including current values, farm-wide average, supported rankings/extrema, minimum, maximum, average, rainfall total, first-to-last change/trend, range, simple two-standard-deviation anomaly flagging, paddock comparison, and compact summary.
+The application permits only catalogue-listed operations, including current values, farm-wide average, supported rankings/extrema, minimum, maximum, average, rainfall total, first-to-last change/trend, range, simple two-standard-deviation anomaly flagging, paddock comparison, compact summary, and daylight derivation where supported.
 
 Historical windows are bounded from five minutes to seven days. `today` and `this morning` use Pacific/Auckland calendar boundaries converted to UTC before querying. Derived daylight counts five-minute `light_lux` samples at or above 1,000 lux; it is an approximation, not an ingest field or LLM estimate.
 
-Charts are backend-supplied bar or line payloads. The Android client renders them but does not calculate their values. Evidence items preserve paddock, sensor UID where available, timestamp, value, and simulated provenance.
+The backend supplies verified chart payloads; the Android client may render the same data as line, area/day-profile, bars, or dots depending on the dataset. Display mode is presentation only and must never change the values.
 
-## Learner API
+Generic historical graph requests without a named paddock should use a valid farm-wide aggregation where the operation supports it. Named-paddock graphs and explicit cross-paddock comparisons remain separate meanings.
+
+Evidence items preserve paddock, sensor UID where available, timestamp, value, and simulated provenance.
+
+## Application API
 
 | Endpoint | Method | Purpose |
 |---|---|---|
@@ -92,13 +96,18 @@ Charts are backend-supplied bar or line payloads. The Android client renders the
 | `/health` | GET | Application-process liveness. |
 | `/api/status` | GET | Application, MariaDB, and configured LLM status. |
 | `/api/guidance` | GET | Reviewed onboarding text and suggestions; accepts `guidance_level`. |
-| `/api/learning/course` | GET | Canonical deterministic course: aim, four outcomes, five modules, Try/Ask/Check/Continue metadata, and response-intent mappings. |
-| `/api/learning/activities` | GET | Backwards-compatible concise activity catalogue projected from/alongside the course. |
 | `/api/speech/normalize` | POST | Deterministic spoken-domain correction. |
-| `/api/ask` | POST | Single conversational contract for Android/browser clients. |
+| `/api/ask` | POST | Main conversational/data-query contract for Android/browser clients. |
 | `/api/ingest` | POST | Authenticated sensor telemetry ingest. |
 
-`POST /api/ask` accepts a question, optional confirmation/conversation token, optional `course_module_id`, optional speech alternatives, and presentation preferences. `course_module_id` is limited to an identifier in `app/learning.py`; an unknown id returns HTTP 422. The client cannot submit arbitrary course or system prompt text. When a valid module contributes to a model-assisted answer, the response provenance includes a `reviewed-course-module` entry.
+Legacy endpoints retained from the earlier flexible-course direction:
+
+| Endpoint | Method | Status |
+|---|---|---|
+| `/api/learning/course` | GET | Implemented legacy course payload; no longer a primary capstone requirement. |
+| `/api/learning/activities` | GET | Backwards-compatible legacy activity catalogue. |
+
+`POST /api/ask` accepts a question, optional confirmation/conversation token, optional speech alternatives, presentation preferences, and an optional legacy `course_module_id`. If supplied, the module id is limited to the server-controlled definition in `app/learning.py`; clients cannot submit arbitrary course or system prompt text.
 
 Its response can contain:
 
@@ -111,7 +120,13 @@ Its response can contain:
 - chart and bounded evidence;
 - source category, evidence tier, and provenance.
 
-`/api/learning/course` is controlled and versioned in application source. It is not generated by the configured model. Its module payload exposes only learner-facing material: id, title, linked outcome ids, Learn content, Try metadata (including real success intents), AI quick prompts, a lightweight understanding check, reviewed Continue content, next-module id, and response-intent mapping. Reviewed prompt context remains server-only.
+The server guarantees that a null/blank `spoken_answer` falls back to the displayed answer so client TTS does not receive the literal string `null`.
+
+## Capability lookup and unsupported requests
+
+The measurement catalogue is the application source of truth for what can be measured, calculated, compared, and graphed. When a user asks for a graph or analytic that does not map directly to a supported key, the application should inspect aliases and nearby capabilities before returning a limitation.
+
+The model's own ability to draw or not draw a graph is irrelevant: FarmPi graph capability is determined by the application catalogue, stored data, analytics functions, and Android renderer.
 
 ## Paddock identity and rename
 
