@@ -8,13 +8,13 @@ from app.guidance import INITIAL_SUGGESTIONS, WELCOME_TEXT, follow_up_suggestion
 
 
 class GuidanceTests(unittest.TestCase):
-    def test_welcome_and_initial_suggestions_describe_open_learning(self) -> None:
-        self.assertIn("conversational agricultural learning assistant", WELCOME_TEXT)
+    def test_welcome_and_initial_suggestions_describe_application_capabilities(self) -> None:
+        self.assertIn("conversational farm-monitoring assistant", WELCOME_TEXT)
         self.assertIn("farm data", WELCOME_TEXT)
         self.assertGreaterEqual(len(INITIAL_SUGGESTIONS), 3)
-        self.assertTrue(any("DairyNZ" in item or "cows" in item for item in INITIAL_SUGGESTIONS))
+        self.assertTrue(any("DairyNZ" in item or "soil moisture" in item for item in INITIAL_SUGGESTIONS))
 
-    def test_named_paddock_follow_up_can_bridge_from_data_into_learning(self) -> None:
+    def test_named_paddock_follow_up_bridges_data_to_related_information(self) -> None:
         suggestions = follow_up_suggestions(
             "paddock-field",
             "Paddock B",
@@ -24,13 +24,13 @@ class GuidanceTests(unittest.TestCase):
         self.assertTrue(any("Paddock B" in item for item in suggestions))
         self.assertTrue(any("Why" in item or "what" in item.casefold() for item in suggestions))
 
-    def test_learning_route_offers_continuation_not_command_syntax(self) -> None:
+    def test_general_information_route_offers_useful_continuation(self) -> None:
         suggestions = follow_up_suggestions("agriculture-learning")
         self.assertEqual(len(suggestions), 3)
         self.assertIn("Can you explain that more simply?", suggestions)
-        self.assertIn("What should I learn about next?", suggestions)
+        self.assertIn("What related information can FarmPi show me?", suggestions)
 
-    def test_decision_boundary_offers_learning_about_missing_factors(self) -> None:
+    def test_decision_boundary_offers_missing_factors_and_source(self) -> None:
         suggestions = follow_up_suggestions("irrigation-decision")
         self.assertTrue(any("factors" in item.casefold() for item in suggestions))
         self.assertTrue(any("DairyNZ" in item for item in suggestions))
