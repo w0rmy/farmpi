@@ -1,10 +1,10 @@
 flowchart TD
-  T[Learner question] --> N[Speech/domain normalisation]
-  N --> R{Farm fact, calculation, device state, or action?}
+  T[User question] --> N[Speech/domain normalisation]
+  N --> R{Farm fact, calculation, device state, action, or graph?}
   R -->|yes| D[MariaDB + approved deterministic operation]
   D --> F[Exact result or honest unavailable state]
   R -->|no / explanation needed| H[Choose best relevant evidence]
-  H --> T1[1 FarmPi data, Experience Edge, DairyNZ, relevant govt.nz]
+  H --> T1[1 FarmPi data, DairyNZ, relevant NZ government]
   H --> T2[2 Trusted primary organisation/manufacturer]
   H --> T3[3 Reputable general]
   H --> T4[4 General/unverified web]
@@ -15,5 +15,8 @@ flowchart TD
   T3 --> P
   T4 --> P
   T5 --> P
-  P --> L[Concise adaptive explanation]
-  L --> U[Useful response + evidence/chart/next direction as applicable]
+  P --> C{Request satisfied?}
+  C -->|yes| U[Useful response + evidence/chart]
+  C -->|no| A[Inspect related application capabilities]
+  A -->|alternative exists| U
+  A -->|none| Z[Concise limitation + available options]
