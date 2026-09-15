@@ -1,6 +1,8 @@
 # Testing, evaluation, and capstone evidence
 
-FarmPi needs two kinds of assurance: software verification and evidence that the embedded learning platform supports the defined outcomes. Passing tests does not prove learning effectiveness, and learner feedback does not replace deterministic data tests.
+FarmPi now needs evidence that the integrated application works as designed and that the implementation demonstrates the current electives: **Advanced Application Development Concepts** and **Artificial Intelligence and Data Science**.
+
+The evaluation focus is therefore functional, architectural, integration-based, and evidence-led. Earlier learner/course evaluation remains historical work rather than the current primary acceptance target.
 
 ## Automated backend checks
 
@@ -11,11 +13,26 @@ python -m unittest discover -s tests -v
 python -m compileall -q app tests
 ```
 
-The suite covers measurement validation, telemetry time/sequence behaviour, database operations, deterministic analytics, paddock identity and rename confirmation, speech normalisation, semantic interpretation, source hierarchy, LLM compatibility, response provenance, fallback behaviour, and the course contract (unique IDs, outcome/next-module/intents mappings, deterministic payload, invalid module rejection, and controlled reviewed prompt context). Add a controlled fixture whenever a new calculation, route, source claim, or state-changing operation is introduced.
+The suite should cover:
 
-Farm facts must be testable without an LLM. Tests for current readings, history, comparisons, device state, timestamps, and calculations must assert exact deterministic results and must not substitute generated text for database evidence.
+- measurement validation and natural-language aliases;
+- telemetry time, sequence, deduplication, and ingest behaviour;
+- database operations and paddock identity;
+- deterministic analytics and graph payloads;
+- farm-wide versus named-paddock versus comparison semantics;
+- rename confirmation and audit behaviour;
+- speech normalisation;
+- semantic interpretation and low-confidence recovery;
+- source hierarchy and provenance;
+- LLM compatibility and bounded conversation context;
+- graceful fallback when the LLM or database is unavailable;
+- Android/API contract assumptions that can be verified at the backend boundary.
 
-## Android checks
+Legacy course-contract tests may remain while that code exists, but they are regression coverage rather than current elective evidence.
+
+Farm facts must be testable without an LLM. Current readings, history, comparisons, device state, timestamps, calculations, and chart values must assert exact deterministic results and must not substitute generated text for database evidence.
+
+## Android acceptance checks
 
 Build the debug client from `clients/android`:
 
@@ -23,11 +40,46 @@ Build the debug client from `clients/android`:
 .\gradlew.bat :app:assembleDebug
 ```
 
-Then test on a device that trusts the FarmPi development certificate. Check text and speech input, visible and spoken output, TTS stop/retry behaviour, charts, evidence/provenance, all six themes, compact/standard/large text size, preference persistence, and operation when TTS is unavailable. Exercise both portrait and landscape layouts and at least one small display.
+Then test on a device that trusts the FarmPi development certificate.
 
-For the course, confirm that it loads, every one of the five modules opens, the recommended sequence and direct navigation both work, progress survives a restart, a matching real response marks a Try complete, and Check is not represented as a grade. Launch Try/Ask, ask several quick/follow-up questions, use Return to Module, and confirm the original module remains active. Check contextual Learn about this links, evidence/source inspection, all themes and text sizes on the course screens, and portrait/landscape/small-screen behaviour.
+Core acceptance areas:
 
-For Module 1 specifically, start from a connected client without changing any connection configuration. Move between Ask and Learn; identify the settings cog and connection-status message; type “What can FarmPi help me with?”; ask another question by microphone; and stop spoken output. Use Guide me, select a suggested question and a follow-up. In Settings, change text size and theme, compare Simple and Technical explanation depth with similar questions, and retain a preferred configuration. Confirm the Check remains practical and ungraded, asks what to change when an explanation is too technical and what to use when no next question is clear, and that Continue opens Module 2.
+- typed and spoken input;
+- visible and spoken output;
+- TTS stop/retry behaviour and null/blank spoken-answer fallback;
+- connection/dependency status;
+- current-value, historical, comparison, and graph requests;
+- evidence/provenance display;
+- settings persistence;
+- portrait, landscape, and at least one small phone display;
+- readable graph controls and chart labels;
+- useful user-facing recovery when wording is unclear or a capability is unavailable;
+- clear separation between network/certificate failures and valid FarmPi requests that could not be completed.
+
+Graph acceptance should include at minimum:
+
+1. `Can you show me the soil moisture over 24 hours?`
+2. `Show me a light day profile graph.`
+3. a named-paddock historical graph;
+4. an explicit cross-paddock comparison;
+5. an unsupported graph request;
+6. switching through every offered visual mode and confirming that values do not change.
+
+A generic graph request must not invent a paddock name from phrases such as `the soil moisture over 24 hours` or `the lighting of the paddock`. The application should use farm-wide data when that is the appropriate supported meaning.
+
+## Functional query acceptance
+
+The following groups should be exercised as an end-to-end user journey:
+
+- **Conversation continuity:** ask a question, then use pronouns or shorthand such as `explain that more simply` and `why does that matter?`.
+- **Open information:** ask a farm question, an adjacent technical/agricultural question, and an unrelated safe informational question.
+- **Provenance:** compare deterministic FarmPi data, reviewed source material, and model/general knowledge.
+- **Deterministic consistency:** ask for the same farm value using several phrasings and confirm the number is identical.
+- **Graphing:** test generic farm-wide, named-paddock, and explicit comparison requests.
+- **Natural-language variation:** deliberately use colloquial, incomplete, or speech-like wording.
+- **Failure/recovery:** stop the LLM, stop or deny database access, request a nonexistent paddock, and request unavailable data/capabilities.
+
+User-facing failure text should not expose internal route names, SQL, `deterministic operation`, JSON, or model-server jargon unless diagnostic detail was explicitly requested.
 
 ## Raspberry Pi deployment checks
 
@@ -40,48 +92,67 @@ curl -fsS http://127.0.0.1:8000/api/status
 curl --resolve farmpi.local:443:127.0.0.1 -k https://farmpi.local/health
 ```
 
-Also submit one authenticated ingest sample, retry the same sensor/sequence to confirm deduplication, ask for its exact value, request a historical calculation, test an unrelated general question, and verify that a stopped database or LLM is described honestly. Do not record credentials in test output or evidence documents.
+Also submit one authenticated ingest sample, retry the same sensor/sequence to confirm deduplication, ask for its exact value, request a historical calculation and graph, test a broader general question, and verify that a stopped database or LLM is described honestly.
+
+Do not record credentials in test output or evidence documents.
 
 ## Requirements traceability
 
-Every material change should link implementation, verification, and outcome evidence:
+Every material change should link implementation, verification, and capstone evidence:
 
 | Concern | Required evidence |
 |---|---|
+| Functional requirement | working end-to-end behaviour plus acceptance result |
+| Architecture | component/responsibility mapping and rationale |
 | Farm facts and calculations | exact fixtures, provenance fields, failure-path tests |
-| Source selection | tier/category assertions and reviewed claim/source records |
-| General conversation | useful-answer and uncertainty checks without invented farm facts |
+| Mobile interface | device build/acceptance, layout/usability observations, state persistence |
+| Graphing/analytics | deterministic value tests plus visual acceptance |
+| AI interpretation | constrained schema tests, semantic recovery, no model authority over farm facts |
+| Source/provenance | tier/category assertions and reviewed claim/source records |
 | State-changing actions | validation, confirmation, identity, and audit tests |
-| Flexible presentation | theme, contrast, text size, persistence, and usability observations |
-| Learning interaction | task observation, explanation-depth comparison, and source comprehension |
+| Error handling | deliberate dependency/capability failures and useful recovery |
 | Deployment | recorded service/health checks and version/configuration used |
+| Performance | latency/timing measurements under named hardware/model configuration |
 
-## Learner evaluation
+## Usability evaluation
 
-Use a small, consented group of nontechnical participants. Do not fabricate results. Observe whether they can:
+A small consented user evaluation can provide evidence for the functional client. Do not treat this as a learning-effectiveness study.
 
-- begin using FarmPi without learning a command language;
-- ask a current-value and historical/comparison question in their own words;
-- distinguish FarmPi evidence from external guidance and general explanation;
-- recognise when farm evidence is unavailable;
-- use evidence/charts to explain an answer;
-- adjust explanation depth, guidance, theme, and text size;
-- recover from a speech or paddock-name misunderstanding;
-- complete a teach-by-doing activity and identify what they learned.
+Useful tasks include whether a user can:
 
-Record task completion, hesitation/confusion, source comprehension, accessibility/preferences, participant comments with consent, and resulting design actions. Do not claim agronomic effectiveness, accessibility compliance, or learning gains without suitable evidence.
+- connect to and recognise the application state;
+- ask for a current value in their own words;
+- request and interpret a historical graph;
+- distinguish a farm-wide graph from a named-paddock or comparison view;
+- recover after a speech or paddock-name misunderstanding;
+- understand when FarmPi lacks the requested data;
+- locate evidence/source information when needed;
+- use voice/TTS and stop playback;
+- change presentation settings without losing the main task.
+
+Record task completion, hesitation/confusion, failure points, participant comments with consent, and resulting design actions. Do not claim production usability, accessibility compliance, agronomic effectiveness, or safety certification without suitable evidence.
 
 ## Performance evaluation
 
-Record end-to-end latency and the existing response timing stages under a named hardware/model/configuration. Compare deterministic direct answers separately from model-assisted explanations. Model size, tokens per second, and memory are implementation evidence; they are not the capstone thesis. Historical model measurements belong in [Local LLM evaluation history](history/local-llm-evaluation.md).
+Record end-to-end latency and the existing response timing stages under a named hardware/model/configuration. Compare deterministic direct answers separately from model-assisted interpretation/explanations.
+
+Model size, tokens per second, memory use, reasoning configuration, and context size are implementation evidence for the AI/data subsystem. They should be assessed against application responsiveness and deployment feasibility.
+
+Historical model measurements belong in [Local LLM evaluation history](history/local-llm-evaluation.md).
+
+## Historical learning/course checks
+
+The current repository still contains the earlier Learn/course feature. While it remains in the build, regression testing should ensure it does not crash or corrupt normal application state. It is no longer necessary to expand course-specific acceptance evidence unless the feature is retained as a current product requirement.
+
+The original course rationale is preserved in [course-design.md](course-design.md).
 
 ## Documentation release check
 
 Before publishing a material change:
 
 1. update the owning guide and affected Mermaid source;
-2. remove or archive superseded current-state text;
+2. remove, archive, or clearly label superseded current-state text;
 3. check local Markdown links and documented paths;
 4. compare commands, environment names, endpoints, and defaults with code/configuration;
 5. run automated checks and record any limitation honestly;
-6. apply the [capstone outcome gate](capstone-governance.md).
+6. apply the [current capstone outcome gate](capstone-governance.md).
