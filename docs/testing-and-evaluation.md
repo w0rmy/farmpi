@@ -15,9 +15,12 @@ python -m compileall -q app tests
 
 The suite should cover:
 
-- measurement validation and natural-language aliases;
+- measurement validation, natural-language aliases, and the standard-versus-optional capability catalogue;
+- baseline-only telemetry ingest plus optional/add-on values when supplied;
 - telemetry time, sequence, deduplication, and ingest behaviour;
 - database operations and paddock identity;
+- current paddock summaries that omit unavailable optional measurements rather than inventing values;
+- farm-wide optional analytics that use only paddocks reporting the requested capability;
 - deterministic analytics and graph payloads;
 - farm-wide versus named-paddock versus comparison semantics;
 - rename confirmation and audit behaviour;
@@ -30,7 +33,24 @@ The suite should cover:
 
 Legacy course-contract tests may remain while that code exists, but they are regression coverage rather than current elective evidence.
 
-Farm facts must be testable without an LLM. Current readings, history, comparisons, device state, timestamps, calculations, and chart values must assert exact deterministic results and must not substitute generated text for database evidence.
+Farm facts must be testable without an LLM. Current readings, history, comparisons, device state, timestamps, calculations, capability availability, and chart values must assert exact deterministic results and must not substitute generated text for database evidence.
+
+## Sensor capability acceptance
+
+The current product model has six standard measurements: soil moisture, soil temperature, air temperature, relative humidity, light, and barometric pressure. pH, EC, rainfall, wind, pasture height, and leaf wetness are optional add-ons.
+
+Acceptance should include at minimum:
+
+1. a baseline-only ingest payload is accepted;
+2. omission of any standard measurement is rejected;
+3. an omitted optional measurement is stored as unavailable/`NULL`, not zero;
+4. an out-of-range supplied optional value is rejected;
+5. retry/deduplication works when optional fields are absent;
+6. a baseline-only paddock summary shows only available measurements;
+7. a direct request for an unavailable optional measurement says the paddock does not currently report it;
+8. an optional farm-wide average/ranking uses only reporting paddocks;
+9. historical queries/graphs ignore rows where the requested optional field is `NULL`;
+10. the synthetic ESP32 generator may still emit all supported fields, with `simulated=true` preserved.
 
 ## Android acceptance checks
 
@@ -49,6 +69,7 @@ Core acceptance areas:
 - TTS stop/retry behaviour and null/blank spoken-answer fallback;
 - connection/dependency status;
 - current-value, historical, comparison, and graph requests;
+- clear unavailable-capability wording when an optional sensor is not installed/reported;
 - evidence/provenance display;
 - settings persistence;
 - portrait, landscape, and at least one small phone display;
@@ -63,7 +84,8 @@ Graph acceptance should include at minimum:
 3. a named-paddock historical graph;
 4. an explicit cross-paddock comparison;
 5. an unsupported graph request;
-6. switching through every offered visual mode and confirming that values do not change.
+6. a graph request for an optional measurement with no reporting data;
+7. switching through every offered visual mode and confirming that values do not change.
 
 A generic graph request must not invent a paddock name from phrases such as `the soil moisture over 24 hours` or `the lighting of the paddock`. The application should use farm-wide data when that is the appropriate supported meaning.
 
@@ -75,6 +97,7 @@ The following groups should be exercised as an end-to-end user journey:
 - **Open information:** ask a farm question, an adjacent technical/agricultural question, and an unrelated safe informational question.
 - **Provenance:** compare deterministic FarmPi data, reviewed source material, and model/general knowledge.
 - **Deterministic consistency:** ask for the same farm value using several phrasings and confirm the number is identical.
+- **Capability availability:** compare a six-sensor standard paddock with a paddock that also reports an optional add-on measurement.
 - **Graphing:** test generic farm-wide, named-paddock, and explicit comparison requests.
 - **Natural-language variation:** deliberately use colloquial, incomplete, or speech-like wording.
 - **Failure/recovery:** stop the LLM, stop or deny database access, request a nonexistent paddock, and request unavailable data/capabilities.
@@ -92,7 +115,7 @@ curl -fsS http://127.0.0.1:8000/api/status
 curl --resolve farmpi.local:443:127.0.0.1 -k https://farmpi.local/health
 ```
 
-Also submit one authenticated ingest sample, retry the same sensor/sequence to confirm deduplication, ask for its exact value, request a historical calculation and graph, test a broader general question, and verify that a stopped database or LLM is described honestly.
+Also submit one authenticated baseline-only ingest sample, retry the same sensor/sequence to confirm deduplication, submit a sample with at least one optional measurement, ask for exact available and unavailable values, request a historical calculation and graph, test a broader general question, and verify that a stopped database or LLM is described honestly.
 
 Do not record credentials in test output or evidence documents.
 
@@ -105,6 +128,7 @@ Every material change should link implementation, verification, and capstone evi
 | Functional requirement | working end-to-end behaviour plus acceptance result |
 | Architecture | component/responsibility mapping and rationale |
 | Farm facts and calculations | exact fixtures, provenance fields, failure-path tests |
+| Sensor capability model | baseline/add-on ingest, nullable storage, mixed-capability current/history behaviour |
 | Mobile interface | device build/acceptance, layout/usability observations, state persistence |
 | Graphing/analytics | deterministic value tests plus visual acceptance |
 | AI interpretation | constrained schema tests, semantic recovery, no model authority over farm facts |
@@ -122,6 +146,7 @@ Useful tasks include whether a user can:
 
 - connect to and recognise the application state;
 - ask for a current value in their own words;
+- understand when a requested add-on measurement is not installed/reported for that paddock;
 - request and interpret a historical graph;
 - distinguish a farm-wide graph from a named-paddock or comparison view;
 - recover after a speech or paddock-name misunderstanding;
