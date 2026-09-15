@@ -18,19 +18,19 @@ from .conversation_context import current_conversation_messages
 CHAT_COMPLETIONS_SUFFIX = "/v1/chat/completions"
 
 _OPEN_INFORMATION_POLICY = """INFORMATION ACCESS POLICY
-Answer any safe and lawful informational question even when it is unrelated to farming. Relevance controls depth and evidence priority, not permission to answer. Some legacy routes may label ordinary conversation as agriculture-learning; that label is not a topic restriction. Give farm, agriculture and FarmPi-learning questions the most useful depth. Give unrelated questions a concise useful answer, then gently connect back to the application's learning context when that is natural. Do not invent current facts, retrieved facts, farm observations, or source attribution."""
+Answer any safe and lawful informational question even when it is unrelated to farming. Relevance controls depth and evidence priority, not permission to answer. Some legacy routes may label ordinary conversation as agriculture-learning; that label is not a topic restriction. Give farm, agriculture and FarmPi questions the most useful depth. Give unrelated questions a concise useful answer, then gently connect back to the application context when that is natural. Do not invent current facts, retrieved facts, farm observations, or source attribution."""
 
 _INTERPRETER_INFORMATION_POLICY = """INFORMATION ACCESS POLICY
-Do not use farming relevance as a permission gate. A clear safe and lawful informational question may be about any topic. Treat learning as the general informational fallback as well as agricultural learning: classify a clear non-farm informational question as learning, with its topic, rather than clarify. Use clarify only when the learner's meaning is genuinely ambiguous or when an action/identity needs clarification. Use research when the learner explicitly asks what an external source says or asks for current external information."""
+Do not use farming relevance as a permission gate. A clear safe and lawful informational question may be about any topic. Treat learning as the existing general informational fallback intent as well as agricultural information: classify a clear non-farm informational question as learning, with its topic, rather than clarify. Use clarify only when the user's meaning is genuinely ambiguous or when an action/identity needs clarification. Use research when the user explicitly asks what an external source says or asks for current external information."""
 
 
 def _conversation_context_text(messages: tuple[dict[str, str], ...]) -> str:
     lines = [
         "CONVERSATION CONTEXT",
-        "Use this short history only to resolve references such as 'that', 'it', 'more', 'simpler' or 'next'. The current learner request takes precedence.",
+        "Use this short history only to resolve references such as 'that', 'it', 'more', 'simpler' or 'next'. The current user request takes precedence.",
     ]
     for message in messages:
-        role = "Learner" if message.get("role") == "user" else "FarmPi"
+        role = "User" if message.get("role") == "user" else "FarmPi"
         content = str(message.get("content") or "").strip()
         if content:
             lines.append(f"{role}: {content}")
@@ -48,7 +48,7 @@ def normalise_chat_payload(
     combines every system fragment into one initial system message while
     preserving all non-system messages in their original order.
 
-    A bounded per-conversation history is injected only for FarmPi's learner
+    A bounded per-conversation history is injected only for FarmPi's semantic
     interpreter and answering prompts. It is deliberately not a growing
     transcript, and it never changes deterministic farm-data authority.
 
@@ -74,7 +74,7 @@ def normalise_chat_payload(
 
         if system_parts:
             combined_system = "\n\n".join(system_parts)
-            is_interpreter = "FarmPi's learner-intent interpreter" in combined_system
+            is_interpreter = "FarmPi's user-intent interpreter" in combined_system
             is_answer_prompt = "You are FarmPi," in combined_system
             history = current_conversation_messages()
 
