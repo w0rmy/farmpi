@@ -10,11 +10,12 @@ WELCOME_TEXT = (
 
 HELP_FACTS = (
     "FarmPi can answer questions about practical agricultural topics including dairy farming, cows, sheep, pasture, soils, irrigation, weather, effluent, animal health, farm systems, and related New Zealand agriculture.",
-    "FarmPi can show current verified soil moisture, soil/air temperature, humidity, pH, EC, light, rainfall, pressure, wind, pasture height, and leaf wetness from its monitored data.",
+    "Every standard FarmPi node reports soil moisture, soil temperature, air temperature, relative humidity, light, and barometric pressure.",
+    "Optional add-on sensors can also provide pH, EC, rainfall, wind, pasture height, and leaf wetness. FarmPi only presents those measurements where the monitored node actually reports them.",
     "FarmPi deterministically calculates supported farm averages, rankings, comparisons, rainfall totals, trends, and bounded historical analytics instead of asking the language model to invent or calculate those values.",
     "FarmPi can return supported historical and comparison graph data; the Android client renders verified values rather than asking the language model to create them.",
     "Curated New Zealand sources include DairyNZ, MPI, Earth Sciences New Zealand, and Irrigation New Zealand. FarmPi labels source provenance and must not claim live research unless retrieval actually occurred.",
-    "The current ESP32 readings are synthetic test telemetry and are marked as simulated in FarmPi.",
+    "The current ESP32 readings are synthetic test telemetry and are marked as simulated in FarmPi; the simulator deliberately exercises optional capabilities as well as the six standard measurements.",
     "For farm-specific decisions or diagnoses, FarmPi explains what is known, what other factors matter, and what information is missing rather than pretending the available evidence proves an answer.",
     "You do not need to learn a FarmPi command grammar: polite, indirect, colloquial, and ordinary wording can be interpreted semantically before controlled FarmPi operations are executed.",
 )
