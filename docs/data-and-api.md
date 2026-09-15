@@ -2,7 +2,11 @@
 
 ## Measurement catalogue
 
-`app/measurements.py` is the single reviewed catalogue for stored keys, labels, units, input ranges, natural-language aliases, permitted operations, explanatory concept metadata, and preferred chart type.
+`app/measurements.py` is the single reviewed catalogue for stored keys, labels, units, input ranges, natural-language aliases, permitted operations, explanatory concept metadata, preferred chart type, and whether a measurement is required on the standard FarmPi node.
+
+### Standard physical node
+
+Every standard node is expected to report these six baseline measurements:
 
 | Measurement | Key | Unit | Accepted range |
 |---|---|---:|---:|
@@ -10,15 +14,24 @@
 | Soil temperature | `soil_temperature_c` | °C | -10-60 |
 | Air temperature | `air_temperature_c` | °C | -30-60 |
 | Relative humidity | `relative_humidity_pct` | % | 0-100 |
+| Light | `light_lux` | lux | 0-200,000 |
+| Barometric pressure | `barometric_pressure_hpa` | hPa | 850-1,100 |
+
+### Optional/add-on measurements
+
+These measurements are supported by the application and simulator but are not required on the standard physical node:
+
+| Measurement | Key | Unit | Accepted range |
+|---|---|---:|---:|
 | Soil pH | `soil_ph` | - | 0-14 |
 | Soil electrical conductivity | `soil_ec_ms_cm` | mS/cm | 0-20 |
-| Light | `light_lux` | lux | 0-200,000 |
 | Rainfall per interval | `rainfall_mm` | mm | 0-100 |
-| Barometric pressure | `barometric_pressure_hpa` | hPa | 850-1,100 |
 | Wind speed | `wind_speed_kmh` | km/h | 0-250 |
 | Wind direction | `wind_direction_deg` | degrees | 0-360 |
 | Pasture height | `pasture_height_cm` | cm | 0-300 |
 | Leaf wetness | `leaf_wetness_pct` | % | 0-100 |
+
+An omitted optional field means that node does not currently report that capability. FarmPi stores SQL `NULL`, omits the unavailable measurement from current summaries, and never invents a value to make a row appear complete. The simulator may continue to emit all optional fields because synthetic capabilities have no hardware cost.
 
 The simulator does not fabricate N, P, or K values. EC is a raw chemistry-related proxy and is not a nutrient diagnosis.
 
@@ -26,16 +39,16 @@ The simulator does not fabricate N, P, or K values. EC is a raw chemistry-relate
 
 - `paddocks` holds active status and the mutable display name.
 - `sensor_nodes` holds a stable node UID and its paddock relationship.
-- `readings` holds complete timestamped measurement rows, provenance, clock metadata, sequence, and protocol version.
+- `readings` holds timestamped baseline measurements, nullable optional measurements, provenance, clock metadata, sequence, and protocol version.
 - `paddock_admin_audit` records controlled display-name changes.
 
 Relationships use numeric IDs. Renaming a paddock does not rewrite readings or move a sensor. The repeatable seed identifies virtual nodes by stable UIDs `test-moisture-a` through `test-moisture-p`, preserving an existing renamed paddock.
 
-`config/database/schema.sql` is additive for older alpha databases. New columns are nullable where necessary to preserve earlier rows; current ingest writes complete records. Range checks exist in the API, application catalogue, and database.
+`config/database/schema.sql` is additive for older alpha databases. Measurement columns remain nullable at the database layer so historical alpha rows and mixed sensor capabilities can coexist; the ingest application contract requires all six standard-node fields for new samples and range-validates every supplied optional field.
 
 ## Telemetry ingest
 
-`POST /api/ingest` requires `Authorization: Bearer <FARMPI_INGEST_TOKEN>` and a complete JSON payload:
+`POST /api/ingest` requires `Authorization: Bearer <FARMPI_INGEST_TOKEN>`. A standard-node payload needs only the six baseline measurements plus sensor/transport metadata:
 
 ```json
 {
@@ -44,16 +57,9 @@ Relationships use numeric IDs. Renaming a paddock does not rewrite readings or m
   "soil_temperature_c": 13.2,
   "air_temperature_c": 16.5,
   "relative_humidity_pct": 74.0,
-  "soil_ph": 6.2,
-  "soil_ec_ms_cm": 0.42,
   "light_lux": 12000,
-  "rainfall_mm": 0.0,
   "barometric_pressure_hpa": 1015.2,
-  "wind_speed_kmh": 9.0,
-  "wind_direction_deg": 225,
-  "pasture_height_cm": 10.5,
-  "leaf_wetness_pct": 8.0,
-  "simulated": true,
+  "simulated": false,
   "protocol_version": 1,
   "device_time_unix": 1780000000,
   "clock_valid": true,
@@ -61,7 +67,21 @@ Relationships use numeric IDs. Renaming a paddock does not rewrite readings or m
 }
 ```
 
-Success returns HTTP 201 with the stored reading ID, resolved paddock, validated values, observed/received/recorded times, clock status, deduplication status, time-sync requirement, and authoritative server Unix time.
+A node with installed add-ons may include any supported optional fields in the same payload, for example:
+
+```json
+{
+  "soil_ph": 6.2,
+  "soil_ec_ms_cm": 0.42,
+  "rainfall_mm": 0.0,
+  "wind_speed_kmh": 9.0,
+  "wind_direction_deg": 225,
+  "pasture_height_cm": 10.5,
+  "leaf_wetness_pct": 8.0
+}
+```
+
+Success returns HTTP 201 with the stored reading ID, resolved paddock, the measurements actually supplied/stored, simulated status, observed/received/recorded times, clock status, deduplication status, time-sync requirement, and authoritative server Unix time.
 
 ## Clock and retry contract
 
@@ -74,13 +94,22 @@ FarmPi is the UTC authority.
 
 When device time is missing, invalid, or more than 30 seconds from FarmPi, the response sets `time_sync_required=true`. The row retains the clock-quality metadata; historical analytics use valid in-tolerance `observed_at`, otherwise `received_at`. An invalid clock is never stored as a fabricated 1970 observation.
 
-`sample_seq` is unique per sensor when present. Retrying the same sensor/sequence returns the original reading rather than inserting a duplicate. The acknowledgement semantics are transport-neutral so a future LoRa transport could carry the same time and sequence contract without changing the database authority.
+`sample_seq` is unique per sensor when present. Retrying the same sensor/sequence returns the original reading rather than inserting a duplicate. The acknowledgement semantics are transport-neutral so a future LoRa, LoRaWAN, or Wi-Fi HaLow transport can carry the same time and sequence contract without changing database/application authority.
+
+## Current values across mixed capabilities
+
+A current paddock snapshot is considered valid when its latest node reading contains the six standard measurements. Optional fields are included only when present on the latest relevant reading. This means:
+
+- a baseline-only node remains a fully valid FarmPi monitoring node;
+- a pH/EC/rain/wind/pasture/leaf-wetness query can return data only for paddocks that actually report that capability;
+- farm-wide optional averages/rankings use reporting paddocks rather than treating absent capabilities as zero;
+- paddock summaries omit unavailable optional measurements rather than fabricating or carrying stale values forward.
 
 ## Deterministic analytics and graph data
 
 The application permits only catalogue-listed operations, including current values, farm-wide average, supported rankings/extrema, minimum, maximum, average, rainfall total, first-to-last change/trend, range, simple two-standard-deviation anomaly flagging, paddock comparison, compact summary, and daylight derivation where supported.
 
-Historical windows are bounded from five minutes to seven days. `today` and `this morning` use Pacific/Auckland calendar boundaries converted to UTC before querying. Derived daylight counts five-minute `light_lux` samples at or above 1,000 lux; it is an approximation, not an ingest field or LLM estimate.
+Historical queries already require the selected measurement to be non-null, so analytics and charts naturally operate only on records that actually contain that capability. Historical windows are currently bounded from five minutes to seven days. `today` and `this morning` use Pacific/Auckland calendar boundaries converted to UTC before querying. Derived daylight counts five-minute `light_lux` samples at or above 1,000 lux; it is an approximation, not an ingest field or LLM estimate.
 
 The backend supplies verified chart payloads; the Android client may render the same data as line, area/day-profile, bars, or dots depending on the dataset. Display mode is presentation only and must never change the values.
 
@@ -128,9 +157,9 @@ The server guarantees that a null/blank `spoken_answer` falls back to the displa
 
 ## Capability lookup and unsupported requests
 
-The measurement catalogue is the application source of truth for what can be measured, calculated, compared, and graphed. When a user asks for a graph or analytic that does not map directly to a supported key, the application should inspect aliases and nearby capabilities before returning a limitation.
+The measurement catalogue is the application source of truth for what can be measured, calculated, compared, and graphed. It also distinguishes the six standard-node capabilities from optional add-ons. When a user requests an optional measurement that a particular paddock does not report, FarmPi should say so directly rather than present an invented value or generic model limitation.
 
-The model's own ability to draw or not draw a graph is irrelevant: FarmPi graph capability is determined by the application catalogue, stored data, analytics functions, and Android renderer.
+When a user asks for a graph or analytic that does not map directly to a supported key, the application should inspect aliases and nearby capabilities before returning a limitation. The model's own ability to draw or not draw a graph is irrelevant: FarmPi graph capability is determined by the application catalogue, stored data, analytics functions, and Android renderer.
 
 ## Paddock identity and rename
 
