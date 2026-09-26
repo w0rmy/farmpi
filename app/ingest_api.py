@@ -162,7 +162,7 @@ async def ingest_sensor_reading(request: SensorReadingRequest, authorization: st
     except DatabaseUnavailable as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="The FarmPi database is unavailable.") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
     return SensorReadingResponse(
         reading_id=stored.reading_id, sensor=stored.sensor_uid, paddock=stored.paddock_name,
         values=stored.values, simulated=stored.simulated, observed_at=stored.observed_at.isoformat(),

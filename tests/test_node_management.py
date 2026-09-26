@@ -28,6 +28,7 @@ class Cursor:
     def execute(self, sql, params=()):
         sql = sql.replace("%s", "?").replace(" FOR UPDATE", "").replace("UTC_TIMESTAMP(6)", "CURRENT_TIMESTAMP")
         sql = sql.replace("ON DUPLICATE KEY UPDATE hardware_uid=hardware_uid", "ON CONFLICT(hardware_uid) DO NOTHING")
+        params = tuple(value.isoformat(" ") if isinstance(value, datetime) else value for value in params)
         self.cursor.execute(sql, params)
         self.lastrowid = self.cursor.lastrowid
 
