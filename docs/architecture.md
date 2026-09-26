@@ -36,6 +36,7 @@ sensor / simulator --> transport --> authenticated ingest --> FastAPI --> MariaD
 - `app/knowledge_sources.py` stores the source hierarchy, curated NZ source metadata, and reviewed claims. It is not a live search engine.
 - `app/llm_compat.py` normalises OpenAI-compatible chat requests and preserves one integration contract across supported model servers.
 - `app/education.py`, `app/learning.py`, and course-specific parts of `app/guidance.py` are legacy modules from the earlier learning-focused direction. They remain in the current revision where referenced, but the current client direction is to remove course/module/progress surfaces while retaining ordinary contextual explanation and application guidance.
+- `app/node_api.py` and `app/node_config.py` own managed physical-node discovery, administrator approval, desired/applied configuration fingerprints, latest-state synchronisation and node status.
 - `app/ingest_api.py` and `app/sensor_ingest.py` validate, authenticate, timestamp, deduplicate, and store telemetry.
 - `clients/android` is the primary native user client. The built-in HTML page is a diagnostic fallback.
 
@@ -122,6 +123,7 @@ clients/android/        native Kotlin/Jetpack Compose client and device-local pr
 config/                 Caddy, systemd, database schema and repeatable seed
 docs/                   current architecture, deployment, AI/data and evaluation docs
 firmware/esp32-sensor/  16-paddock synthetic telemetry firmware
+firmware/esp32-s3-node/ managed physical-node registration/configuration client and later acquisition target
 scripts/                database and service installation helpers
 tests/                  deterministic behavioural and integration-contract tests
 update                  repeatable Pi update/validation entry point
