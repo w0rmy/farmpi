@@ -1,5 +1,7 @@
 # ESP32-S3 registration and configuration block
 
+> **Status update - 26 September 2026:** The registration/configuration block described below has now been implemented and merged to `main`, and two ESP32-S3 boards have reached the live FarmPi discovery/registration path. Use [s3-node-bringup.md](s3-node-bringup.md) and the [development record](development-record.md) for current live status and remaining physical-sensor evidence. This file remains the implementation-plan/rationale record.
+
 Inspection baseline: `da6a109671ff9f5ce43dc3339ab256e0954d4e0d`, from `F:/FarmPi`, 26 September 2026. Work takes place in an isolated checkout; staged Android icon work in the original checkout is not part of this change.
 
 ## Existing owners and smallest change set
