@@ -1,0 +1,7 @@
+nz.farmpi.client.app-pngs-0 F:\FarmPi\clients\android\app\build\generated\res\pngs\debug
+nz.farmpi.client.app-updated_navigation_xml-1 F:\FarmPi\clients\android\app\build\generated\updated_navigation_xml\debug
+nz.farmpi.client.app-packageDebugResources-2 F:\FarmPi\clients\android\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
+nz.farmpi.client.app-packageDebugResources-3 F:\FarmPi\clients\android\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
+nz.farmpi.client.app-debug-4 F:\FarmPi\clients\android\app\build\intermediates\merged_res\debug\mergeDebugResources
+nz.farmpi.client.app-debug-5 F:\FarmPi\clients\android\app\src\debug\res
+nz.farmpi.client.app-main-6 F:\FarmPi\clients\android\app\src\main\res

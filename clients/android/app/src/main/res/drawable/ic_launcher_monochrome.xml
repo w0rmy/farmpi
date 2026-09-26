@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keep the complete leaf inside the adaptive icon's 66dp safe circle. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:left="27dp" android:top="27dp" android:right="27dp" android:bottom="27dp">
+        <bitmap android:src="@drawable/ic_launcher_monochrome_art" android:gravity="fill" android:filter="true" />
+    </item>
+</layer-list>

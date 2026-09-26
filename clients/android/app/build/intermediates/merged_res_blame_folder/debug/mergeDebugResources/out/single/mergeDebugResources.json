@@ -1,0 +1,38 @@
+[
+    {
+        "merged": "nz.farmpi.client.app-debug-33:/drawable-nodpi_ic_launcher_monochrome_art.png.flat",
+        "source": "nz.farmpi.client.app-main-35:/drawable-nodpi/ic_launcher_monochrome_art.png"
+    },
+    {
+        "merged": "nz.farmpi.client.app-debug-33:/xml_network_security_config.xml.flat",
+        "source": "nz.farmpi.client.app-main-35:/xml/network_security_config.xml"
+    },
+    {
+        "merged": "nz.farmpi.client.app-debug-33:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "nz.farmpi.client.app-main-35:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "nz.farmpi.client.app-debug-33:/mipmap-anydpi-v33_ic_launcher_round.xml.flat",
+        "source": "nz.farmpi.client.app-main-35:/mipmap-anydpi-v33/ic_launcher_round.xml"
+    },
+    {
+        "merged": "nz.farmpi.client.app-debug-33:/drawable-nodpi_ic_launcher_foreground_art.png.flat",
+        "source": "nz.farmpi.client.app-main-35:/drawable-nodpi/ic_launcher_foreground_art.png"
+    },
+    {
+        "merged": "nz.farmpi.client.app-debug-33:/mipmap-anydpi-v33_ic_launcher.xml.flat",
+        "source": "nz.farmpi.client.app-main-35:/mipmap-anydpi-v33/ic_launcher.xml"
+    },
+    {
+        "merged": "nz.farmpi.client.app-debug-33:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "nz.farmpi.client.app-main-35:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "nz.farmpi.client.app-debug-33:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "nz.farmpi.client.app-main-35:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "nz.farmpi.client.app-debug-33:/drawable_ic_launcher_monochrome.xml.flat",
+        "source": "nz.farmpi.client.app-main-35:/drawable/ic_launcher_monochrome.xml"
+    }
+]
