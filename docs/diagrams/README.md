@@ -13,7 +13,8 @@ These Mermaid sources describe the implementation and its development history. R
 | [Grounding pipeline](grounding-pipeline.mmd) | deterministic farm facts versus tiered external/model evidence |
 | [Android architecture](android-architecture.mmd) | native client, HTTPS, local state, settings, charts, and voice boundary |
 | [Ingest and time sync](ingest-time-sync.mmd) | telemetry UTC, drift, and idempotency |
-| [Database ERD](database-erd.mmd) | persistent identities and relationships |
+| [Database ERD](database-erd.mmd) | persistent identities, managed-node configuration state, captured reading location, and relationships |
+| [Managed node configuration](managed-node-configuration.mmd) | ESP32-S3 discovery, approval, latest-state fingerprint sync, NVS apply/ack and sparse telemetry boundary |
 | [Graphing flow](graphing-flow.mmd) | verified analytics to client chart/evidence |
 | [Rename audit](rename-audit.mmd) | confirmation and mutation boundary |
 | [NZ simulation](nz-simulator.mmd) | explicitly synthetic telemetry model |
