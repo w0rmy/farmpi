@@ -2,6 +2,20 @@
 
 This block prepares registration and configuration before real probe acquisition. It does not complete T01. FarmPi Needs and Requirements v1.3 still requires six physical measurements with location, source, observation time, measurement identity, units and physical/simulated distinction.
 
+## Live bring-up status - 26 September 2026
+
+Two ESP32-S3 N16R8 boards have now been flashed with the managed-node firmware and exercised against the live FarmPi deployment. Both boards joined the dedicated FarmLAN and reached the managed discovery/registration path. The Android Nodes workflow was then used to connect/register the nodes with FarmPi. This verifies the physical discovery/administrative registration path beyond the earlier compile-only evidence.
+
+Observed hardware UIDs during bring-up were `7c4fadb633c0` and `7c4fadb52c40`. Hardware UID remains identification rather than a secret. Final assigned FarmPi node IDs, desired/applied full fingerprints and screenshots should still be captured in the formal evidence record before claiming the complete two-board checklist.
+
+Two hardware faults/bring-up conditions were also isolated:
+
+- One newly flashed board reported `phy_init: store_cal_data_to_nvs_handle: store calibration data failed(0x1105)`. A deliberate full-flash erase followed by reflashing cleared the condition and the node then reached `Awaiting registration`. Normal subsequent firmware uploads should preserve NVS; full erase is a provisioning/recovery action, not the routine update path.
+- A second bring-up produced a repeating lwIP `sys_untimeout` assertion stating `Required to lock TCPIP core functionality!`. The apparent network-stack fault was traced to an unintended breadboard connection. Removing that connection stopped the reboot loop. The software/network stack was therefore not changed to mask a physical wiring fault.
+
+These results do not constitute physical sensing evidence. No real probe reading has yet been claimed here, and T01 remains incomplete until all six FR01 physical measurements are demonstrated with required provenance.
+
+
 ## What exists
 
 The existing `sensor_nodes`, catalogue, readings table, `/api/ingest`, database connection layer and Android HTTPS client are extended. The old `firmware/esp32-sensor` remains the explicitly simulated 16-node generator. The new `firmware/esp32-s3-node` target is a physical configuration client; it never generates readings. Both physical boards use the same binary and network configuration. UID is read from factory eFuse MAC and an independently generated device key is persisted in NVS; the server stores only its SHA-256 hash.
@@ -12,10 +26,10 @@ The S3 bring-up profile understands soil-moisture enablement only and has no acq
 
 1. Back up the MariaDB database before applying `config/database/schema.sql` through the existing update workflow. This change preserves existing rows and relaxes old baseline NOT NULL columns. It adds registration/configuration fields to sensor_nodes and captures paddock_id in readings. The initial backfill uses the assignment known at migration time; it cannot reconstruct location changes that predate this migration. Run the schema twice on a disposable MariaDB copy and compare counts before live deployment. MariaDB execution remains an outstanding integration check.
 2. The updated `scripts/setup-database` preserves or generates `FARMPI_ADMIN_TOKEN` in the existing protected environment file. On an existing installation that only runs the schema update, add a separately generated administrator token to `/etc/farmpi/farmpi.env` and restart FarmPi. Do not reuse the ingest token. The Android Nodes screen holds this token only for its current screen session. No secrets belong in Git or evidence logs.
-3. Build/install the Android client, open **Nodes**, enter the administrator token and refresh. The new screen remains unverified on device; compilation in this environment failed before Kotlin compilation because Gradle could not establish a loopback connection.
+3. Build/install the Android client, open **Nodes**, enter the administrator token and refresh. The earlier managed-environment Gradle attempt failed before Kotlin compilation because Gradle could not establish a loopback connection, but the live Android Nodes workflow has since been exercised successfully against FarmPi for S3 discovery/registration. Preserve both records: the earlier build failure is development evidence and the later device use is live integration evidence.
 4. Copy `firmware/esp32-s3-node/config.example.h` to `config.h`; set Wi-Fi and the FarmPi HTTPS address. Paste the existing Caddy local root CA certificate. The physical target verifies TLS. It also needs a trusted clock for certificate validation: provide a reachable local NTP service at `farmpi.local` before first connection. The repository’s existing Pi setup does not currently install an NTP server; verify this prerequisite explicitly. No Internet time service is required.
-5. Compile with Arduino ESP32 core **3.3.11** and ArduinoJson **7.4.2**. The verified compile target is `esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB`. Jeremy identified the modules as ESP32-S3 N16R8. This target matches 16 MB quad flash and 8 MB octal PSRAM for the WROOM-1 N16R8 variant; the exact carrier board/USB mode still needs confirmation before flashing. No board has been flashed by this task.
-6. Upload the same image to both boards with **Erase All Flash disabled**. Preserve NVS across normal reflashes. Erasing the device key requires a deliberate administrative recovery procedure; the server will reject an unknown replacement key for an existing hardware UID rather than silently reassign identity.
+5. Compile with Arduino ESP32 core **3.3.11** and ArduinoJson **7.4.2**. The verified compile target is `esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB`. Jeremy identified the modules as ESP32-S3 N16R8. This target matches 16 MB quad flash and 8 MB octal PSRAM for the WROOM-1 N16R8 variant. Two boards have now been flashed and reached the live FarmPi registration path; exact carrier/pin/probe details still need to be established before acquisition-driver wiring.
+6. Upload the same image to both boards with **Erase All Flash disabled** for normal updates so NVS identity/configuration survives. During first live provisioning, one board required a deliberate full-flash erase to clear an NVS/PHY calibration-storage failure before registration could proceed. Treat full erase as provisioning/recovery only: erasing the device key requires deliberate administrative recovery, and the server will reject an unknown replacement key for an existing hardware UID rather than silently reassign identity.
 
 ## Configuration contract
 
