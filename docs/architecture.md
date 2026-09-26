@@ -2,7 +2,7 @@
 
 ## Purpose
 
-FarmPi is a functional farm-monitoring application demonstrator. Its architecture is intended to show how a native mobile client, local API/service layer, persistent data store, deterministic analytics, simulated sensor ingest, and a constrained language model can be integrated into one coherent system.
+FarmPi is a functional farm-monitoring application demonstrator. Its architecture is intended to show how a native mobile client, local API/service layer, persistent data store, deterministic analytics, managed physical/simulated sensor ingest, and a constrained language model can be integrated into one coherent system.
 
 The current capstone direction is **Advanced Application Development Concepts** plus **Artificial Intelligence and Data Science**. Earlier embedded-learning functionality remains implemented in places, but it no longer defines the architecture or current scope.
 
@@ -111,9 +111,10 @@ The Pi systemd template starts Qwen3 1.7B Q4_K_M through `llama-server`, context
 - Caddy is the only normal LAN-facing service and terminates HTTPS for `farmpi.local`.
 - FastAPI and the checked-in Pi `llama-server` bind to localhost.
 - MariaDB binds to `127.0.0.1` and uses a restricted application account.
-- ESP32 ingest requires a bearer token from `/etc/farmpi/farmpi.env`.
+- Legacy simulator ingest uses the shared bearer token from `/etc/farmpi/farmpi.env`; managed physical S3 nodes instead use their persisted per-device credential plus registered hardware identity and acknowledged configuration state.
+- Administrator node approval/configuration uses the separate `FARMPI_ADMIN_TOKEN`; it is not a device credential or simulator ingest token.
 - The Android client uses normal HTTPS validation and may trust a user-installed Caddy public root certificate; it does not install an insecure trust manager.
-- The ESP32 alpha uses encrypted TLS with hostname/SNI but `setInsecure()` because it does not yet validate the private CA. This is a documented prototype limitation.
+- The managed ESP32-S3 target validates the FarmPi HTTPS connection using the Caddy public root CA and `farmpi.local` hostname/SNI. Private CA keys never belong on the device.
 
 ## Repository layout
 
