@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .database import DatabaseUnavailable
 from .measurements import BY_KEY, MEASUREMENTS
@@ -21,15 +21,22 @@ router = APIRouter(prefix="/api", tags=["sensor-ingest"])
 class SensorReadingRequest(BaseModel):
     """One instantaneous sample from a standard or expanded FarmPi node."""
 
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    hardware_uid: str | None = Field(default=None, pattern=r"^[0-9a-f]{12}$")
+    device_key: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    applied_fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    location_epoch: int | None = Field(default=None, ge=0)
+
     sensor: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
 
-    # Standard-node measurements are required for every current physical node.
-    soil_moisture_pct: float
-    soil_temperature_c: float
-    air_temperature_c: float
-    relative_humidity_pct: float
-    light_lux: float
-    barometric_pressure_hpa: float
+    # All measurements are sparse; catalogue membership does not imply fitted.
+    soil_moisture_pct: float | None = None
+    soil_temperature_c: float | None = None
+    air_temperature_c: float | None = None
+    relative_humidity_pct: float | None = None
+    light_lux: float | None = None
+    barometric_pressure_hpa: float | None = None
 
     # Add-on measurements are optional capabilities. Omission means the node
     # does not currently report that measurement; FarmPi never fabricates it.
@@ -44,10 +51,19 @@ class SensorReadingRequest(BaseModel):
     simulated: bool = True
     # Version 1 is deliberately transport-neutral so its semantics can be
     # carried in a future LoRa acknowledgement unchanged.
-    protocol_version: int = Field(default=1, ge=1, le=10)
+    protocol_version: int = Field(default=1, ge=1, le=1)
     device_time_unix: int | None = Field(default=None, ge=0)
     clock_valid: bool = False
-    sample_seq: int | None = Field(default=None, ge=0)
+    sample_seq: int | None = Field(default=None, ge=0, le=18446744073709551615)
+
+    @model_validator(mode="after")
+    def sparse_sample(self):
+        supplied = self.model_fields_set & set(BY_KEY)
+        if not supplied or any(getattr(self, key) is None for key in supplied):
+            raise ValueError("Supply at least one measurement; omit absent measurements instead of null.")
+        if self.hardware_uid and not self.device_key:
+            raise ValueError("Device credential required.")
+        return self
 
     @field_validator(*tuple(BY_KEY))
     @classmethod
@@ -112,7 +128,10 @@ def _require_ingest_token(authorization: str | None) -> None:
 @router.post("/ingest", response_model=SensorReadingResponse, status_code=status.HTTP_201_CREATED)
 async def ingest_sensor_reading(request: SensorReadingRequest, authorization: str | None = Header(default=None)) -> SensorReadingResponse:
     """Accept a validated standard-node sample plus any installed add-ons."""
-    _require_ingest_token(authorization)
+    if not request.hardware_uid:
+        _require_ingest_token(authorization)
+        if not request.simulated:
+            raise HTTPException(422, "Physical telemetry requires registered hardware identity and device credentials.")
     received_at = datetime.now(timezone.utc)
     observed_at, clock_valid, clock_offset_seconds, clock_out_of_tolerance = _device_observation(request, received_at)
     supplied_values = {
@@ -121,19 +140,23 @@ async def ingest_sensor_reading(request: SensorReadingRequest, authorization: st
         if getattr(request, item.key) is not None
     }
     try:
-        stored = await asyncio.to_thread(
-            store_sensor_reading,
-            request.sensor,
-            request.simulated,
-            observed_at=observed_at,
-            received_at=received_at,
-            clock_valid=clock_valid,
-            clock_offset_seconds=clock_offset_seconds,
-            clock_out_of_tolerance=clock_out_of_tolerance,
-            sample_seq=request.sample_seq,
-            protocol_version=request.protocol_version,
-            **supplied_values,
-        )
+        if request.hardware_uid:
+            from .managed_ingest import store_managed
+            stored = await asyncio.to_thread(store_managed, request, received_at, observed_at, clock_valid, clock_offset_seconds, clock_out_of_tolerance)
+        else:
+            stored = await asyncio.to_thread(
+                store_sensor_reading,
+                request.sensor,
+                request.simulated,
+                observed_at=observed_at,
+                received_at=received_at,
+                clock_valid=clock_valid,
+                clock_offset_seconds=clock_offset_seconds,
+                clock_out_of_tolerance=clock_out_of_tolerance,
+                sample_seq=request.sample_seq,
+                protocol_version=request.protocol_version,
+                **supplied_values,
+            )
     except UnknownSensor as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown or inactive sensor node.") from exc
     except DatabaseUnavailable as exc:

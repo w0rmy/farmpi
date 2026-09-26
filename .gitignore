@@ -9,6 +9,7 @@ __pycache__/
 .env.*
 !*.env.example
 firmware/esp32-sensor/config.h
+firmware/esp32-s3-node/config.h
 
 # Editor and operating-system files
 .vscode/

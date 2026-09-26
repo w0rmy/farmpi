@@ -37,7 +37,7 @@ class SensorStorageTests(unittest.TestCase):
         self.assertEqual(stored.wind_direction_deg, 226.0)
         self.assertTrue(stored.simulated)
         execute.assert_called_once()
-        self.assertEqual(len(execute.call_args.args[1]), len(MEASUREMENTS) + 10)
+        self.assertEqual(len(execute.call_args.args[1]), len(MEASUREMENTS) + 11)
 
     @patch("app.sensor_ingest.execute", return_value=43)
     @patch("app.sensor_ingest.fetch_one")
@@ -47,7 +47,7 @@ class SensorStorageTests(unittest.TestCase):
         self.assertEqual(set(stored.values), set(STANDARD_NODE_KEYS))
         self.assertTrue(all(key not in stored.values for key in OPTIONAL_MEASUREMENT_KEYS))
         params = execute.call_args.args[1]
-        measurement_params = params[1:1 + len(MEASUREMENTS)]
+        measurement_params = params[2:2 + len(MEASUREMENTS)]
         by_key = dict(zip((item.key for item in MEASUREMENTS), measurement_params))
         self.assertTrue(all(by_key[key] is not None for key in STANDARD_NODE_KEYS))
         self.assertTrue(all(by_key[key] is None for key in OPTIONAL_MEASUREMENT_KEYS))
@@ -82,11 +82,10 @@ class SensorStorageTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_reading_values(invalid)
 
-    def test_missing_standard_measurement_is_rejected(self) -> None:
+    def test_missing_standard_measurement_is_allowed(self) -> None:
         missing = dict(BASELINE_VALUES)
         missing.pop("air_temperature_c")
-        with self.assertRaises(ValueError):
-            validate_reading_values(missing)
+        self.assertNotIn("air_temperature_c", validate_reading_values(missing))
 
     def test_optional_measurements_may_be_omitted(self) -> None:
         validated = validate_reading_values(BASELINE_VALUES)

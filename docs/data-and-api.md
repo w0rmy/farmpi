@@ -2,11 +2,11 @@
 
 ## Measurement catalogue
 
-`app/measurements.py` is the single reviewed catalogue for stored keys, labels, units, input ranges, natural-language aliases, permitted operations, explanatory concept metadata, preferred chart type, and whether a measurement is required on the standard FarmPi node.
+`app/measurements.py` is the single reviewed catalogue for stored keys, labels, units, input ranges, natural-language aliases, permitted operations, explanatory concept metadata, preferred chart type, and legacy standard/add-on labels. These labels do not control per-node enablement.
 
 ### Standard physical node
 
-Every standard node is expected to report these six baseline measurements:
+FR01 requires these six physical measurements for final T01 acceptance. They are not mandatory fields in each node or telemetry payload:
 
 | Measurement | Key | Unit | Accepted range |
 |---|---|---:|---:|
@@ -38,17 +38,17 @@ The simulator does not fabricate N, P, or K values. EC is a raw chemistry-relate
 ## Storage model
 
 - `paddocks` holds active status and the mutable display name.
-- `sensor_nodes` holds a stable node UID and its paddock relationship.
-- `readings` holds timestamped baseline measurements, nullable optional measurements, provenance, clock metadata, sequence, and protocol version.
+- `sensor_nodes` holds stable node UID, hardware UID, registration state, device credential hash, capabilities, desired/applied configuration, sync diagnostics and current location.
+- `readings` holds sparse measurements, the location ID captured on ingest, provenance, clock metadata, sequence, and protocol version.
 - `paddock_admin_audit` records controlled display-name changes.
 
 Relationships use numeric IDs. Renaming a paddock does not rewrite readings or move a sensor. The repeatable seed identifies virtual nodes by stable UIDs `test-moisture-a` through `test-moisture-p`, preserving an existing renamed paddock.
 
-`config/database/schema.sql` is additive for older alpha databases. Measurement columns remain nullable at the database layer so historical alpha rows and mixed sensor capabilities can coexist; the ingest application contract requires all six standard-node fields for new samples and range-validates every supplied optional field.
+`config/database/schema.sql` is additive for older alpha databases. Measurement columns remain nullable at the database layer so historical alpha rows and mixed sensor capabilities can coexist; the ingest application contract accepts any nonempty sparse set and validates every supplied measurement. Explicit nulls, unknown fields, strings, booleans and non-finite measurement values are rejected.
 
 ## Telemetry ingest
 
-`POST /api/ingest` requires `Authorization: Bearer <FARMPI_INGEST_TOKEN>`. A standard-node payload needs only the six baseline measurements plus sensor/transport metadata:
+`POST /api/ingest` retains `Authorization: Bearer <FARMPI_INGEST_TOKEN>` for legacy simulated nodes. Physical nodes use the registered hardware UID and per-device credential described in [S3 setup](s3-node-bringup.md). The following legacy simulator example may omit any measurements it does not produce:
 
 ```json
 {
@@ -59,7 +59,7 @@ Relationships use numeric IDs. Renaming a paddock does not rewrite readings or m
   "relative_humidity_pct": 74.0,
   "light_lux": 12000,
   "barometric_pressure_hpa": 1015.2,
-  "simulated": false,
+  "simulated": true,
   "protocol_version": 1,
   "device_time_unix": 1780000000,
   "clock_valid": true,
@@ -87,18 +87,18 @@ Success returns HTTP 201 with the stored reading ID, resolved paddock, the measu
 
 FarmPi is the UTC authority.
 
-- `received_at` is FarmPi receipt time and owns current-value freshness and transport diagnostics.
+- `received_at` is FarmPi receipt time for transport diagnostics; observation age remains separate.
 - `observed_at` is device observation time when the node clock is valid.
 - `created_at` is the database insertion/audit timestamp.
 - `recorded_at` remains a compatibility alias during the alpha migration.
 
-When device time is missing, invalid, or more than 30 seconds from FarmPi, the response sets `time_sync_required=true`. The row retains the clock-quality metadata; historical analytics use valid in-tolerance `observed_at`, otherwise `received_at`. An invalid clock is never stored as a fabricated 1970 observation.
+When device time is missing, invalid, or more than 30 seconds from FarmPi, the response sets `time_sync_required=true`. The row retains the clock-quality metadata; historical analytics use valid `observed_at`, otherwise `received_at`. A delayed valid physical observation keeps its original time even when arrival delay triggers a clock resynchronisation request. Physical submissions require a valid timestamp and reject times more than 30 seconds in the future. An invalid clock is never stored as a fabricated 1970 observation.
 
 `sample_seq` is unique per sensor when present. Retrying the same sensor/sequence returns the original reading rather than inserting a duplicate. The acknowledgement semantics are transport-neutral so a future LoRa, LoRaWAN, or Wi-Fi HaLow transport can carry the same time and sequence contract without changing database/application authority.
 
 ## Current values across mixed capabilities
 
-A current paddock snapshot is considered valid when its latest node reading contains the six standard measurements. Optional fields are included only when present on the latest relevant reading. This means:
+A current paddock snapshot uses each active node’s latest observation at its current assigned location, ordered by observation time. It does not require six measurements. Only values present in that sample are included; a different sparse sample does not silently carry an older measurement forward. This means:
 
 - a baseline-only node remains a fully valid FarmPi monitoring node;
 - a pH/EC/rain/wind/pasture/leaf-wetness query can return data only for paddocks that actually report that capability;
@@ -166,3 +166,7 @@ When a user asks for a graph or analytic that does not map directly to a support
 Paddock references resolve in this order: current display name, audited former name, canonical letter, then active configured numeric/word-number order. Close matches can produce a cautious suggestion; ambiguous or out-of-range references return specific recovery guidance.
 
 `Rename Paddock A to North Flat` creates a validated five-minute proposal. Only `confirm` or `yes` with the matching opaque token applies the update. The model does not authorise or execute the mutation. The application updates only `paddocks.name` and writes `paddock_admin_audit`; historical rows remain linked by numeric ID.
+
+## Managed node configuration
+
+See [S3 node bring-up](s3-node-bringup.md) for registration, SHA-256 canonical configuration, administrator access, NVS persistence and the two-board acceptance checklist. All 13 catalogue choices are shown; unsupported firmware capabilities cannot be enabled.

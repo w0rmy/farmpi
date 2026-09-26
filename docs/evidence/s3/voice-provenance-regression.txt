@@ -1,0 +1,37 @@
+......................F...............................................FarmPi semantic interpretation failed; using fast-route fallback: Semantic interpreter did not return a JSON object.
+........C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\.venv\Lib\site-packages\fastapi\routing.py:352: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+  return await dependant.call(**values)
+...C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\tests\test_node_management.py:31: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+  self.cursor.execute(sql, params)
+C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\.venv\Lib\site-packages\fastapi\routing.py:352: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+  return await dependant.call(**values)
+.C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\tests\test_node_management.py:31: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+  self.cursor.execute(sql, params)
+C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\.venv\Lib\site-packages\fastapi\routing.py:352: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+  return await dependant.call(**values)
+...............................................................
+======================================================================
+FAIL: test_current_answers_are_screen_friendly_and_keep_precise_evidence (test_conversational_paddocks.ConversationalPaddockTests.test_current_answers_are_screen_friendly_and_keep_precise_evidence)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Jeremy Brooking\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\unittest\mock.py", line 1396, in patched
+    return func(*newargs, **newkeywargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\tests\test_conversational_paddocks.py", line 112, in test_current_answers_are_screen_friendly_and_keep_precise_evidence
+    self.assertEqual(result.spoken_facts, ("Paddock B air temperature: 17.20 �C.",))
+AssertionError: Tuples differ: ('Pad[20 chars]re: 17.20 �C.', 'The result includes simulated test readings.') != ('Pad[20 chars]re: 17.20 �C.',)
+
+First tuple contains 1 additional elements.
+First extra element 1:
+'The result includes simulated test readings.'
+
+- ('Paddock B air temperature: 17.20 �C.',
++ ('Paddock B air temperature: 17.20 �C.',)
+?                                         +
+
+-  'The result includes simulated test readings.')
+
+----------------------------------------------------------------------
+Ran 145 tests in 0.515s
+
+FAILED (failures=1)

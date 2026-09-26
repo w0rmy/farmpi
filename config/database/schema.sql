@@ -130,3 +130,35 @@ CREATE TABLE IF NOT EXISTS paddock_admin_audit (
     CONSTRAINT fk_paddock_admin_audit_paddock FOREIGN KEY (paddock_id) REFERENCES paddocks(id)
         ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Older alpha installations may still have NOT NULL baseline columns.
+ALTER TABLE readings MODIFY soil_moisture_pct DECIMAL(5,2) NULL;
+ALTER TABLE readings MODIFY soil_temperature_c DECIMAL(5,2) NULL;
+ALTER TABLE readings MODIFY air_temperature_c DECIMAL(5,2) NULL;
+ALTER TABLE readings MODIFY relative_humidity_pct DECIMAL(5,2) NULL;
+ALTER TABLE readings MODIFY light_lux DECIMAL(8,2) NULL;
+ALTER TABLE readings MODIFY barometric_pressure_hpa DECIMAL(6,1) NULL;
+
+-- Managed physical nodes extend the existing identity. Legacy nodes remain
+-- explicitly legacy until migrated; no simulated history is reclassified.
+ALTER TABLE sensor_nodes MODIFY paddock_id INT UNSIGNED NULL;
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS hardware_uid CHAR(12) NULL;
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS device_key_hash CHAR(64) NULL;
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS registration_state VARCHAR(16) NOT NULL DEFAULT 'legacy';
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS firmware_version VARCHAR(64) NULL;
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS board_profile VARCHAR(64) NULL;
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS capabilities_json TEXT NULL;
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS desired_config_json TEXT NULL;
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS applied_config_json TEXT NULL;
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS desired_fingerprint CHAR(64) NULL;
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS applied_fingerprint CHAR(64) NULL;
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS failed_fingerprint CHAR(64) NULL;
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS config_error VARCHAR(240) NULL;
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS last_seen DATETIME(6) NULL;
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS location_epoch BIGINT UNSIGNED NOT NULL DEFAULT 0;
+ALTER TABLE sensor_nodes ADD UNIQUE INDEX IF NOT EXISTS uq_sensor_nodes_hardware (hardware_uid);
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS paddock_id INT UNSIGNED NULL;
+-- This backfill can only recover the assignment known at migration time.
+UPDATE readings r JOIN sensor_nodes s ON s.id=r.sensor_node_id
+SET r.paddock_id=s.paddock_id WHERE r.paddock_id IS NULL;
+ALTER TABLE readings ADD INDEX IF NOT EXISTS idx_readings_location_observed (paddock_id,observed_at);

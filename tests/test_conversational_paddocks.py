@@ -109,7 +109,7 @@ class ConversationalPaddockTests(unittest.TestCase):
         result = get_grounding_data("paddock-field", "Paddock B", "air_temperature_c")
         self.assertTrue(result.facts[1].startswith(("Updated", "Last reading:")))
         self.assertNotIn("T", result.facts[1])
-        self.assertEqual(result.spoken_facts, ("Paddock B air temperature: 17.20 °C.",))
+        self.assertEqual(result.spoken_facts, ("Paddock B air temperature: 17.20 °C.", "The result includes simulated test readings."))
         self.assertEqual(result.evidence[0]["observed_at"], "2026-08-27T09:00:00")
 
     @patch("app.app.get_grounding_data")

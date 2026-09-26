@@ -42,11 +42,11 @@ class SensorIngestTests(unittest.TestCase):
         )
         self.assertTrue(all(getattr(request, key) is None for key in OPTIONAL_MEASUREMENT_KEYS))
 
-    def test_missing_standard_measurement_is_rejected(self) -> None:
+    def test_missing_standard_measurement_is_allowed(self) -> None:
         payload = dict(BASELINE)
         payload.pop("soil_moisture_pct")
-        with self.assertRaises(ValidationError):
-            SensorReadingRequest(**payload)
+        request = SensorReadingRequest(**payload)
+        self.assertIsNone(request.soil_moisture_pct)
 
     def test_invalid_clock_requests_sync_without_a_1970_observation(self) -> None:
         request = SensorReadingRequest(**(VALID | {"clock_valid": False, "device_time_unix": 0, "sample_seq": 9}))
@@ -69,9 +69,9 @@ class SensorIngestTests(unittest.TestCase):
             with self.subTest(field=item.key), self.assertRaises(ValidationError):
                 SensorReadingRequest(**(VALID | {item.key: item.maximum + 0.1}))
 
-    def test_optional_null_is_allowed(self) -> None:
-        request = SensorReadingRequest(**(BASELINE | {"rainfall_mm": None}))
-        self.assertIsNone(request.rainfall_mm)
+    def test_explicit_null_is_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            SensorReadingRequest(**(BASELINE | {"rainfall_mm": None}))
 
     def test_sensor_uid_format_is_validated(self) -> None:
         with self.assertRaises(ValidationError):

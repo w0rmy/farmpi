@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
+import math
 
 from .database import execute, fetch_one
 from .measurements import BY_KEY, MEASUREMENTS
@@ -44,7 +45,7 @@ class StoredReading:
 
 
 SENSOR_LOOKUP_SQL = """
-SELECT s.id AS sensor_node_id, s.node_uid, p.name AS paddock_name
+SELECT s.id AS sensor_node_id, s.node_uid, p.name AS paddock_name, s.paddock_id, s.hardware_uid
 FROM sensor_nodes AS s
 JOIN paddocks AS p ON p.id = s.paddock_id
 WHERE s.node_uid = %s AND s.active = 1 AND p.active = 1
@@ -56,6 +57,7 @@ _PLACEHOLDERS = ", ".join("%s" for _ in MEASUREMENTS)
 INSERT_READING_SQL = f"""
 INSERT INTO readings (
     sensor_node_id,
+    paddock_id,
     {_COLUMNS},
     simulated,
     observed_at,
@@ -67,7 +69,7 @@ INSERT INTO readings (
     sample_seq,
     protocol_version
 )
-VALUES (%s, {_PLACEHOLDERS}, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+VALUES (%s, %s, {_PLACEHOLDERS}, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 DUPLICATE_READING_SQL = f"""
@@ -87,18 +89,20 @@ def _utc_datetime(value: Any) -> datetime:
 
 
 def validate_reading_values(values: dict[str, Any]) -> dict[str, float]:
-    """Validate baseline measurements and any supplied optional capability."""
+    """Validate only supplied catalogue measurements; absence is not a value."""
     unknown = set(values) - set(BY_KEY)
     if unknown:
         raise ValueError(f"Unknown measurement field: {sorted(unknown)[0]}")
 
+    if not values:
+        raise ValueError("Empty telemetry is not a reading; use node contact.")
     result: dict[str, float] = {}
     for item in MEASUREMENTS:
-        raw_value = values.get(item.key)
-        if raw_value is None:
-            if item.standard_node_required:
-                raise ValueError(f"Missing required measurement: {item.key}")
+        if item.key not in values:
             continue
+        raw_value = values[item.key]
+        if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)) or not math.isfinite(raw_value):
+            raise ValueError(f"{item.key} must be a finite number.")
         value = float(raw_value)
         if not item.minimum <= value <= item.maximum:
             raise ValueError(f"{item.key} must be between {item.minimum} and {item.maximum}.")
@@ -121,10 +125,8 @@ def store_sensor_reading(
 ) -> StoredReading:
     """Store a validated sample with explicit capability and time semantics.
 
-    Every standard node must provide the baseline measurements defined in the
-    measurement catalogue. Optional add-on values are stored when supplied and
-    remain SQL NULL when that node does not report them; FarmPi never invents a
-    value to make a row look complete.
+    Each sample contains only the measurements actually reported. Missing
+    columns remain SQL NULL and are omitted from the measurement map.
 
     ``received_at`` is always FarmPi UTC. An unset node clock never creates a
     1970 observation: it is represented by the receive time plus ``clock_valid``
@@ -133,6 +135,8 @@ def store_sensor_reading(
     sensor = fetch_one(SENSOR_LOOKUP_SQL, (sensor_uid,))
     if sensor is None:
         raise UnknownSensor(f"Unknown or inactive sensor: {sensor_uid}")
+    if sensor.get("hardware_uid"):
+        raise ValueError("Managed nodes require device authentication.")
     validated = validate_reading_values(values)
     received_at_utc = (received_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
     effective_clock_valid = bool(clock_valid and observed_at is not None)
@@ -162,7 +166,7 @@ def store_sensor_reading(
     reading_id = execute(
         INSERT_READING_SQL,
         (
-            int(sensor["sensor_node_id"]), *(validated.get(item.key) for item in MEASUREMENTS), bool(simulated),
+            int(sensor["sensor_node_id"]), sensor.get("paddock_id"), *(validated.get(item.key) for item in MEASUREMENTS), bool(simulated),
             observed_at_db, received_at_db, received_at_db, effective_clock_valid,
             round(clock_offset_seconds, 3) if clock_offset_seconds is not None else None,
             bool(clock_out_of_tolerance), sample_seq, protocol_version,

@@ -163,6 +163,7 @@ private fun FarmPiApp() {
     var theme by remember { mutableStateOf("neutral") }
     var displayDensity by remember { mutableStateOf("standard") }
     var showSettings by remember { mutableStateOf(false) }
+    var nodesTab by remember { mutableStateOf(false) }
     var learnTab by remember { mutableStateOf(false) }
     var asking by remember { mutableStateOf(false) }
     var isSpeaking by remember { mutableStateOf(false) }
@@ -488,11 +489,14 @@ private fun FarmPiApp() {
         )
     }, bottomBar = {
         NavigationBar {
-            NavigationBarItem(selected = !learnTab, onClick = { learnTab = false }, icon = { Text("💬") }, label = { Text("Ask") })
-            NavigationBarItem(selected = learnTab, onClick = { learnTab = true }, icon = { Text("✓") }, label = { Text("Learn") })
+            NavigationBarItem(selected = !learnTab && !nodesTab, onClick = { learnTab = false; nodesTab = false }, icon = { Text("💬") }, label = { Text("Ask") })
+            NavigationBarItem(selected = learnTab && !nodesTab, onClick = { learnTab = true; nodesTab = false }, icon = { Text("✓") }, label = { Text("Learn") })
+            NavigationBarItem(selected = nodesTab, onClick = { nodesTab = true }, icon = { Text("N") }, label = { Text("Nodes") })
         }
     }) { padding ->
-        if (learnTab) {
+        if (nodesTab) {
+            NodesArea(Modifier.padding(padding))
+        } else if (learnTab) {
             CourseArea(
                 modifier = Modifier.padding(padding),
                 course = course,
@@ -707,12 +711,13 @@ private fun SettingChips(values: List<String>, selected: String, setValue: (Stri
 }
 
 private object FarmPiApi {
-    private fun request(path: String, method: String = "GET", body: JSONObject? = null): JSONObject {
+    private fun request(path: String, method: String = "GET", body: JSONObject? = null, token: String? = null): JSONObject {
         val connection = (URL(BuildConfig.FARMPI_BASE_URL + path.removePrefix("/")).openConnection() as HttpsURLConnection)
         connection.requestMethod = method
         connection.connectTimeout = 5_000
         connection.readTimeout = 30_000
         connection.setRequestProperty("Accept", "application/json")
+        if (token != null) connection.setRequestProperty("Authorization", "Bearer $token")
         if (body != null) {
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json")
@@ -730,6 +735,11 @@ private object FarmPiApi {
             throw FarmPiApiException(detail ?: "FarmPi returned HTTP $status.")
         }
         return JSONObject(text)
+    }
+
+    suspend fun nodes(token: String): JSONObject = withContext(Dispatchers.IO) { request("api/nodes", token = token) }
+    suspend fun saveNode(token: String, id: Int, approve: Boolean, body: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+        request("api/nodes/$id/" + if (approve) "approve" else "configuration", if (approve) "POST" else "PUT", body, token)
     }
 
     suspend fun status(): Boolean = withContext(Dispatchers.IO) {
@@ -817,3 +827,6 @@ private object FarmPiApi {
     private fun JSONArray?.strings(): List<String> = if (this == null) emptyList() else (0 until length()).map { getString(it) }
     private fun JSONArray.objectsAsStrings(): List<String> = (0 until length()).map { index -> getJSONObject(index).toString() }
 }
+
+internal suspend fun fetchNodes(token: String) = FarmPiApi.nodes(token)
+internal suspend fun saveManagedNode(token: String, id: Int, approve: Boolean, body: JSONObject) = FarmPiApi.saveNode(token, id, approve, body)

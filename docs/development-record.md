@@ -2,6 +2,42 @@
 
 This record captures material design decisions and their outcome/evidence rationale. Current operating instructions live in the subject guides; historical performance measurements live under `docs/history`.
 
+## 26 September 2026 - two physical S3 nodes and centrally managed configuration
+
+### Inspection and decisions
+
+Started from local FarmPi revision `da6a109671ff9f5ce43dc3339ab256e0954d4e0d`. The original `F:/FarmPi` checkout contains staged Android icon changes, which remain untouched. Implementation is in an isolated checkout on `feature/s3-node-configuration`. Its exact final revision is the commit containing this entry; source and dependency evidence accompanies it under `docs/evidence/s3`.
+
+Inspected the existing ESP32 sketch, measurement catalogue, ingestion models/storage, MariaDB schema, current/history queries, Android Compose activity and HTTPS helper before editing. Contrary to the older handover statement that all 13 values were required, this revision already made seven optional; six remained mandatory, and latest-reading SQL still filtered for all six. Both paths needed correction. Reused the existing catalogue, sensor_nodes/readings tables and API rather than creating a second telemetry system.
+
+Jeremy corrected an initial AI proposal to hard-code a six-sensor physical payload and required per-node configuration across the existing 13-measurement catalogue. The six remain the FR01 final physical acceptance minimum, not a fixed per-node payload. Jeremy also challenged increasing human-facing configuration numbers for long-term supportability. The agreed correction is a full SHA-256 fingerprint of canonical current state, short UI support code, independent numeric schema version and latest-complete-state pull/apply/ack. These are material human corrections to scope and technical reasoning.
+
+Jeremy identified his boards during this task as ESP32-S3 N16R8. The compile target uses 16 MB flash and octal PSRAM; exact carrier pin layout and probe/module are not yet identified. The bring-up board profile therefore touches no GPIO and advertises soil-moisture configuration support without pretending to implement acquisition. It can show configured but not reporting, never a fabricated physical measurement.
+
+### Implemented behaviour
+
+Pending discovery and explicit administrative registration extend sensor_nodes. Registration starts empty, hardware UID is separate from assigned node UID and location, and device-generated NVS credentials prevent UID-only impersonation. The Android Nodes screen lists identity, location, firmware, last contact, desired/applied support codes, derived sync state, all catalogue choices and sensor runtime states. Unsupported capabilities cannot be enabled. Administrator credentials are session-only in the UI.
+
+Firmware validates complete canonical state, schema, identity, capabilities and SHA-256; it uses two NVS slots with read-back before switching. Existing simulator firmware is preserved and explicitly simulated. Physical ingestion validates registered device credentials, applied and desired enablement, capability, values, timestamp, sequence and provenance. Sparse values are accepted without inventing absent observations. Actual location is captured on each reading; relocation preserves stored history and rejects late samples with an old assignment epoch. Old pre-migration location movements cannot be reconstructed from data that was never recorded.
+
+Current-reading queries no longer require six values, moisture-specific paths filter absent moisture, and valid delayed observations retain their original time in history. Charts label simulated content. Configuration support, actual acquisition, desired enablement and reporting status remain separate. The current S3 target emits no telemetry until the real probe driver is implemented.
+
+### Verification and failures
+
+* Baseline: 135 Python tests passed.
+* First changed-suite run: four failures and one error exposed tests tied to the old mandatory baseline/null/column-position contract. Updated the expectations for intentional contract changes; retained the failure output as evidence.
+* Updated backend: 146 tests passed, including transactional API flows using a SQLite test adapter, two-node isolation, empty registration, credential failures, sparse physical samples, exact retries, changed-content retry rejection, disabled/unsupported sensors, provenance rejection, stale acknowledgements, failed update retaining applied state, relocation, and contact recovery. This is not evidence that the MariaDB DDL was executed.
+* A later regression check flagged the newly added spoken provenance sentence against an older exact-answer expectation. Updated that test to require the simulated-data disclosure and retained the failure output. Added actual sparse current-query and relocated named-history checks using the test adapter.
+* Python compileall and Git whitespace checks passed. Dependency versions are recorded.
+* ESP32 build passed with Espressif Arduino core 3.3.11 and ArduinoJson 7.4.2, S3/16M/OPI PSRAM target. Final output: 1,006,226 bytes flash and 46,684 bytes global RAM. Compilation used placeholder network/certificate configuration; it is not a provisioned or flashed image.
+* Android Gradle 9.3.1 build was attempted with the installed Android Studio JDK. It failed before Kotlin compilation with `Unable to establish loopback connection`. No Android build/device pass is claimed.
+
+### Outstanding physical and deployment evidence
+
+Run the migration twice against a disposable MariaDB copy before live deployment, compile and exercise Android on a working toolchain, provision CA/local NTP and both boards, then follow [the two-board checklist](s3-node-bringup.md). NVS reboot/power-loss behaviour has been implemented but not demonstrated on hardware. Device credential recovery after deliberate NVS erasure is a future administrative operation, not automatic reassignment. The next acquisition driver needs persistent sequence allocation and explicit offline-buffer semantics.
+
+Neither the Pi nor either S3 was deployed/flashed in this task. No physical measurement was demonstrated. **T01 has not passed**: all six FR01 physical measurements and FR02 identity/provenance evidence remain required. The exact soil-moisture module, electrical interface, calibration and final shared pin profile must be established before sensor wiring/driver work.
+
 ## 15 September 2026 - live application behaviour realignment
 
 Following the documentation pivot, the live prompts and recovery wording now describe a conversational farm-monitoring assistant. Informational requests no longer receive an automatic agricultural-learning framing. Reviewed measurement explanations, general information, source attribution rules, deterministic farm-data authority, and bounded conversation history remain available.

@@ -1,0 +1,12 @@
+......................................................................FarmPi semantic interpretation failed; using fast-route fallback: Semantic interpreter did not return a JSON object.
+........C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\.venv\Lib\site-packages\fastapi\routing.py:352: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+  return await dependant.call(**values)
+..C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\tests\test_node_management.py:31: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+  self.cursor.execute(sql, params)
+C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\.venv\Lib\site-packages\fastapi\routing.py:352: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+  return await dependant.call(**values)
+..............................................................
+----------------------------------------------------------------------
+Ran 142 tests in 0.456s
+
+OK

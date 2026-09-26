@@ -1,0 +1,7 @@
+Android build attempt: 26 September 2026
+Command: gradlew.bat :app:compileDebugKotlin --no-daemon
+JDK: installed Android Studio jbr
+Gradle: 9.3.1
+Result: FAILED before Kotlin compilation
+java.io.IOException: Unable to establish loopback connection
+No compile or device pass claimed.

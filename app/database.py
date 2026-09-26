@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import contextmanager
 import os
 from typing import Any, Sequence
 
@@ -12,6 +13,25 @@ from pymysql.cursors import DictCursor
 
 class DatabaseUnavailable(RuntimeError):
     """Raised when FarmPi cannot use its configured MariaDB database."""
+
+
+@contextmanager
+def transaction():
+    """One connection and rollback boundary for related node/reading writes."""
+    connection = _connect()
+    try:
+        connection.begin()
+        with connection.cursor() as cursor:
+            yield cursor
+        connection.commit()
+    except pymysql.MySQLError as exc:
+        connection.rollback()
+        raise DatabaseUnavailable("FarmPi transaction failed.") from exc
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
 
 
 @dataclass(frozen=True)

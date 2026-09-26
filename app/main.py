@@ -5,6 +5,9 @@ from __future__ import annotations
 from .app import app
 from .conversation_context import install_conversation_context
 from .ingest_api import router as ingest_router
+from .node_api import router as node_router
+from .database import DatabaseUnavailable
+from fastapi.responses import JSONResponse
 from .llm_compat import install_llm_compat
 
 # Keep a small, short-lived conversation window so natural follow-ups can refer
@@ -21,5 +24,11 @@ install_llm_compat(app)
 # Keep feature-specific API routes outside the main UI/LLM module while the
 # alpha grows. Uvicorn loads this composed application.
 app.include_router(ingest_router)
+app.include_router(node_router)
+
+
+@app.exception_handler(DatabaseUnavailable)
+async def database_unavailable(request, exc):
+    return JSONResponse(status_code=503, content={"detail": "The FarmPi database is unavailable."})
 
 __all__ = ["app"]

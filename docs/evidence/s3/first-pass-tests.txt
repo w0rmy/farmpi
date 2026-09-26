@@ -1,0 +1,60 @@
+.............................................................FE.......FarmPi semantic interpretation failed; using fast-route fallback: Semantic interpreter did not return a JSON object.
+..............................................F.F.F..............
+======================================================================
+ERROR: test_optional_null_is_allowed (test_ingest_api.SensorIngestTests.test_optional_null_is_allowed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\tests\test_ingest_api.py", line 73, in test_optional_null_is_allowed
+    request = SensorReadingRequest(**(BASELINE | {"rainfall_mm": None}))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\.venv\Lib\site-packages\pydantic\main.py", line 263, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for SensorReadingRequest
+  Value error, Supply at least one measurement; omit absent measurements instead of null. [type=value_error, input_value={'sensor': 'test-moisture...ue, 'rainfall_mm': None}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/value_error
+
+======================================================================
+FAIL: test_missing_standard_measurement_is_rejected (test_ingest_api.SensorIngestTests.test_missing_standard_measurement_is_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\tests\test_ingest_api.py", line 48, in test_missing_standard_measurement_is_rejected
+    with self.assertRaises(ValidationError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValidationError not raised
+
+======================================================================
+FAIL: test_missing_standard_measurement_is_rejected (test_sensor_ingest.SensorStorageTests.test_missing_standard_measurement_is_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\tests\test_sensor_ingest.py", line 88, in test_missing_standard_measurement_is_rejected
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_registered_sensor_is_stored (test_sensor_ingest.SensorStorageTests.test_registered_sensor_is_stored)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Jeremy Brooking\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\unittest\mock.py", line 1396, in patched
+    return func(*newargs, **newkeywargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\tests\test_sensor_ingest.py", line 40, in test_registered_sensor_is_stored
+    self.assertEqual(len(execute.call_args.args[1]), len(MEASUREMENTS) + 10)
+AssertionError: 24 != 23
+
+======================================================================
+FAIL: test_standard_node_stores_nulls_for_uninstalled_add_ons (test_sensor_ingest.SensorStorageTests.test_standard_node_stores_nulls_for_uninstalled_add_ons)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Jeremy Brooking\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\unittest\mock.py", line 1396, in patched
+    return func(*newargs, **newkeywargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jeremy Brooking\.codex\.chatgpt-projects\g-p-69f47f8298248191a921bc23ec04f1de\farmpi\tests\test_sensor_ingest.py", line 52, in test_standard_node_stores_nulls_for_uninstalled_add_ons
+    self.assertTrue(all(by_key[key] is not None for key in STANDARD_NODE_KEYS))
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 135 tests in 0.243s
+
+FAILED (failures=4, errors=1)

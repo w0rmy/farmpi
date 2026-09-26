@@ -44,9 +44,11 @@ mkdir -p "${env_dir}"
 
 existing_password=""
 existing_ingest_token=""
+existing_admin_token=""
 if [[ -f ${env_file} ]]; then
   existing_password=$(sed -n 's/^FARMPI_DB_PASSWORD=//p' "${env_file}" | head -n 1)
   existing_ingest_token=$(sed -n 's/^FARMPI_INGEST_TOKEN=//p' "${env_file}" | head -n 1)
+  existing_admin_token=$(sed -n 's/^FARMPI_ADMIN_TOKEN=//p' "${env_file}" | head -n 1)
 fi
 
 if [[ -n ${existing_password} ]]; then
@@ -63,6 +65,8 @@ else
   ingest_token=$(openssl rand -hex 16)
 fi
 
+admin_token=${existing_admin_token:-$(openssl rand -hex 24)}
+
 cat > "${env_file}" <<EOF_ENV
 FARMPI_DB_HOST=127.0.0.1
 FARMPI_DB_PORT=3306
@@ -70,6 +74,7 @@ FARMPI_DB_NAME=farmpi
 FARMPI_DB_USER=farmpi
 FARMPI_DB_PASSWORD=${db_password}
 FARMPI_INGEST_TOKEN=${ingest_token}
+FARMPI_ADMIN_TOKEN=${admin_token}
 EOF_ENV
 chown root:"${service_group}" "${env_file}"
 chmod 0640 "${env_file}"

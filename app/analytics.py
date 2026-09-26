@@ -78,12 +78,12 @@ def line_chart(key: str, rows: list[dict[str, Any]], period: str, title_scope: s
     }
 
 
-def comparison_chart(key: str, values: dict[str, float], period: str, operation: str) -> dict[str, Any]:
+def comparison_chart(key: str, values: dict[str, float], period: str, operation: str, contains_simulated: bool = False) -> dict[str, Any]:
     item = measurement(key)
     return {
         "type": "bar", "title": f"{item.label.title()} comparison ({operation})",
         "x_label": "Paddock", "y_label": f"{item.label.title()} ({item.unit})".strip(),
-        "unit": item.unit, "source_period": period, "provenance": "verified telemetry",
+        "unit": item.unit, "source_period": period, "provenance": "includes simulated telemetry" if contains_simulated else "non-simulated telemetry",
         "series": [{"name": operation, "data": [{"x": name, "y": _number(value)} for name, value in values.items()]}],
     }
 
@@ -173,4 +173,4 @@ def compare_paddocks(key: str, operation: str, rows: list[dict[str, Any]], perio
     leader, leader_value = next(iter(ordered.items()))
     item = measurement(key)
     facts = (f"Highest {operation} {item.label} over {period}: {leader} at {format_measurement(leader_value, key)}.", "The chart compares verified values by paddock; it does not explain why they differ.")
-    return AnalyticsResult(facts, evidence_from_rows(rows), comparison_chart(key, ordered, period, operation))
+    return AnalyticsResult(facts, evidence_from_rows(rows), comparison_chart(key, ordered, period, operation, any(bool(row.get("simulated")) for row in rows)))
