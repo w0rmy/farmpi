@@ -164,7 +164,6 @@ private fun FarmPiApp() {
     var displayDensity by remember { mutableStateOf("standard") }
     var showSettings by remember { mutableStateOf(false) }
     var nodesTab by remember { mutableStateOf(false) }
-    var learnTab by remember { mutableStateOf(false) }
     var asking by remember { mutableStateOf(false) }
     var isSpeaking by remember { mutableStateOf(false) }
     var chart by remember { mutableStateOf<ChartPayload?>(null) }
@@ -173,19 +172,13 @@ private fun FarmPiApp() {
     var sourceTier by remember { mutableStateOf<String?>(null) }
     var showEvidence by remember { mutableStateOf(false) }
     var conversationId by remember { mutableStateOf<String?>(null) }
-    var course by remember { mutableStateOf<CoursePayload?>(null) }
-    var courseLoading by remember { mutableStateOf(false) }
-    var courseError by remember { mutableStateOf<String?>(null) }
-    var selectedCourseModuleId by remember { mutableStateOf<String?>(null) }
-    var activeCourseModuleId by remember { mutableStateOf<String?>(null) }
-    var answerCourseModuleId by remember { mutableStateOf<String?>(null) }
-    var courseProgress by remember { mutableStateOf(CourseProgress(null, emptySet(), emptySet(), emptySet())) }
-    var learnAboutModuleId by remember { mutableStateOf<String?>(null) }
     var ttsReady by remember { mutableStateOf(false) }
     var ttsStatus by remember { mutableStateOf("Voice: initialising…") }
     var lastQueuedText by remember { mutableStateOf("") }
     var utteranceCounter by remember { mutableLongStateOf(0L) }
     val recognizerHolder = remember { arrayOfNulls<SpeechRecognizer>(1) }
+    // Keep the existing store so installed users retain display and explanation settings.
+    // Historical learning_* keys are left untouched and are no longer read.
     val preferences = remember { context.getSharedPreferences("farmpi-learning", 0) }
 
     LaunchedEffect(Unit) {
@@ -193,39 +186,6 @@ private fun FarmPiApp() {
         guidance = preferences.getString("guidance", "normal") ?: "normal"
         theme = preferences.getString("theme", "neutral") ?: "neutral"
         displayDensity = preferences.getString("display_density", "standard") ?: "standard"
-        activeCourseModuleId = preferences.getString("learning_current_module", null)
-    }
-
-    fun readCourseProgress(): CourseProgress {
-        val modules = course?.modules.orEmpty()
-        return CourseProgress(
-            preferences.getString("learning_current_module", null),
-            modules.filter { preferences.getBoolean("learning_try_${it.id}", false) }.map { it.id }.toSet(),
-            modules.filter { preferences.getBoolean("learning_check_${it.id}", false) }.map { it.id }.toSet(),
-            modules.filter { preferences.getBoolean("learning_complete_${it.id}", false) }.map { it.id }.toSet(),
-        )
-    }
-
-    fun rememberCourseModule(moduleId: String?) {
-        activeCourseModuleId = moduleId
-        preferences.edit().apply {
-            if (moduleId == null) remove("learning_current_module") else putString("learning_current_module", moduleId)
-            apply()
-        }
-        courseProgress = readCourseProgress()
-    }
-
-    fun loadCourse() = scope.launch {
-        if (courseLoading) return@launch
-        courseLoading = true
-        courseError = null
-        try {
-            course = FarmPiApi.course()
-            courseProgress = readCourseProgress()
-        } catch (error: Exception) {
-            courseError = "The course could not be loaded. Check the FarmPi connection and try again."
-        }
-        courseLoading = false
     }
 
     val tts = remember {
@@ -373,13 +333,10 @@ private fun FarmPiApp() {
         }
     }
 
-    // Ordinary questions do not inherit the saved course return location.
-    // Course activities and quick actions pass their module explicitly.
-    fun ask(text: String, speechAlternatives: List<String> = emptyList(), courseModuleId: String? = null) = scope.launch {
+    fun ask(text: String, speechAlternatives: List<String> = emptyList()) = scope.launch {
         if (text.isBlank() || asking) return@launch
         stopSpeaking()
         asking = true
-        answerCourseModuleId = null
         answer = "Asking FarmPi…"
         try {
             val speech = if (speechAlternatives.isEmpty()) null else FarmPiApi.normalise(text, speechAlternatives)
@@ -387,7 +344,7 @@ private fun FarmPiApp() {
             heard = speech?.heard
             interpreted = speech?.interpreted?.takeIf { speech.changed }
             question = routedQuestion
-            val result = FarmPiApi.ask(routedQuestion, explanation, guidance, conversationId, courseModuleId)
+            val result = FarmPiApi.ask(routedQuestion, explanation, guidance, conversationId)
             conversationId = result.conversationId ?: conversationId
             answer = result.answer
             suggestions = result.suggestions
@@ -396,16 +353,6 @@ private fun FarmPiApp() {
             provenance = result.provenance
             sourceTier = result.sourceTier
             showEvidence = false
-            answerCourseModuleId = courseModuleId
-            courseModuleId?.let { moduleId ->
-                val module = course?.modules?.firstOrNull { it.id == moduleId }
-                if (module != null && result.intent in module.tryActivity.successIntents) {
-                    preferences.edit().putBoolean("learning_try_${module.id}", true)
-                        .putBoolean("learning_complete_${module.id}", preferences.getBoolean("learning_check_${module.id}", false)).apply()
-                    courseProgress = readCourseProgress()
-                }
-            }
-            learnAboutModuleId = course?.modules?.firstOrNull { result.intent in it.responseIntents }?.id
             connection = "FarmPi connected"
             speak(result.spokenAnswer)
         } catch (error: FarmPiApiException) {
@@ -479,7 +426,6 @@ private fun FarmPiApp() {
     }
 
     LaunchedEffect(Unit) { checkStatus() }
-    LaunchedEffect(learnTab) { if (learnTab && course == null) loadCourse() }
 
     FarmPiTheme(theme, displayDensity) {
     Scaffold(topBar = {
@@ -489,53 +435,12 @@ private fun FarmPiApp() {
         )
     }, bottomBar = {
         NavigationBar {
-            NavigationBarItem(selected = !learnTab && !nodesTab, onClick = { learnTab = false; nodesTab = false }, icon = { Text("💬") }, label = { Text("Ask") })
-            NavigationBarItem(selected = learnTab && !nodesTab, onClick = { learnTab = true; nodesTab = false }, icon = { Text("✓") }, label = { Text("Learn") })
+            NavigationBarItem(selected = !nodesTab, onClick = { nodesTab = false }, icon = { Text("💬") }, label = { Text("Ask") })
             NavigationBarItem(selected = nodesTab, onClick = { nodesTab = true }, icon = { Text("N") }, label = { Text("Nodes") })
         }
     }) { padding ->
         if (nodesTab) {
             NodesArea(Modifier.padding(padding))
-        } else if (learnTab) {
-            CourseArea(
-                modifier = Modifier.padding(padding),
-                course = course,
-                loading = courseLoading,
-                error = courseError,
-                selectedModuleId = selectedCourseModuleId,
-                progress = courseProgress,
-                onSelectModule = { moduleId ->
-                    selectedCourseModuleId = moduleId
-                    if (moduleId != null) rememberCourseModule(moduleId)
-                },
-                onLaunchTry = { module ->
-                    rememberCourseModule(module.id)
-                    selectedCourseModuleId = module.id
-                    learnTab = false
-                    question = module.tryActivity.exampleQuestion
-                    ask(module.tryActivity.exampleQuestion, courseModuleId = module.id)
-                },
-                onLaunchAsk = { module, prompt ->
-                    rememberCourseModule(module.id)
-                    selectedCourseModuleId = module.id
-                    learnTab = false
-                    question = prompt
-                    ask(prompt, courseModuleId = module.id)
-                },
-                onCompleteCheck = { module ->
-                    preferences.edit().putBoolean("learning_check_${module.id}", true)
-                        .putBoolean("learning_complete_${module.id}", preferences.getBoolean("learning_try_${module.id}", false)).apply()
-                    courseProgress = readCourseProgress()
-                },
-                onContinue = { module ->
-                    val next = module.nextModuleId
-                    if (next == null) selectedCourseModuleId = null else {
-                        selectedCourseModuleId = next
-                        rememberCourseModule(next)
-                    }
-                },
-                onRetry = { loadCourse() },
-            )
         } else {
             Column(
                 modifier = Modifier.padding(padding).padding(20.dp).fillMaxSize().verticalScroll(rememberScrollState()),
@@ -563,10 +468,6 @@ private fun FarmPiApp() {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { ask(question) }, enabled = !asking) { Text("Ask FarmPi") }
                     OutlinedButton(onClick = { guideMe() }) { Text("Guide me") }
-                }
-                activeCourseModuleId?.let { moduleId ->
-                    val title = course?.modules?.firstOrNull { it.id == moduleId }?.title ?: "course"
-                    TextButton(onClick = { selectedCourseModuleId = moduleId; learnTab = true }) { Text("Return to Module: $title") }
                 }
                 if (heard != null) Text("Heard: $heard", modifier = Modifier.fillMaxWidth().padding(top = 14.dp), style = MaterialTheme.typography.bodySmall)
                 if (interpreted != null) Text("Interpreted: $interpreted", modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
@@ -611,21 +512,6 @@ private fun FarmPiApp() {
                     TextButton(onClick = { question = suggestion; ask(suggestion) }) {
                         Text(suggestion, textAlign = TextAlign.Start)
                     }
-                }
-                if (answerCourseModuleId != null && !asking) {
-                    Text("Course quick actions", modifier = Modifier.fillMaxWidth().padding(top = 10.dp), fontWeight = FontWeight.Bold)
-                    listOf(
-                        "Explain more simply" to "Explain your previous answer more simply.",
-                        "More detail" to "Give more detail about your previous answer.",
-                        "Give me an example" to "Give me an example related to your previous answer.",
-                        "Check my understanding" to "Ask me one short question to check my understanding. Do not answer it for me until I reply.",
-                    ).forEach { (label, prompt) ->
-                        TextButton(onClick = { question = prompt; ask(prompt, courseModuleId = answerCourseModuleId) }) { Text(label) }
-                    }
-                }
-                learnAboutModuleId?.let { moduleId ->
-                    val title = course?.modules?.firstOrNull { it.id == moduleId }?.title
-                    if (title != null) TextButton(onClick = { selectedCourseModuleId = moduleId; rememberCourseModule(moduleId); learnTab = true }) { Text("Learn about this: $title") }
                 }
             }
         }
@@ -751,18 +637,6 @@ private object FarmPiApi {
         json.optString("welcome") to json.optJSONArray("suggestions").strings()
     }
 
-    suspend fun course(): CoursePayload = withContext(Dispatchers.IO) {
-        val json = request("api/learning/course")
-        val outcomes = json.optJSONArray("learning_outcomes") ?: JSONArray()
-        val modules = json.optJSONArray("modules") ?: JSONArray()
-        CoursePayload(
-            json.optString("title", "FarmPi course"),
-            json.getString("aim"),
-            (0 until outcomes.length()).map { index -> outcomes.getJSONObject(index).let { CourseOutcome(it.getString("id"), it.getString("statement")) } },
-            (0 until modules.length()).map { index -> modules.getJSONObject(index).courseModule() },
-        )
-    }
-
     suspend fun normalise(transcript: String, alternatives: List<String>): SpeechResult = withContext(Dispatchers.IO) {
         val array = JSONArray()
         alternatives.forEach { array.put(JSONObject().put("transcript", it)) }
@@ -774,12 +648,8 @@ private object FarmPiApi {
         )
     }
 
-    suspend fun ask(question: String, explanation: String, guidance: String, conversationId: String?, courseModuleId: String?): AskResult = withContext(Dispatchers.IO) {
-        val body = JSONObject()
-            .put("question", question)
-            .put("preferences", JSONObject().put("explanation_level", explanation).put("guidance_level", guidance))
-        if (conversationId != null) body.put("conversation_id", conversationId)
-        if (courseModuleId != null) body.put("course_module_id", courseModuleId)
+    suspend fun ask(question: String, explanation: String, guidance: String, conversationId: String?): AskResult = withContext(Dispatchers.IO) {
+        val body = askRequestBody(question, explanation, guidance, conversationId)
         val json = request("api/ask", "POST", body)
         val answerText = json.getString("answer")
         val spokenText = (json.opt("spoken_answer") as? String)
@@ -795,20 +665,6 @@ private object FarmPiApi {
             json.optJSONArray("evidence")?.objectsAsStrings() ?: emptyList(),
             json.optJSONArray("provenance")?.objectsAsStrings() ?: emptyList(),
             json.optString("source_tier", "first-class-trusted"),
-        )
-    }
-
-    private fun JSONObject.courseModule(): CourseModule {
-        val tryObject = getJSONObject("try")
-        val checkObject = getJSONObject("understanding_check")
-        return CourseModule(
-            getString("id"), getString("title"), optJSONArray("learning_outcomes").strings(), getString("learn_content"),
-            CourseTry(tryObject.getString("id"), tryObject.getString("title"), tryObject.getString("instruction"), tryObject.getString("example_question"), tryObject.optJSONArray("success_intents").strings().toSet()),
-            optJSONArray("ai_quick_prompts").strings(),
-            CourseCheck(checkObject.getString("prompt"), checkObject.getString("reflection_hint")),
-            getString("continue_content"),
-            optString("next_module_id").takeIf { it.isNotBlank() && it != "null" },
-            optJSONArray("response_intents").strings().toSet(),
         )
     }
 
