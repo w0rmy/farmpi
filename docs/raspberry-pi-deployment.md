@@ -183,7 +183,7 @@ Store backups outside the repository and protect them as operational data. Resto
 
 **Database unavailable.** Check MariaDB, `/etc/farmpi/farmpi.env` ownership/permissions, and the `farmpi@127.0.0.1` credentials.
 
-**Language model unavailable.** Check `FARMPI_LLAMA_URL`, the model service, model identifier, and `/api/status`. Learning questions return a limited useful fallback, while deterministic farm facts remain available when their dependencies are healthy.
+**Language model unavailable.** Check `FARMPI_LLAMA_URL`, the model service, model identifier, and `/api/status`. Model-assisted informational/explanation requests should degrade clearly, while deterministic farm facts remain available when their dependencies are healthy.
 
 From the Pi, verify an LM Studio connection and confirm the configured model identifier with `curl http://<development-pc-lan-ip>:1234/v1/models`. A successful response should list `qwen/qwen3.5-9b` for the current reference model.
 
@@ -195,4 +195,4 @@ From the Pi, verify an LM Studio connection and confirm the configured model ide
 
 ## Production limitations
 
-This is a local prototype. Before production use, replace prototype bearer authentication and ESP32 `setInsecure()` with a managed device-trust design, define certificate/token rotation, establish monitored backups, test restore procedures, review network exposure, and remove synthetic seed behaviour that is inappropriate for real operations.
+This is a local prototype. Before production use, replace shared simulator bearer authentication and any remaining legacy insecure-client paths with a fully managed device-trust design, define certificate/token rotation and device-key recovery, establish monitored backups, test restore procedures, review network exposure, and remove synthetic seed behaviour that is inappropriate for real operations.
