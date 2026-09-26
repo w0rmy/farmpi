@@ -1,22 +1,23 @@
 # FarmPi
 
-FarmPi is a local farm-monitoring application demonstrator built around a Raspberry Pi, MariaDB, a native Android client, simulated ESP32 telemetry, deterministic analytics, and an integrated language model.
+FarmPi is a local farm-monitoring application demonstrator built around a Raspberry Pi, MariaDB, a native Android client, managed ESP32-S3 physical nodes, explicitly simulated telemetry, deterministic analytics, and an integrated local language model.
 
 The current capstone direction is **Advanced Application Development Concepts** plus **Artificial Intelligence and Data Science**. The project is therefore evaluated as an end-to-end application: requirements, architecture, integration, data handling, mobile usability, AI/data functionality, deployment, testing, debugging, and iterative refinement.
 
-Earlier work on **Developing Flexible IT Courses** remains part of the project history, and some learning-oriented features still exist in the application, but embedded learning is no longer the primary capstone objective.
+Earlier work on **Developing Flexible IT Courses** remains part of the project history. Some course-oriented code and UI still exist in the current revision, but they are legacy surfaces from the superseded elective and are being removed from the current product direction. Contextual explanation, natural-language help, provenance, and measurement interpretation remain in scope as FarmPi/AI functionality.
 
 FarmPi currently combines:
 
-- a Raspberry Pi FastAPI service, MariaDB, Caddy HTTPS, and an OpenAI-compatible language-model endpoint;
+- a Raspberry Pi FastAPI service, MariaDB, Caddy HTTPS, and a Pi-local OpenAI-compatible language-model endpoint;
+- two managed ESP32-S3 physical nodes using discovery, explicit administrator registration, per-device credentials, and latest-state configuration fingerprints, with the sparse physical-telemetry contract ready for the acquisition drivers;
 - one ESP32 simulator that generates 16 clearly labelled virtual paddocks for repeatable testing;
-- a standard sensor capability model covering soil moisture, soil temperature, air temperature, relative humidity, light, and barometric pressure, with pH, EC, rainfall, wind, pasture height, and leaf wetness treated as optional add-ons;
+- a reviewed 13-measurement application catalogue, with firmware capabilities, per-node enabled configuration, and actual reporting state kept separate;
 - deterministic current and historical farm facts, calculations, identity resolution, timestamps, chart data, and controlled mutations;
-- a native Android client with text/voice interaction, text-to-speech, charts, evidence/provenance, settings, and local state;
+- a native Android client with text/voice interaction, text-to-speech, charts, evidence/provenance, settings, local state, and managed-node administration;
 - semantic interpretation and bounded conversation context for natural-language requests;
 - curated source metadata and provenance rules for external/general information.
 
-Synthetic telemetry is test evidence, not an agronomic model, forecast, or production-farm recommendation. The current simulator deliberately emits both standard and optional measurements so the wider application can be exercised without implying that every physical node contains every sensor.
+Synthetic telemetry is test evidence, not an agronomic model, forecast, or production-farm recommendation. The simulator deliberately emits a broad measurement set so the wider application can be exercised without implying that every physical node contains every sensor. The managed physical-telemetry contract is sparse: once acquisition drivers are added, a node sends only measurements that are actually enabled and observed. The current S3 bring-up firmware does not yet claim physical probe acquisition. Final T01 evidence still requires six real physical measurements, but that acceptance requirement is not implemented as a mandatory six-field payload.
 
 ## Start here
 
@@ -25,6 +26,7 @@ Synthetic telemetry is test evidence, not an agronomic model, forecast, or produ
 - [System architecture](docs/architecture.md)
 - [Raspberry Pi installation and operations](docs/raspberry-pi-deployment.md)
 - [Android client](docs/android-client.md)
+- [Managed ESP32-S3 node bring-up](docs/s3-node-bringup.md)
 - [ESP32 simulator and telemetry](firmware/esp32-sensor/README.md)
 - [Data, analytics, and API contract](docs/data-and-api.md)
 - [AI, grounding, and sources](docs/learning-and-sources.md)
@@ -36,25 +38,30 @@ The earlier embedded-course design remains available as a historical document in
 ## Current topology
 
 ```text
-Android app or diagnostic browser
-             |
-             v
-     Caddy HTTPS :443
-             |
-             v
- FastAPI / Uvicorn :8000 (localhost)
-      |             |              |
-      v             v              v
-   MariaDB     deterministic    OpenAI-compatible
-  farm data    application      language model
-               functions        endpoint
-
-sensor / simulator -- transport --> HTTPS ingest --> FastAPI --> MariaDB
+                       Home / management LAN
+                               |
+                     management Wi-Fi client
+                               |
+                        +--------------+
+                        |   FarmPi Pi  |
+Android on FarmLAN ---> | Caddy :443  | ---> FastAPI :8000 (localhost)
+                        |              |          |        |
+managed ESP32-S3 nodes  | FarmLAN AP   |          |        +--> Pi-local llama.cpp :8080
+      |                 | 10.42.0.1/24 |          |               |
+      +-- discovery ---->              |          |               +--> Qwen3 1.7B Q4_K_M
+      +-- config sync -->              |          |
+      +.. sparse ingest (next) .......>|          +--> deterministic routing / analytics / provenance
+                        |              |          |
+simulated ESP32 --------+-- HTTPS ingest -------->|
+                        |                         +--> MariaDB
+                        +--------------+
 ```
 
-The application above the ingest boundary is transport-neutral. The current demonstrator uses Wi-Fi, while a future LoRa/LoRaWAN or Wi-Fi HaLow link can feed the same time, sequence, validation, and database contract without redesigning analytics, Android, or AI behaviour.
+The FarmLAN access-point role is bound to the intended Wi-Fi adapter by hardware MAC address rather than relying on a persistent `wlanN` name. The prototype continues to use `https://farmpi.local/` because the current Caddy certificate is issued for that DNS name.
 
-The checked-in Pi service template starts Qwen3 1.7B through `llama-server`. The development/reference setup can instead point FarmPi at LM Studio or another OpenAI-compatible server with `FARMPI_LLAMA_URL` and `FARMPI_LLM_MODEL`; reference testing has also used Qwen3.5-9B on the development PC. Model choice is an implementation and evaluation variable rather than the application purpose.
+The application above the ingest boundary is transport-neutral. Current managed nodes use Wi-Fi, while a future LoRa/LoRaWAN or Wi-Fi HaLow link could feed the same identity, time, sequence, validation, provenance, and database contracts without redesigning analytics, Android, or AI behaviour.
+
+The current proof-of-concept inference path is local to the Raspberry Pi: `farmpi.service` uses the default `http://127.0.0.1:8080`, where `farmpi-llm.service` runs Qwen3 1.7B Q4_K_M through `llama-server`. A development/reference setup may still point FarmPi at another OpenAI-compatible endpoint with `FARMPI_LLAMA_URL` and `FARMPI_LLM_MODEL`, but the normal prototype does not depend on the development PC.
 
 ## Quick installation on Raspberry Pi
 
@@ -77,7 +84,7 @@ curl http://127.0.0.1:8000/api/status
 sudo systemctl status farmpi.service farmpi-llm.service
 ```
 
-Install Caddy's public local root certificate on the Android test device so `https://farmpi.local/` is trusted. Never copy the CA private key, database password, Wi-Fi password, or ingest token into the repository or app.
+Install Caddy's public local root certificate on the Android test device so `https://farmpi.local/` is trusted. The managed ESP32-S3 target also uses the public root CA for TLS validation. Never copy the CA private key, database password, Wi-Fi password, administrator token, simulator ingest token, or per-device credentials into the repository.
 
 ## Development checks
 
@@ -92,11 +99,12 @@ For Android, open `clients/android` in Android Studio or run the Gradle wrapper 
 
 ## Functional authority
 
-FarmPi is authoritative only for application-controlled facts and operations:
+FarmPi is authoritative only for application-controlled facts, identity/state, and operations:
 
 - validated current and historical FarmPi readings and whether a measurement is actually available;
 - deterministic calculations and chart values over those readings;
 - active paddock/sensor identity and controlled rename history;
+- managed-node registration, location assignment, desired/applied configuration state, and capability availability;
 - timestamps, clock quality, deduplication state, and device-ingest state.
 
 The language model never receives SQL access or authority to invent those facts. It supports natural-language interpretation, explanation, conversation, and general/source-oriented information. External or model knowledge must not be converted into an unsupported claim about this farm.
@@ -105,4 +113,4 @@ The language model never receives SQL access or authority to invent those facts.
 
 FarmPi is a prototype/concept demonstrator rather than a production farm-control product. LoRa/LoRaWAN, MQTT, OTA, cloud services, remote control, production security hardening, and agronomic certification are outside the current implementation unless a defined requirement makes them necessary.
 
-Current work should prioritise a coherent functional application: mobile usability, reliable routing and recovery, data visualisation, AI/data integration, error handling, testing, deployment, and clear evidence of architectural decisions.
+Current work should prioritise a coherent functional application: completing the physical sensing path, reshaping the Android client around monitoring/Ask/graphs/Nodes rather than the superseded course UI, reliable routing and recovery, data visualisation, AI/data integration, error handling, testing, deployment, and clear evidence of architectural decisions.
