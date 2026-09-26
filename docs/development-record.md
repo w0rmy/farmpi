@@ -2,6 +2,27 @@
 
 This record captures material design decisions and their outcome/evidence rationale. Current operating instructions live in the subject guides; historical performance measurements live under `docs/history`.
 
+## 26 September 2026 - live Raspberry Pi backend validation
+
+After the managed ESP32-S3 deployment/documentation update, the FarmPi validation suite was run on the deployed Raspberry Pi from `~/farmpi` using the Pi's Python 3.13 virtual environment.
+
+Result:
+
+```text
+Ran 146 tests in 1.291s
+
+OK
+```
+
+All 146 backend tests passed. The run included the managed-node test suite and exercised the semantic-interpreter failure path; the diagnostic `FarmPi semantic interpretation failed; using fast-route fallback: Semantic interpreter did not return a JSON object.` was emitted while the suite still completed successfully, consistent with the intended fallback behaviour.
+
+Two non-failing deprecation warnings were observed:
+
+- `sqlite3` warned that Python's default datetime adapter is deprecated as of Python 3.12. The warning is triggered by the SQLite test adapter in `tests/test_node_management.py`, not the MariaDB production data path.
+- FastAPI/Starlette warned that `HTTP_422_UNPROCESSABLE_ENTITY` is deprecated in favour of `HTTP_422_UNPROCESSABLE_CONTENT`. The repository still uses the older constant in `app/ingest_api.py`.
+
+These warnings do not invalidate the test result, but they are maintenance items worth correcting so future Python/FastAPI upgrades do not turn them into failures. This run is stronger deployment evidence than the earlier Windows/test-environment validation because it was executed directly on the live FarmPi Raspberry Pi.
+
 ## 26 September 2026 - live S3 deployment, fault isolation and local-model confirmation
 
 ### Physical node bring-up
