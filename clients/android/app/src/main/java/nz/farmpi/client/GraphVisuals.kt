@@ -45,7 +45,7 @@ internal fun EnhancedChartCard(
     baseType: String,
     series: List<GraphSeries>,
 ) {
-    val allPoints = series.flatMap { it.points }
+    val allPoints = series.flatMap { it.points }.filter { it.value.isFinite() }
     if (allPoints.isEmpty()) return
 
     val isComparison = baseType.equals("bar", ignoreCase = true)
@@ -60,14 +60,14 @@ internal fun EnhancedChartCard(
             GraphMode("dots", "Dots"),
         )
     }
-    val initialMode = if (isComparison) "bars" else if (isLight) "area" else "line"
+    val initialMode = if (isComparison) "bars" else "dots"
     var selectedMode by remember(title, period, baseType) { mutableStateOf(initialMode) }
     if (modes.none { it.key == selectedMode }) selectedMode = modes.first().key
 
     val values = allPoints.map { it.value }
     val minimum = values.minOrNull() ?: 0.0
     val maximum = values.maxOrNull() ?: 0.0
-    val latest = series.firstOrNull()?.points?.lastOrNull()?.value
+    val latest = series.firstOrNull()?.points?.lastOrNull { it.value.isFinite() }?.value
 
     Card(Modifier.fillMaxWidth().padding(top = 12.dp)) {
         Column(Modifier.padding(16.dp)) {
@@ -109,6 +109,7 @@ internal fun EnhancedChartCard(
 
             Spacer(Modifier.height(10.dp))
             ChartCanvas(selectedMode, series)
+            Text(if (isComparison) "Summarised comparison · calculated by FarmPi" else "Observation points shown by default. Sampling cadence and completeness are not supplied; lines and areas connect observations and do not prove continuous data. Farm-average series are summarised data.", style = MaterialTheme.typography.bodySmall)
 
             val firstLabel = series.firstOrNull()?.points?.firstOrNull()?.label?.let(::shortGraphLabel).orEmpty()
             val lastLabel = series.firstOrNull()?.points?.lastOrNull()?.label?.let(::shortGraphLabel).orEmpty()
@@ -165,7 +166,10 @@ private fun ChartCanvas(mode: String, series: List<GraphSeries>) {
     val tertiary = MaterialTheme.colorScheme.tertiary
     val grid = MaterialTheme.colorScheme.outlineVariant
     val palette = listOf(primary, secondary, tertiary, MaterialTheme.colorScheme.error)
-    val allValues = series.flatMap { it.points }.map { it.value }
+    val allValues = series.flatMap { it.points }.map { it.value }.filter { it.isFinite() }
+    val times = series.flatMap { it.points }.mapNotNull { graphTime(it.label) }
+    val start = times.minOrNull()
+    val end = times.maxOrNull()
     if (allValues.isEmpty()) return
 
     val rawMin = allValues.minOrNull() ?: 0.0
@@ -189,7 +193,7 @@ private fun ChartCanvas(mode: String, series: List<GraphSeries>) {
             drawLine(grid.copy(alpha = 0.45f), Offset(left, y), Offset(right, y), strokeWidth = 1.dp.toPx())
         }
 
-        fun xFor(index: Int, count: Int): Float = if (count <= 1) left + width / 2f else left + width * index / (count - 1f)
+        fun xFor(index: Int, item: GraphSeries): Float = left + width * graphPosition(item.points[index].label, index, item.points.size, start, end)
         fun yFor(value: Double, lower: Double, upper: Double): Float {
             val range = (upper - lower).takeIf { it > 0.0000001 } ?: 1.0
             val normalised = ((value - lower) / range).toFloat().coerceIn(0f, 1f)
@@ -204,6 +208,7 @@ private fun ChartCanvas(mode: String, series: List<GraphSeries>) {
                 val barWidth = (slot * 0.68f).coerceAtLeast(2.dp.toPx())
                 val zeroY = yFor(0.0, barLower, barUpper)
                 flattened.forEachIndexed { index, point ->
+                    if (!point.value.isFinite()) return@forEachIndexed
                     val centre = left + slot * (index + 0.5f)
                     val valueY = yFor(point.value, barLower, barUpper)
                     val rectTop = min(valueY, zeroY)
@@ -221,7 +226,8 @@ private fun ChartCanvas(mode: String, series: List<GraphSeries>) {
                 series.forEachIndexed { seriesIndex, item ->
                     val colour = palette[seriesIndex % palette.size]
                     item.points.forEachIndexed { index, point ->
-                        drawCircle(colour, radius = 4.dp.toPx(), center = Offset(xFor(index, item.points.size), yFor(point.value, lineLower, lineUpper)))
+                        if (!point.value.isFinite()) return@forEachIndexed
+                        drawCircle(colour, radius = 4.dp.toPx(), center = Offset(xFor(index, item), yFor(point.value, lineLower, lineUpper)))
                     }
                 }
             }
@@ -231,28 +237,32 @@ private fun ChartCanvas(mode: String, series: List<GraphSeries>) {
                     if (item.points.isEmpty()) return@forEachIndexed
                     val colour = palette[seriesIndex % palette.size]
                     val path = Path()
+                    var connected = false
                     item.points.forEachIndexed { index, point ->
-                        val x = xFor(index, item.points.size)
+                        if (!point.value.isFinite()) { connected = false; return@forEachIndexed }
+                        val x = xFor(index, item)
                         val y = yFor(point.value, lineLower, lineUpper)
-                        if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                        if (!connected) path.moveTo(x, y) else path.lineTo(x, y)
+                        connected = true
                     }
-                    if (mode == "area") {
+                    if (mode == "area" && item.points.all { it.value.isFinite() }) {
                         val area = Path().apply {
                             val firstY = yFor(item.points.first().value, lineLower, lineUpper)
-                            moveTo(left, bottom)
-                            lineTo(left, firstY)
+                            moveTo(xFor(0, item), bottom)
+                            lineTo(xFor(0, item), firstY)
                             item.points.forEachIndexed { index, point ->
-                                lineTo(xFor(index, item.points.size), yFor(point.value, lineLower, lineUpper))
+                                lineTo(xFor(index, item), yFor(point.value, lineLower, lineUpper))
                             }
-                            lineTo(right, bottom)
+                            lineTo(xFor(item.points.lastIndex, item), bottom)
                             close()
                         }
                         drawPath(area, colour.copy(alpha = 0.18f))
                     }
                     drawPath(path, colour, style = Stroke(width = 3.dp.toPx()))
                     item.points.forEachIndexed { index, point ->
+                        if (!point.value.isFinite()) return@forEachIndexed
                         if (item.points.size <= 24 || index == 0 || index == item.points.lastIndex) {
-                            drawCircle(colour, radius = 3.dp.toPx(), center = Offset(xFor(index, item.points.size), yFor(point.value, lineLower, lineUpper)))
+                            drawCircle(colour, radius = 3.dp.toPx(), center = Offset(xFor(index, item), yFor(point.value, lineLower, lineUpper)))
                         }
                     }
                 }

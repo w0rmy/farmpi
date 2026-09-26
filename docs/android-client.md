@@ -28,7 +28,7 @@ The current capstone direction evaluates the Android client as part of a functio
 
 ## Navigation after course retirement
 
-The Android client now has **Ask** and **Nodes** tabs. Monitoring, current readings, history, comparisons and graphs remain accessible through Ask and its backend-provided suggestions. There was no separate native Dashboard screen to migrate.
+The Android client now opens Dashboard with primary destinations **Dashboard / Compare / Ask FarmPi / Alerts / More**. More opens History, Nodes, Settings and System Status. Dashboard, Location Detail, Compare and History request real information through the existing Ask contract and show native response/chart/evidence panels. Automatic structured location/measurement cards and reporting counts are labelled Coming later because no public snapshot endpoint supplies them. Alerts and thresholds are explicitly unavailable prototypes. Nodes shows compact cards; configuration and registration live on a separate Node Detail page. See [the UX v0.1 refactor map](android-ux-v01-refactor-map.md).
 
 Learn, module navigation, Try/Check/Continue, progress, Return to Module and course quick actions have been removed, together with their Android models and API parsing. All questions omit `course_module_id`; contextual explanations, Guide me and ordinary conversation continuity remain.
 
@@ -36,18 +36,18 @@ The existing `farmpi-learning` preference store is retained to preserve explanat
 
 ## Display and mobile usability
 
-The settings cog keeps secondary controls away from the main Ask interaction. Preferences are stored in device-local `SharedPreferences`.
+The Settings action keeps secondary controls away from the main Ask interaction. Preferences are stored in device-local `SharedPreferences`.
 
 Themes are lightweight Material colour schemes applied consistently across the app:
 
-- neutral/default;
+- neutral (retained for existing users);
 - New Zealand red, white, and blue;
-- green/natural;
+- green/natural (new-install default);
 - dark high contrast;
 - yellow/black high visibility;
 - muted/low stimulation.
 
-Text size changes Compose font scaling for compact, standard, or large presentation. Under the current project direction these are treated as **mobile usability and presentation features**, not as evidence for a flexible-learning elective. They must not change answer facts, graph values, evidence, or operations.
+Text size multiplies the device accessibility font scale for compact, standard, or large presentation. Under the current project direction these are treated as **mobile usability and presentation features**, not as evidence for a flexible-learning elective. They must not change answer facts, graph values, evidence, or operations.
 
 Current mobile work should favour a clear phone interface, readable graph cards, obvious recovery/error states, and low interaction cost rather than adding presentation options for their own sake.
 
@@ -56,7 +56,7 @@ Current mobile work should favour a clear phone interface, readable graph cards,
 The Android client receives verified chart payloads from the backend and chooses only how to display them.
 
 - time-series data can be viewed as line, area, bars, or dots;
-- light/lux defaults to an area-style **Day profile** view;
+- time series default to observation dots with timestamp-proportional spacing; lines and Day profile areas remain optional, with an explicit continuity limitation;
 - comparison datasets can be viewed as bars or dots;
 - changing display mode must not change any underlying value;
 - farm-wide, named-paddock, and cross-paddock comparisons are separate backend meanings even if they use the same renderer.

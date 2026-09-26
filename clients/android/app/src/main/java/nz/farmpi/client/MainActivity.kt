@@ -10,6 +10,7 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -45,9 +46,9 @@ private const val TTS_TAG = "FarmPiTTS"
 private const val TTS_CHUNK_LIMIT = 3000
 
 private data class SpeechResult(val heard: String, val interpreted: String, val changed: Boolean)
-private data class ChartPoint(val label: String, val value: Double)
-private data class ChartPayload(val type: String, val title: String, val unit: String, val period: String, val provenance: String, val series: List<Pair<String, List<ChartPoint>>>)
-private data class AskResult(val answer: String, val spokenAnswer: String, val suggestions: List<String>, val intent: String, val conversationId: String?, val chart: ChartPayload?, val evidence: List<String>, val provenance: List<String>, val sourceTier: String)
+internal data class ChartPoint(val label: String, val value: Double)
+internal data class ChartPayload(val type: String, val title: String, val unit: String, val period: String, val provenance: String, val series: List<Pair<String, List<ChartPoint>>>)
+internal data class AskResult(val answer: String, val spokenAnswer: String, val suggestions: List<String>, val intent: String, val conversationId: String?, val chart: ChartPayload?, val evidence: List<String>, val provenance: List<String>, val sourceTier: String, val sourceCategory: String)
 private class FarmPiApiException(message: String) : Exception(message)
 
 private fun ttsSpeechText(text: String): String = text
@@ -111,7 +112,7 @@ private fun FarmPiTheme(theme: String, displayDensity: String, content: @Composa
             surfaceVariant = Color(0xFFE5ECF6), onSurfaceVariant = Color(0xFF263A5A),
         )
         "natural" -> lightColorScheme(
-            primary = Color(0xFF2F6B3C), onPrimary = Color.White, secondary = Color(0xFF7B5E2F), onSecondary = Color.White,
+            primary = Color(0xFF174D38), onPrimary = Color.White, secondary = Color(0xFF836747), onSecondary = Color.White, tertiary = Color(0xFF417C98),
             background = Color(0xFFF7FAF4), onBackground = Color(0xFF1A271C), surface = Color.White, onSurface = Color(0xFF1A271C),
             surfaceVariant = Color(0xFFE2ECDD), onSurfaceVariant = Color(0xFF314735),
         )
@@ -134,8 +135,8 @@ private fun FarmPiTheme(theme: String, displayDensity: String, content: @Composa
     }
     val density = LocalDensity.current
     val fontScale = when (displayDensity) { "compact" -> 0.90f; "large" -> 1.25f; else -> 1.0f }
-    CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
-        MaterialTheme(colorScheme = colours, content = content)
+    CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale * fontScale)) {
+        MaterialTheme(colorScheme = colours, shapes = Shapes(medium = RoundedCornerShape(20.dp), large = RoundedCornerShape(24.dp)), content = content)
     }
 }
 
@@ -160,16 +161,23 @@ private fun FarmPiApp() {
     var suggestions by remember { mutableStateOf(listOf<String>()) }
     var explanation by remember { mutableStateOf("normal") }
     var guidance by remember { mutableStateOf("normal") }
-    var theme by remember { mutableStateOf("neutral") }
+    var theme by remember { mutableStateOf("natural") }
     var displayDensity by remember { mutableStateOf("standard") }
     var showSettings by remember { mutableStateOf(false) }
-    var nodesTab by remember { mutableStateOf(false) }
+    var destination by remember { mutableStateOf("Dashboard") }
+    var locationContext by remember { mutableStateOf("") }
+    var lastQuestion by remember { mutableStateOf("") }
+    val chatHistory = remember { mutableStateListOf<Pair<String, AskResult>>() }
+    var completedAnswer by remember { mutableStateOf<AskResult?>(null) }
+    var health by remember { mutableStateOf<JSONObject?>(null) }
+    var checkedAt by remember { mutableStateOf("Not checked yet") }
     var asking by remember { mutableStateOf(false) }
     var isSpeaking by remember { mutableStateOf(false) }
     var chart by remember { mutableStateOf<ChartPayload?>(null) }
     var evidence by remember { mutableStateOf(emptyList<String>()) }
     var provenance by remember { mutableStateOf(emptyList<String>()) }
     var sourceTier by remember { mutableStateOf<String?>(null) }
+    var sourceCategory by remember { mutableStateOf("unavailable") }
     var showEvidence by remember { mutableStateOf(false) }
     var conversationId by remember { mutableStateOf<String?>(null) }
     var ttsReady by remember { mutableStateOf(false) }
@@ -184,7 +192,7 @@ private fun FarmPiApp() {
     LaunchedEffect(Unit) {
         explanation = preferences.getString("explanation", "normal") ?: "normal"
         guidance = preferences.getString("guidance", "normal") ?: "normal"
-        theme = preferences.getString("theme", "neutral") ?: "neutral"
+        theme = preferences.getString("theme", "natural") ?: "natural"
         displayDensity = preferences.getString("display_density", "standard") ?: "standard"
     }
 
@@ -201,7 +209,7 @@ private fun FarmPiApp() {
     LaunchedEffect(ttsReady) {
         if (!ttsReady) return@LaunchedEffect
 
-        val nz = Locale("en", "NZ")
+        val nz = Locale.forLanguageTag("en-NZ")
         var selectedLocale = nz
         var languageResult = if (tts.isLanguageAvailable(nz) >= TextToSpeech.LANG_AVAILABLE) {
             tts.setLanguage(nz)
@@ -326,8 +334,12 @@ private fun FarmPiApp() {
 
     fun checkStatus() = scope.launch {
         connection = "Checking FarmPi…"
+        health = null
         connection = try {
-            if (FarmPiApi.status()) "FarmPi connected" else "FarmPi is unavailable"
+            val result = FarmPiApi.health()
+            health = result
+            checkedAt = java.time.LocalTime.now().withNano(0).toString()
+            if (result.optString("status") == "running") "FarmPi connected" else "FarmPi is unavailable"
         } catch (_: Exception) {
             "FarmPi is unavailable"
         }
@@ -337,6 +349,11 @@ private fun FarmPiApp() {
         if (text.isBlank() || asking) return@launch
         stopSpeaking()
         asking = true
+        completedAnswer?.let { chatHistory.add(lastQuestion to it); if (chatHistory.size > 8) chatHistory.removeAt(0) }
+        completedAnswer = null
+        heard = null; interpreted = null
+        lastQuestion = text
+        chart = null; evidence = emptyList(); provenance = emptyList(); sourceTier = null; suggestions = emptyList()
         answer = "Asking FarmPi…"
         try {
             val speech = if (speechAlternatives.isEmpty()) null else FarmPiApi.normalise(text, speechAlternatives)
@@ -346,12 +363,14 @@ private fun FarmPiApp() {
             question = routedQuestion
             val result = FarmPiApi.ask(routedQuestion, explanation, guidance, conversationId)
             conversationId = result.conversationId ?: conversationId
+            completedAnswer = result
             answer = result.answer
             suggestions = result.suggestions
             chart = result.chart
             evidence = result.evidence
             provenance = result.provenance
             sourceTier = result.sourceTier
+            sourceCategory = result.sourceCategory
             showEvidence = false
             connection = "FarmPi connected"
             speak(result.spokenAnswer)
@@ -367,6 +386,12 @@ private fun FarmPiApp() {
     }
 
     fun guideMe() = scope.launch {
+        if (asking) return@launch
+        asking = true
+        chart = null; evidence = emptyList(); provenance = emptyList(); sourceTier = null
+        completedAnswer?.let { chatHistory.add(lastQuestion to it); if (chatHistory.size > 8) chatHistory.removeAt(0) }
+        completedAnswer = null
+        lastQuestion = "Guide me"
         stopSpeaking()
         try {
             val guide = FarmPiApi.guidance(guidance)
@@ -377,7 +402,7 @@ private fun FarmPiApp() {
             answer = error.message ?: "FarmPi guidance is unavailable."
         } catch (_: Exception) {
             answer = "FarmPi guidance is unavailable."
-        }
+        } finally { asking = false }
     }
 
     val recordAudio = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -427,55 +452,51 @@ private fun FarmPiApp() {
 
     LaunchedEffect(Unit) { checkStatus() }
 
+    BackHandler(enabled = destination != "Dashboard") { destination = when (destination) { "Nodes", "History", "System Status" -> "More"; else -> "Dashboard" } }
     FarmPiTheme(theme, displayDensity) {
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text("FarmPi") },
-            actions = { IconButton(onClick = { showSettings = true }) { Text("⚙", style = MaterialTheme.typography.titleLarge) } },
+            title = { Column { Text("FarmPi", fontWeight = FontWeight.Bold); Text("Local farm monitoring · Prototype", style = MaterialTheme.typography.labelSmall) } },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary, titleContentColor = MaterialTheme.colorScheme.onPrimary, actionIconContentColor = MaterialTheme.colorScheme.onPrimary),
+            actions = { if (isSpeaking) TextButton(onClick = { stopSpeaking() }) { Text("Stop speaking", color = MaterialTheme.colorScheme.onPrimary) }; TextButton(onClick = { showSettings = true }) { Text("Settings", color = MaterialTheme.colorScheme.onPrimary) } },
         )
     }, bottomBar = {
         NavigationBar {
-            NavigationBarItem(selected = !nodesTab, onClick = { nodesTab = false }, icon = { Text("💬") }, label = { Text("Ask") })
-            NavigationBarItem(selected = nodesTab, onClick = { nodesTab = true }, icon = { Text("N") }, label = { Text("Nodes") })
+            listOf("Dashboard" to "⌂", "Compare" to "⇄", "Ask FarmPi" to "?", "Alerts" to "!", "More" to "•••").forEach { (name, symbol) ->
+                NavigationBarItem(selected = destination == name, onClick = { destination = name }, icon = { Text(symbol) }, label = { Text(name, maxLines = 1, style = MaterialTheme.typography.labelSmall) })
+            }
         }
     }) { padding ->
-        if (nodesTab) {
-            NodesArea(Modifier.padding(padding))
-        } else {
+        when (destination) {
+        "Nodes" -> NodesArea(Modifier.padding(padding))
+        "Dashboard", "Location Detail", "Compare", "History", "Alerts", "More", "System Status" -> MonitoringArea(
+            destination, connection, checkedAt, health, locationContext, explanation, guidance,
+            Modifier.padding(padding),
+            navigate = { destination = it },
+            selectLocation = { locationContext = it; destination = "Location Detail" },
+            openSettings = { showSettings = true },
+            refresh = { checkStatus() },
+            ask = { question = it; destination = "Ask FarmPi"; ask(it) },
+        )
+        else -> {
             Column(
-                modifier = Modifier.padding(padding).padding(20.dp).fillMaxSize().verticalScroll(rememberScrollState()),
+                modifier = Modifier.padding(padding).imePadding().padding(20.dp).fillMaxSize().verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                chatHistory.forEach { (prompt, response) -> PreviousExchange(prompt, response) }
                 Text(connection, style = MaterialTheme.typography.bodyMedium)
                 Text(ttsStatus, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(18.dp))
-                OutlinedTextField(
-                    value = question,
-                    onValueChange = { question = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Ask about farming or your farm data") },
-                    minLines = 3,
-                )
-                Spacer(Modifier.height(10.dp))
-                Button(
-                    onClick = { if (isSpeaking) stopSpeaking() else listen() },
-                    modifier = Modifier.size(132.dp),
-                    enabled = !asking || isSpeaking,
-                ) {
-                    Text(if (isSpeaking) "■\nStop" else "🎤\nSpeak", textAlign = TextAlign.Center, style = MaterialTheme.typography.titleLarge)
-                }
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { ask(question) }, enabled = !asking) { Text("Ask FarmPi") }
-                    OutlinedButton(onClick = { guideMe() }) { Text("Guide me") }
-                }
                 if (heard != null) Text("Heard: $heard", modifier = Modifier.fillMaxWidth().padding(top = 14.dp), style = MaterialTheme.typography.bodySmall)
                 if (interpreted != null) Text("Interpreted: $interpreted", modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                Card(modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
-                    Text(answer, modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodyLarge)
+                if (lastQuestion.isNotBlank()) Surface(Modifier.align(Alignment.End).padding(top = 14.dp).fillMaxWidth(.88f), shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                    Text(lastQuestion, Modifier.padding(16.dp))
+                }
+                Card(modifier = Modifier.fillMaxWidth().padding(top = 14.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Column(Modifier.padding(18.dp)) { Text("FarmPi", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary); Spacer(Modifier.height(8.dp)); Text(answer, style = MaterialTheme.typography.bodyLarge) }
                 }
                 sourceTier?.let {
-                    Text("Evidence tier: ${it.replace('-', ' ')}", modifier = Modifier.fillMaxWidth().padding(top = 6.dp), style = MaterialTheme.typography.bodySmall)
+                    Text("${sourceLabel(sourceCategory)} · ${it.replace('-', ' ')}", modifier = Modifier.fillMaxWidth().padding(top = 6.dp), style = MaterialTheme.typography.bodySmall)
                 }
                 chart?.let { chartPayload ->
                     EnhancedChartCard(
@@ -489,6 +510,7 @@ private fun FarmPiApp() {
                         },
                     )
                 }
+                if (evidence.isNotEmpty()) EvidenceSummary(evidence)
                 if (evidence.isNotEmpty() || provenance.isNotEmpty()) {
                     TextButton(onClick = { showEvidence = !showEvidence }) {
                         Text(if (showEvidence) "Hide sources / evidence" else "Show sources / evidence")
@@ -513,8 +535,30 @@ private fun FarmPiApp() {
                         Text(suggestion, textAlign = TextAlign.Start)
                     }
                 }
+                OutlinedTextField(
+                    value = question,
+                    onValueChange = { question = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Ask about farming or your farm data") },
+                    minLines = 2,
+                )
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = { if (isSpeaking) stopSpeaking() else listen() },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    enabled = !asking || isSpeaking,
+                ) {
+                    Text(if (isSpeaking) "Stop speaking" else "Speak a question", textAlign = TextAlign.Center, style = MaterialTheme.typography.titleLarge)
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { ask(question) }, enabled = !asking) { Text("Ask FarmPi") }
+                    OutlinedButton(onClick = { guideMe() }, enabled = !asking) { Text("Guide me") }
+                }
+
             }
         }
+    }
     }
     if (showSettings) SettingsDialog(
         explanation, guidance, theme, displayDensity,
@@ -528,45 +572,6 @@ private fun FarmPiApp() {
 }
 
 @Composable
-private fun ChartCard(chart: ChartPayload) {
-    Card(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-        Column(Modifier.padding(14.dp)) {
-            Text(chart.title, fontWeight = FontWeight.Bold)
-            Text("${chart.period} • ${chart.provenance}", style = MaterialTheme.typography.bodySmall)
-            val points = chart.series.flatMap { it.second }
-            val maximum = points.maxOfOrNull { it.value }?.takeIf { it > 0.0 } ?: 1.0
-            chart.series.forEach { (name, values) ->
-                Text(name, modifier = Modifier.padding(top = 8.dp), style = MaterialTheme.typography.labelLarge)
-                if (chart.type == "bar") {
-                    values.forEach { point ->
-                        Text("${point.label}: ${"%.2f".format(point.value)} ${chart.unit}", style = MaterialTheme.typography.bodySmall)
-                        LinearProgressIndicator(
-                            progress = (point.value / maximum).toFloat().coerceIn(0f, 1f),
-                            modifier = Modifier.fillMaxWidth().height(9.dp).padding(bottom = 4.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                } else {
-                    Row(Modifier.fillMaxWidth().height(54.dp), verticalAlignment = Alignment.Bottom) {
-                        values.takeLast(24).forEach { point ->
-                            Box(
-                                Modifier.weight(1f)
-                                    .fillMaxHeight((point.value / maximum).toFloat().coerceIn(.03f, 1f))
-                                    .padding(horizontal = 1.dp)
-                                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)),
-                            )
-                        }
-                    }
-                    values.takeLast(2).forEach { point ->
-                        Text("${point.label}: ${"%.2f".format(point.value)} ${chart.unit}", style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun SettingsDialog(
     explanation: String, guidance: String, theme: String, displayDensity: String,
     setExplanation: (String) -> Unit, setGuidance: (String) -> Unit, setTheme: (String) -> Unit,
@@ -575,7 +580,13 @@ private fun SettingsDialog(
     onDismissRequest = close,
     title = { Text("Accessibility and display settings") },
     text = { Column(Modifier.verticalScroll(rememberScrollState())) {
-        Text("Explanation depth", fontWeight = FontWeight.Bold)
+        Text("Connection", fontWeight = FontWeight.Bold)
+        Text(BuildConfig.FARMPI_BASE_URL)
+        Text("Server address editing — Coming later", style = MaterialTheme.typography.bodySmall)
+        Text("Voice", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
+        Text("Speech input and read-aloud are available in Ask FarmPi. Use Stop speaking to interrupt playback.")
+        Text("Voice selection and speech-rate controls — Coming later", style = MaterialTheme.typography.bodySmall)
+        Text("Explanation depth", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
         SettingChips(listOf("simple", "normal", "technical"), explanation, setExplanation)
         Text("Guidance prompts", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
         SettingChips(listOf("more", "normal", "less"), guidance, setGuidance)
@@ -628,6 +639,8 @@ private object FarmPiApi {
         request("api/nodes/$id/" + if (approve) "approve" else "configuration", if (approve) "POST" else "PUT", body, token)
     }
 
+    suspend fun health(): JSONObject = withContext(Dispatchers.IO) { request("api/status") }
+
     suspend fun status(): Boolean = withContext(Dispatchers.IO) {
         request("api/status").optString("status") == "running"
     }
@@ -664,7 +677,8 @@ private object FarmPiApi {
             json.optJSONObject("chart")?.chart(),
             json.optJSONArray("evidence")?.objectsAsStrings() ?: emptyList(),
             json.optJSONArray("provenance")?.objectsAsStrings() ?: emptyList(),
-            json.optString("source_tier", "first-class-trusted"),
+            json.optString("source_tier", "unavailable"),
+            json.optString("source_category", "unavailable"),
         )
     }
 
@@ -686,3 +700,6 @@ private object FarmPiApi {
 
 internal suspend fun fetchNodes(token: String) = FarmPiApi.nodes(token)
 internal suspend fun saveManagedNode(token: String, id: Int, approve: Boolean, body: JSONObject) = FarmPiApi.saveNode(token, id, approve, body)
+
+
+internal suspend fun queryMonitoring(question: String, explanation: String, guidance: String): AskResult = FarmPiApi.ask(question, explanation, guidance, null)
