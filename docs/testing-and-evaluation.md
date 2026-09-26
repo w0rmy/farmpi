@@ -16,7 +16,7 @@ python -m compileall -q app tests
 The suite should cover:
 
 - measurement validation, natural-language aliases, and the standard-versus-optional capability catalogue;
-- baseline-only telemetry ingest plus optional/add-on values when supplied;
+- managed sparse telemetry ingest, capability/enablement validation, and optional/add-on values when supplied;
 - telemetry time, sequence, deduplication, and ingest behaviour;
 - database operations and paddock identity;
 - current paddock summaries that omit unavailable optional measurements rather than inventing values;
@@ -133,7 +133,7 @@ Every material change should link implementation, verification, and capstone evi
 | Functional requirement | working end-to-end behaviour plus acceptance result |
 | Architecture | component/responsibility mapping and rationale |
 | Farm facts and calculations | exact fixtures, provenance fields, failure-path tests |
-| Sensor capability model | baseline/add-on ingest, nullable storage, mixed-capability current/history behaviour |
+| Sensor capability model | managed sparse ingest, capability/enablement checks, nullable storage, mixed-capability current/history behaviour |
 | Mobile interface | device build/acceptance, layout/usability observations, state persistence |
 | Graphing/analytics | deterministic value tests plus visual acceptance |
 | AI interpretation | constrained schema tests, semantic recovery, no model authority over farm facts |
