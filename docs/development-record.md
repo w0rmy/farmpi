@@ -330,3 +330,7 @@ Run the manual Android acceptance checks and the consented learner evaluation in
 The development/reference model was verified as Qwen3.5-9B Q4_K_M in LM Studio, advertised to OpenAI-compatible clients as `qwen/qwen3.5-9b`. FarmPi had been checking the model server with `GET /health`; LM Studio returned success for that unknown route but recorded an error for every probe. FarmPi now uses the supported `GET /v1/models` endpoint, with regression coverage, and strips a trailing slash from `FARMPI_LLAMA_URL` before constructing endpoint paths.
 
 This is a compatibility correction to the model integration boundary. It improves operational clarity without changing grounding, routing, source authority, learning behaviour, or the capstone focus. The PC-hosted model remains an implementation and evaluation choice rather than the capstone thesis, and its LAN endpoint must remain restricted to the trusted local network.
+
+## 26 September 2026 — Android course UI retirement
+
+Reshaped the existing Android client into Ask and Nodes destinations. Removed course navigation, module/progress state and course request context while retaining monitoring, contextual explanations, speech/TTS, graphs, provenance and settings. Historical course records and backend contracts are preserved. See [audit and validation record](android-ui-refactor-2026-09-26.md) for dependency analysis, the refactor boundary, 146 passing backend tests and the unresolved local Gradle loopback failure that prevented Android build/test/lint validation.
