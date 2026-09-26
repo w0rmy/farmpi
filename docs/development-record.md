@@ -2,6 +2,39 @@
 
 This record captures material design decisions and their outcome/evidence rationale. Current operating instructions live in the subject guides; historical performance measurements live under `docs/history`.
 
+## 26 September 2026 - live S3 deployment, fault isolation and local-model confirmation
+
+### Physical node bring-up
+
+After the managed-node implementation was merged into `main`, two ESP32-S3 N16R8 boards were flashed and exercised against the live FarmPi deployment. Both joined the dedicated FarmLAN and reached the managed discovery/registration flow. The Android Nodes interface was used to connect/register the boards with FarmPi, moving this work beyond compile/test-adapter evidence into live hardware/application integration.
+
+Observed hardware UIDs were `7c4fadb633c0` and `7c4fadb52c40`. Hardware UID remains an identifier rather than an authentication secret. Final assigned FarmPi node IDs, desired/applied full configuration fingerprints and screenshots still need to be captured as formal evidence; no real sensor observation is claimed by this entry.
+
+Two bring-up faults were diagnosed without changing application/network logic unnecessarily:
+
+- One board reported `phy_init: store_cal_data_to_nvs_handle: store calibration data failed(0x1105)` after flashing. A deliberate full-flash erase followed by reflashing cleared the condition and the firmware then reached `Awaiting registration`. Normal updates should continue to preserve NVS; erase-all is a provisioning/recovery action.
+- Another board entered a reboot loop with the lwIP assertion `sys_untimeout ... Required to lock TCPIP core functionality!`. Although the symptom appeared to implicate the TCP/IP stack, the fault was traced to an unintended breadboard connection. Removing that connection restored normal operation. This is retained as evidence of cross-layer fault isolation rather than rewriting the incident as a software defect.
+
+### FarmLAN and endpoint scope
+
+The live prototype uses a dedicated FarmLAN wireless access point on the Raspberry Pi while retaining a separate management/home-LAN connection. The FarmLAN connection profile is bound to the intended Wi-Fi radio by MAC address rather than relying on a persistent `wlanN` name. The AP-side address is `10.42.0.1/24`, while application clients continue to use `https://farmpi.local/` because the current Caddy certificate is issued for that DNS name.
+
+A possible future hardening step is to make physical nodes use the fixed AP-side IP directly and issue a certificate containing that IP as a Subject Alternative Name. This was deliberately deferred because the existing `farmpi.local` path is adequate for the proof of concept and changing PKI/addressing now would add complexity without improving current capstone evidence.
+
+### Pi-local LLM confirmation
+
+The Raspberry Pi deployment was inspected directly. `farmpi-llm.service` was active and running `llama-server` on `127.0.0.1:8080` with `lmstudio-community/Qwen3-1.7B-GGUF:Q4_K_M`, context 2048, reasoning disabled and one parallel slot. `/health` returned `{"status":"ok"}` and `/v1/models` reported the same Qwen3 1.7B model.
+
+`farmpi.service` loads `/etc/farmpi/farmpi.env`. That environment currently contains no `FARMPI_LLAMA_URL` override, while `app/app.py` defaults `FARMPI_LLAMA_URL` to `http://127.0.0.1:8080`. The normal inference path is therefore FarmPi backend -> Pi-local llama.cpp -> Qwen3 1.7B; the development PC is not required.
+
+A faster model on the development PC remains technically possible, but Jeremy chose the Pi-local model for proof-of-concept testing because it removes a separate machine and changing LAN address from the deployment, preserves the intended offline/local architecture, and makes the test boundary more reproducible. Slower inference is accepted as an explicit prototype trade-off and should be measured rather than hidden.
+
+### Android scope decision
+
+The client direction was reviewed after the elective change. Jeremy chose to reshape the existing Android client rather than rewrite it. Working application capabilities - Ask, voice/TTS, graphs, provenance, settings, connection state and Nodes administration - are retained. Course/module/progress surfaces created for the superseded Developing Flexible IT Courses elective are now candidates for removal. Contextual explanation and measurement interpretation remain because they are FarmPi/AI functionality, not evidence of a course by themselves.
+
+This is another scope-control decision: preserve working architecture that still supports the current requirements, remove obsolete elective-specific product behaviour, and avoid a rewrite that would add integration risk without demonstrating new capstone value.
+
 ## 26 September 2026 - two physical S3 nodes and centrally managed configuration
 
 ### Inspection and decisions
