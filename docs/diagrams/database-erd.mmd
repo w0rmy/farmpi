@@ -1,8 +1,47 @@
 erDiagram
-  PADDOCKS ||--o{ SENSOR_NODES : contains
+  PADDOCKS ||--o{ SENSOR_NODES : current_assignment
   SENSOR_NODES ||--o{ READINGS : emits
+  PADDOCKS ||--o{ READINGS : captured_location
   PADDOCKS ||--o{ PADDOCK_ADMIN_AUDIT : records
-  PADDOCKS { int id string name bool active }
-  SENSOR_NODES { int id int paddock_id string node_uid }
-  READINGS { bigint id int sensor_node_id datetime observed_at datetime received_at bigint sample_seq bool simulated }
-  PADDOCK_ADMIN_AUDIT { bigint id int paddock_id string old_name string new_name }
+
+  PADDOCKS {
+    int id
+    string name
+    bool active
+  }
+
+  SENSOR_NODES {
+    int id
+    int paddock_id
+    string node_uid
+    string hardware_uid
+    string registration_state
+    string firmware_version
+    string board_profile
+    text capabilities_json
+    text desired_config_json
+    text applied_config_json
+    string desired_fingerprint
+    string applied_fingerprint
+    string failed_fingerprint
+    datetime last_seen
+    bigint location_epoch
+  }
+
+  READINGS {
+    bigint id
+    int sensor_node_id
+    int paddock_id
+    datetime observed_at
+    datetime received_at
+    bigint sample_seq
+    bool simulated
+    smallint protocol_version
+  }
+
+  PADDOCK_ADMIN_AUDIT {
+    bigint id
+    int paddock_id
+    string old_name
+    string new_name
+  }

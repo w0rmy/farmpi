@@ -2,7 +2,7 @@
 
 ## Purpose
 
-FarmPi is a functional farm-monitoring application demonstrator. Its architecture is intended to show how a native mobile client, local API/service layer, persistent data store, deterministic analytics, simulated sensor ingest, and a constrained language model can be integrated into one coherent system.
+FarmPi is a functional farm-monitoring application demonstrator. Its architecture is intended to show how a native mobile client, local API/service layer, persistent data store, deterministic analytics, managed physical/simulated sensor ingest, and a constrained language model can be integrated into one coherent system.
 
 The current capstone direction is **Advanced Application Development Concepts** plus **Artificial Intelligence and Data Science**. Earlier embedded-learning functionality remains implemented in places, but it no longer defines the architecture or current scope.
 
@@ -35,28 +35,29 @@ sensor / simulator --> transport --> authenticated ingest --> FastAPI --> MariaD
 - `app/farm_data.py`, `app/analytics.py`, `app/measurements.py`, and `app/paddock_resolver.py` own farm facts, calculations, measurement metadata/capabilities, graph inputs, and identity resolution.
 - `app/knowledge_sources.py` stores the source hierarchy, curated NZ source metadata, and reviewed claims. It is not a live search engine.
 - `app/llm_compat.py` normalises OpenAI-compatible chat requests and preserves one integration contract across supported model servers.
-- `app/education.py`, `app/learning.py`, and `app/guidance.py` are retained support/legacy modules from the earlier learning-focused direction. They remain functional where referenced but are not the current capstone architecture driver.
+- `app/education.py`, `app/learning.py`, and course-specific parts of `app/guidance.py` are legacy modules from the earlier learning-focused direction. They remain in the current revision where referenced, but the current client direction is to remove course/module/progress surfaces while retaining ordinary contextual explanation and application guidance.
+- `app/node_api.py` and `app/node_config.py` own managed physical-node discovery, administrator approval, desired/applied configuration fingerprints, latest-state synchronisation and node status.
 - `app/ingest_api.py` and `app/sensor_ingest.py` validate, authenticate, timestamp, deduplicate, and store telemetry.
 - `clients/android` is the primary native user client. The built-in HTML page is a diagnostic fallback.
 
 ## Sensor capability model
 
-The physical product model now distinguishes a **standard node** from optional add-on capabilities.
+FarmPi now separates four concepts that must not be collapsed:
 
-Every standard node reports:
+1. **Measurement catalogue** - the 13 reviewed measurement types the application understands, including units, ranges, aliases and analytic capabilities.
+2. **Firmware/node capabilities** - the subset a particular firmware and hardware profile can support.
+3. **Per-node desired configuration** - the supported measurements enabled for a particular registered physical node.
+4. **Runtime/reporting state** - whether an enabled measurement is actually producing observations, is configured but not reporting, or is not fitted/disabled.
 
-- soil moisture;
-- soil temperature;
-- air temperature;
-- relative humidity;
-- ambient light;
-- barometric pressure.
+FR01 still requires the final T01 concept-demonstrator evidence to show six physical measurements: soil moisture, soil temperature, air temperature, relative humidity, ambient light and barometric pressure. That is an **acceptance requirement for the completed physical prototype**, not a requirement that every node or every telemetry payload contain all six values.
 
-Optional add-ons can provide pH, EC, rainfall, wind speed/direction, pasture height, leaf wetness, and later other reviewed capabilities. The current ESP32 simulator may emit both baseline and optional measurements because it is deliberately demonstrating the broader application/data model.
+Managed physical telemetry is sparse. A node submits only measurements that were actually observed and are enabled in its acknowledged configuration. FarmPi does not fabricate zeroes or placeholder measurements to make a row appear complete. Missing values remain absent/SQL `NULL`, and current/history/analytics code operates only on measurements actually present.
 
-This distinction is enforced at the application boundary rather than by fabricating values. New ingest samples must contain the six baseline measurements. Optional fields may be omitted and are stored as `NULL`. Current paddock snapshots require a valid baseline reading but include optional fields only when actually present. Farm-wide optional analytics use only paddocks that report the requested measurement.
+Optional/add-on measurements include pH, EC, rainfall, wind speed/direction, pasture height and leaf wetness. The simulator may emit a broader set because it is explicitly synthetic and exists to exercise the application/data model.
 
-The sensor/transport boundary remains deliberately separate from the application. Current Wi-Fi, a future LoRa/LoRaWAN gateway, or Wi-Fi HaLow can all feed the same transport-neutral ingest semantics without changing MariaDB, analytics, graphing, Android, or LLM authority.
+Hardware UID, logical FarmPi node identity and assigned paddock/location are separate concepts. Physical nodes are discovered, explicitly approved, receive a complete desired configuration, validate and persist it, then acknowledge the applied SHA-256 configuration fingerprint. Desired and applied fingerprints determine IN SYNC / UPDATE PENDING / UPDATE FAILED state; an increasing human-facing revision counter is deliberately not used.
+
+The sensor/transport boundary remains deliberately separate from the application. Current Wi-Fi, a future LoRa/LoRaWAN gateway, or Wi-Fi HaLow can feed the same transport-neutral ingest semantics without changing MariaDB, analytics, graphing, Android, or LLM authority.
 
 ## Ask/answer path
 
@@ -103,16 +104,17 @@ The API reads:
 - `FARMPI_LLAMA_URL` (default `http://127.0.0.1:8080`);
 - `FARMPI_LLM_MODEL` (default `Qwen3-1.7B`).
 
-The Pi systemd template starts Qwen3 1.7B Q4_K_M through `llama-server`, context 2048, reasoning off, one slot, localhost only. During development, the same Pi application can point to a larger reference model such as Qwen3.5-9B hosted by LM Studio on the development PC. The compatibility layer preserves the same application boundary across both topologies.
+The Pi systemd template starts Qwen3 1.7B Q4_K_M through `llama-server`, context 2048, reasoning off, one slot, localhost only. During development, the same Pi application can point to a larger reference model such as Qwen3.5-9B hosted by LM Studio on the development PC. The compatibility layer preserves the same application boundary across both topologies. For the current proof-of-concept deployment, the confirmed runtime is the Pi-local `llama-server` on `127.0.0.1:8080`; the development PC is not required in the inference path.
 
 ## Security and trust boundaries
 
 - Caddy is the only normal LAN-facing service and terminates HTTPS for `farmpi.local`.
 - FastAPI and the checked-in Pi `llama-server` bind to localhost.
 - MariaDB binds to `127.0.0.1` and uses a restricted application account.
-- ESP32 ingest requires a bearer token from `/etc/farmpi/farmpi.env`.
+- Legacy simulator ingest uses the shared bearer token from `/etc/farmpi/farmpi.env`; managed physical S3 nodes instead use their persisted per-device credential plus registered hardware identity and acknowledged configuration state.
+- Administrator node approval/configuration uses the separate `FARMPI_ADMIN_TOKEN`; it is not a device credential or simulator ingest token.
 - The Android client uses normal HTTPS validation and may trust a user-installed Caddy public root certificate; it does not install an insecure trust manager.
-- The ESP32 alpha uses encrypted TLS with hostname/SNI but `setInsecure()` because it does not yet validate the private CA. This is a documented prototype limitation.
+- The managed ESP32-S3 target validates the FarmPi HTTPS connection using the Caddy public root CA and `farmpi.local` hostname/SNI. Private CA keys never belong on the device.
 
 ## Repository layout
 
@@ -122,6 +124,7 @@ clients/android/        native Kotlin/Jetpack Compose client and device-local pr
 config/                 Caddy, systemd, database schema and repeatable seed
 docs/                   current architecture, deployment, AI/data and evaluation docs
 firmware/esp32-sensor/  16-paddock synthetic telemetry firmware
+firmware/esp32-s3-node/ managed physical-node registration/configuration client and later acquisition target
 scripts/                database and service installation helpers
 tests/                  deterministic behavioural and integration-contract tests
 update                  repeatable Pi update/validation entry point

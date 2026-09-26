@@ -47,9 +47,11 @@ The language model is a component of the application, not the application itself
 
 ## Historical learning-focused work
 
-The embedded course, Learn tab, explanation-depth controls, presentation themes, and other learning-oriented features were implemented while **Developing Flexible IT Courses** was the selected elective. They are retained as legitimate development history and may remain useful application features, but they are no longer the primary reason for further development.
+The embedded course, Learn tab, course progress and other learning-oriented features were implemented while **Developing Flexible IT Courses** was the selected elective. They remain legitimate development history, but they are no longer current product requirements.
 
-Do not delete or rewrite that history. Current documentation should, however, clearly distinguish **historical learning-design evidence** from **current application-development requirements**.
+The current Android direction is to reshape the existing client rather than rewrite it: preserve working application capabilities such as Ask, voice/TTS, graphs, provenance, settings, connection state and Nodes administration, while removing course/module/progress surfaces that exist only for the superseded elective. Contextual explanation and measurement interpretation remain in scope because they serve the FarmPi application and AI/data integration directly.
+
+Do not delete or rewrite the historical record merely because the live course UI is removed. Current documentation should clearly distinguish **historical learning-design evidence** from **current application-development requirements**.
 
 ## Scope boundary
 

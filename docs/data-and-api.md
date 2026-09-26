@@ -129,6 +129,19 @@ Evidence items preserve paddock, sensor UID where available, timestamp, value, a
 | `/api/ask` | POST | Main conversational/data-query contract for Android/browser clients. |
 | `/api/ingest` | POST | Authenticated sensor telemetry ingest. |
 
+Managed physical-node endpoints:
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/nodes` | GET | Administrator view of discovered/registered physical nodes, locations, sync state and per-sensor runtime state. |
+| `/api/nodes/contact` | POST | Device discovery/heartbeat with hardware UID, device credential, firmware/profile, capabilities and optional applied fingerprint. |
+| `/api/nodes/configuration` | POST | Authenticated device fetch of the latest complete desired configuration. |
+| `/api/nodes/ack` | POST | Device acknowledgement or failure report for an attempted configuration fingerprint. |
+| `/api/nodes/{id}/approve` | POST | Administrator approval/registration of a discovered node and assignment of initial identity/location. |
+| `/api/nodes/{id}/configuration` | PUT | Administrator update of node name, location and enabled measurement set with optimistic fingerprint checking. |
+
+Administrator endpoints require `Authorization: Bearer <FARMPI_ADMIN_TOKEN>`. Device contact/configuration/acknowledgement use the per-device credential generated and persisted by the ESP32-S3; hardware UID is identification, not authentication. Registration begins with an empty enabled set.
+
 Legacy endpoints retained from the earlier flexible-course direction:
 
 | Endpoint | Method | Status |
@@ -136,9 +149,9 @@ Legacy endpoints retained from the earlier flexible-course direction:
 | `/api/learning/course` | GET | Implemented legacy course payload; no longer a primary capstone requirement. |
 | `/api/learning/activities` | GET | Backwards-compatible legacy activity catalogue. |
 
-`POST /api/ask` accepts a question, optional confirmation/conversation token, optional speech alternatives, presentation preferences, and an optional legacy `course_module_id`. If supplied, the module id is limited to the server-controlled definition in `app/learning.py`; clients cannot submit arbitrary course or system prompt text.
+`POST /api/ask` accepts a question, optional confirmation/conversation token, optional speech alternatives, presentation preferences, and, while the legacy course code remains, an optional `course_module_id`. If supplied, the module id is limited to the server-controlled definition in `app/learning.py`; clients cannot submit arbitrary course or system prompt text.
 
-Course context applies only to the request that supplies `course_module_id`; it is not stored as a conversation setting. Android ordinary typed, spoken, and suggested questions omit it, while explicit course activities and course quick actions supply it. Saved course progress and return location remain available.
+Course context applies only to the request that supplies `course_module_id`; it is not stored as a conversation setting. The current Android reshape target removes the course/module/progress surfaces. Until that refactor is complete, ordinary typed, spoken and suggested questions omit course context. The legacy API should be removed only after no current client path consumes it.
 
 Compatibility identifiers such as the interpreter's `learning` intent, response intents `agriculture-learning` and `education`, `education_key`, source category `educational`, and provenance kind `curated-learning` remain unchanged. They identify existing information/reference routes and do not require ordinary questions to be agricultural or course-related.
 

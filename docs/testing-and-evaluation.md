@@ -16,7 +16,7 @@ python -m compileall -q app tests
 The suite should cover:
 
 - measurement validation, natural-language aliases, and the standard-versus-optional capability catalogue;
-- baseline-only telemetry ingest plus optional/add-on values when supplied;
+- managed sparse telemetry ingest, capability/enablement validation, and optional/add-on values when supplied;
 - telemetry time, sequence, deduplication, and ingest behaviour;
 - database operations and paddock identity;
 - current paddock summaries that omit unavailable optional measurements rather than inventing values;
@@ -37,20 +37,25 @@ Farm facts must be testable without an LLM. Current readings, history, compariso
 
 ## Sensor capability acceptance
 
-The current product model has six standard measurements: soil moisture, soil temperature, air temperature, relative humidity, light, and barometric pressure. pH, EC, rainfall, wind, pasture height, and leaf wetness are optional add-ons.
+FarmPi's application catalogue contains 13 reviewed measurements. The managed physical-node architecture does **not** require every node or every telemetry payload to contain the six FR01 physical measurements. Instead, firmware capability, per-node enablement and actual reporting state are tested separately.
 
 Acceptance should include at minimum:
 
-1. a baseline-only ingest payload is accepted;
-2. omission of any standard measurement is rejected;
-3. an omitted optional measurement is stored as unavailable/`NULL`, not zero;
-4. an out-of-range supplied optional value is rejected;
-5. retry/deduplication works when optional fields are absent;
-6. a baseline-only paddock summary shows only available measurements;
-7. a direct request for an unavailable optional measurement says the paddock does not currently report it;
-8. an optional farm-wide average/ranking uses only reporting paddocks;
-9. historical queries/graphs ignore rows where the requested optional field is `NULL`;
-10. the synthetic ESP32 generator may still emit all supported fields, with `simulated=true` preserved.
+1. registration starts with no enabled measurements;
+2. a node may enable only measurements advertised by its firmware capability set;
+3. a nonempty sparse telemetry payload containing an enabled/supported physical measurement is accepted;
+4. omitted measurements remain absent/SQL `NULL` and are never converted into fabricated zeroes or placeholder values;
+5. a supplied disabled or unsupported measurement is rejected;
+6. invalid types, non-finite values and out-of-range supplied values are rejected;
+7. retry/deduplication works for sparse payloads;
+8. current paddock summaries show only measurements actually present in the selected observation;
+9. direct requests for unavailable measurements say the paddock does not currently report them;
+10. farm-wide analytics use only paddocks that actually report the requested measurement;
+11. historical queries/graphs ignore rows where the requested measurement is `NULL`;
+12. simulated telemetry remains explicitly distinguishable with `simulated=true`;
+13. per-node configuration changes are isolated: changing node A must not alter node B's desired/applied fingerprint or enabled set.
+
+Separately, **T01 final physical acceptance still requires all six FR01 measurements** - soil moisture, soil temperature, air temperature, relative humidity, light and barometric pressure - to be demonstrated from real hardware with correct source/location/time/units and physical-versus-simulated provenance. That requirement must not be implemented by forcing every intermediate node payload to contain all six values.
 
 ## Android acceptance checks
 
@@ -115,7 +120,7 @@ curl -fsS http://127.0.0.1:8000/api/status
 curl --resolve farmpi.local:443:127.0.0.1 -k https://farmpi.local/health
 ```
 
-Also submit one authenticated baseline-only ingest sample, retry the same sensor/sequence to confirm deduplication, submit a sample with at least one optional measurement, ask for exact available and unavailable values, request a historical calculation and graph, test a broader general question, and verify that a stopped database or LLM is described honestly.
+Also exercise one registered managed-node contact/configuration cycle, submit one authenticated sparse physical test fixture for an enabled capability, retry the same sensor/sequence to confirm deduplication, verify disabled/unsupported values are rejected, ask for exact available and unavailable values, request a historical calculation and graph, test a broader general question, and verify that a stopped database or LLM is described honestly. Fixture telemetry must not be presented as physical probe evidence.
 
 Do not record credentials in test output or evidence documents.
 
@@ -128,7 +133,7 @@ Every material change should link implementation, verification, and capstone evi
 | Functional requirement | working end-to-end behaviour plus acceptance result |
 | Architecture | component/responsibility mapping and rationale |
 | Farm facts and calculations | exact fixtures, provenance fields, failure-path tests |
-| Sensor capability model | baseline/add-on ingest, nullable storage, mixed-capability current/history behaviour |
+| Sensor capability model | managed sparse ingest, capability/enablement checks, nullable storage, mixed-capability current/history behaviour |
 | Mobile interface | device build/acceptance, layout/usability observations, state persistence |
 | Graphing/analytics | deterministic value tests plus visual acceptance |
 | AI interpretation | constrained schema tests, semantic recovery, no model authority over farm facts |
@@ -163,7 +168,7 @@ Record end-to-end latency and the existing response timing stages under a named 
 
 Model size, tokens per second, memory use, reasoning configuration, and context size are implementation evidence for the AI/data subsystem. They should be assessed against application responsiveness and deployment feasibility.
 
-Historical model measurements belong in [Local LLM evaluation history](history/local-llm-evaluation.md).
+Historical model measurements belong in [Local LLM evaluation history](history/local-llm-evaluation.md). For the current proof-of-concept deployment, also record the Pi-local Qwen3 1.7B configuration and end-to-end latency with the development PC removed from the inference path.
 
 ## Historical learning/course checks
 

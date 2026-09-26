@@ -8,10 +8,13 @@ The checked-in deployment targets a Debian-family Raspberry Pi with:
 - Python 3 and `venv`;
 - MariaDB bound to localhost;
 - Caddy serving `https://farmpi.local` with its internal CA;
+- one normal management/home-LAN connection and one dedicated FarmPi wireless access-point profile, with the AP profile bound to the intended radio by MAC address rather than depending on a `wlanN` name;
 - `farmpi.service` running Uvicorn on `127.0.0.1:8000`;
 - `farmpi-llm.service` running Qwen3 1.7B through `llama-server` on `127.0.0.1:8080`.
 
 The application can use a different OpenAI-compatible model server by setting `FARMPI_LLAMA_URL` and `FARMPI_LLM_MODEL`. If the model is hosted on another machine, permit only the required trusted LAN connection and do not expose the endpoint to the public Internet.
+
+The current proof-of-concept deployment has been verified with no `FARMPI_LLAMA_URL` override, so the backend uses its default `http://127.0.0.1:8080`. The active Pi service runs `lmstudio-community/Qwen3-1.7B-GGUF:Q4_K_M` through `llama.cpp` with context 2048, reasoning disabled and one parallel slot. The development PC is therefore not required in the normal inference path.
 
 ## Prerequisites
 
@@ -40,7 +43,7 @@ sudo bash ./scripts/setup-database
 
 1. installs MariaDB and OpenSSL;
 2. binds MariaDB to `127.0.0.1`;
-3. creates `/etc/farmpi/farmpi.env` with generated database and ingest credentials;
+3. creates `/etc/farmpi/farmpi.env` with generated database, ingest and administrator credentials;
 4. creates the `farmpi` database and restricted `farmpi@127.0.0.1` user;
 5. applies the schema and repeatable 16-node seed;
 6. restarts FarmPi if its service is installed.
@@ -58,6 +61,7 @@ FARMPI_DB_NAME=farmpi
 FARMPI_DB_USER=farmpi
 FARMPI_DB_PASSWORD=<generated secret>
 FARMPI_INGEST_TOKEN=<generated secret>
+FARMPI_ADMIN_TOKEN=<generated secret>
 ```
 
 Optional model overrides:
@@ -76,7 +80,9 @@ FARMPI_LLM_MODEL=qwen/qwen3.5-9b
 
 Enable LM Studio's local-server network access only on a trusted LAN, allow the Pi to reach TCP port `1234`, and do not expose the server to the public Internet. FarmPi checks model-service readiness through the OpenAI-compatible `GET /v1/models` endpoint; LM Studio does not advertise `GET /health`.
 
-Never commit this file or copy its secrets into firmware source. Only the ingest token is copied into the ignored ESP32 `config.h` on the development workstation.
+`FARMPI_ADMIN_TOKEN` is separate from the simulator ingest token and authorises physical-node registration/configuration through the administrator API. The Android Nodes screen should hold it only for the current administration session.
+
+Never commit this file or copy its secrets into firmware source. Managed physical ESP32-S3 nodes use their own persisted per-device credential; do not reuse the administrator or shared simulator-ingest token as a device identity secret.
 
 ## What `./update` does
 
@@ -121,6 +127,20 @@ Install only Caddy's public root certificate on the Android device. The private 
 - the public Caddy root is installed and enabled for user certificates;
 - the Android network-security configuration still permits the intended user trust anchor.
 
+## FarmLAN wireless topology
+
+The current proof-of-concept uses two Raspberry Pi Wi-Fi radios with separate roles:
+
+- the management/home-LAN connection remains a normal Wi-Fi client connection;
+- the dedicated FarmLAN profile is bound to the intended AP radio by its hardware MAC address so interface renaming does not change roles;
+- the FarmLAN AP uses `10.42.0.1/24` on the Pi and NetworkManager shared mode provides local DHCP/DNS service;
+- ESP32-S3 nodes and the Android test device join the FarmLAN;
+- application clients continue to use `https://farmpi.local/` for the prototype because the current Caddy certificate contains the `farmpi.local` DNS SAN.
+
+Using the fixed AP-side IP directly from firmware could remove mDNS from the node dependency chain, but doing so would also require the server certificate to contain that IP as a Subject Alternative Name. That hardening is deliberately deferred because it is unnecessary for the present proof of concept.
+
+Do not document Wi-Fi passwords or device credentials in the repository. Interface names such as `wlan0`/`wlan1` may be useful diagnostics but are not the persistent role binding; the NetworkManager connection profile's MAC binding is authoritative.
+
 ## Health checks
 
 From the Pi:
@@ -163,7 +183,7 @@ Store backups outside the repository and protect them as operational data. Resto
 
 **Database unavailable.** Check MariaDB, `/etc/farmpi/farmpi.env` ownership/permissions, and the `farmpi@127.0.0.1` credentials.
 
-**Language model unavailable.** Check `FARMPI_LLAMA_URL`, the model service, model identifier, and `/api/status`. Learning questions return a limited useful fallback, while deterministic farm facts remain available when their dependencies are healthy.
+**Language model unavailable.** Check `FARMPI_LLAMA_URL`, the model service, model identifier, and `/api/status`. Model-assisted informational/explanation requests should degrade clearly, while deterministic farm facts remain available when their dependencies are healthy.
 
 From the Pi, verify an LM Studio connection and confirm the configured model identifier with `curl http://<development-pc-lan-ip>:1234/v1/models`. A successful response should list `qwen/qwen3.5-9b` for the current reference model.
 
@@ -175,4 +195,4 @@ From the Pi, verify an LM Studio connection and confirm the configured model ide
 
 ## Production limitations
 
-This is a local prototype. Before production use, replace prototype bearer authentication and ESP32 `setInsecure()` with a managed device-trust design, define certificate/token rotation, establish monitored backups, test restore procedures, review network exposure, and remove synthetic seed behaviour that is inappropriate for real operations.
+This is a local prototype. Before production use, replace shared simulator bearer authentication and any remaining legacy insecure-client paths with a fully managed device-trust design, define certificate/token rotation and device-key recovery, establish monitored backups, test restore procedures, review network exposure, and remove synthetic seed behaviour that is inappropriate for real operations.

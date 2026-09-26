@@ -23,13 +23,26 @@ The current capstone direction evaluates the Android client as part of a functio
 - explanation-depth and guidance-frequency preferences;
 - six presentation themes and compact/standard/large text-size choices;
 - bounded conversation continuity supplied by the backend;
-- visible connection/dependency status and differentiated request/connection failures.
+- visible connection/dependency status and differentiated request/connection failures;
+- a Nodes administration screen for pending discovery, explicit registration, identity/location display, desired/applied configuration state, per-sensor enablement and runtime reporting state.
 
-## Legacy learning UI
+## Legacy learning UI and current reshaping target
 
-The current build still contains the **Learn** tab and the five-module course created for the earlier **Developing Flexible IT Courses** elective. It remains functional and is useful development history, but it is no longer the primary capstone requirement.
+The current build still contains the **Learn** tab and the five-module course created for the earlier **Developing Flexible IT Courses** elective. It remains genuine development history, but it is no longer a current product requirement.
 
-Do not expand the course, progress model, or learning-specific UI unless a current application requirement justifies it. A later mobile-interface redesign may de-emphasise or remove these surfaces after the functional requirements are reviewed.
+The next Android refactor should **reshape the existing client rather than rewrite it**. Retain the working application plumbing - HTTPS/API integration, Ask, voice/TTS, graphs, provenance, settings, connection state and node administration - while removing course-specific surfaces and state that exist only for the superseded elective.
+
+Target removal includes:
+
+- learning outcomes and course/module navigation;
+- Learn/Try/Check/Continue workflow;
+- course progress and Return to Module state;
+- course-specific quick actions and module context;
+- course-only Android models and preference keys once no current feature consumes them.
+
+Do **not** remove ordinary contextual explanation, measurement interpretation, natural-language help, provenance or broader information answers merely because they can teach the user something. Those remain FarmPi application behaviour and contribute directly to the AI/Data Science integration.
+
+Backend course contracts should be removed separately only after the reshaped client no longer depends on them and regression tests confirm they are dead.
 
 ## Display and mobile usability
 
@@ -102,11 +115,15 @@ Current primary endpoints:
 - `POST /api/ask` is the main conversation/data-query contract;
 - `POST /api/ingest` is used by sensor/simulator clients, not the Android UI.
 
+Managed-node administration used by the Nodes screen includes the node contact/registration/configuration APIs described in [S3 node bring-up](s3-node-bringup.md). Administrative changes require the separate FarmPi administrator token; it is not the ESP32 ingest token and is held only for the current Nodes screen session.
+
 Legacy endpoints retained from the earlier course direction:
 
 - `GET /api/learning/course`;
 - `GET /api/learning/activities`;
 - optional `course_module_id` on `/api/ask`.
+
+These legacy contracts are candidates for removal after the Android course UI is removed and no current client path consumes them.
 
 The saved course return location is separate from the context sent with a question. Ordinary typed, spoken, and suggested questions omit `course_module_id`. Explicit course activities and course quick actions include their module; quick actions appear only for a successful course response. The Learn tab, Return to Module link, existing preference keys, and saved progress are retained.
 
@@ -147,10 +164,9 @@ On macOS/Linux use `./gradlew assembleDebug`.
 - all six themes remain readable across primary screens, cards, charts, navigation, and settings;
 - compact/standard/large text does not clip controls or evidence;
 - settings survive process restart;
-- after using a course activity, an ordinary Ask question has no course context or course quick actions, while Return to Module and saved progress still work;
-- explicit course quick actions retain their module context and ordinary follow-ups retain bounded conversation history;
+- while the legacy Learn/course feature remains in the build, ordinary Ask questions must not inherit course context; after the planned client reshaping these checks should be deleted with the removed course surfaces rather than preserved as permanent product requirements;
 - sources/evidence remain inspectable and are not calculated by the phone;
 - certificate failure remains visible and no insecure trust bypass exists;
 - portrait, landscape, and at least one small phone display remain usable.
 
-Legacy Learn/course features should continue to avoid crashes while they remain in the build, but they are not the primary acceptance target for the current capstone direction.
+Legacy Learn/course features should continue to avoid crashes while they remain in the build. Once the planned client reshaping removes them, acceptance should instead verify that Ask, graphs, provenance, voice/TTS, settings, connection state and Nodes behaviour remain intact and that no dead course navigation/state remains reachable.
