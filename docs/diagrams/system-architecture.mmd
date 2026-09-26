@@ -1,18 +1,20 @@
 flowchart LR
-  E[ESP32: 16 explicitly simulated nodes] -->|HTTPS bearer-auth telemetry| I[FastAPI ingest]
+  P[Managed ESP32-S3 physical nodes] -->|contact / config sync / sparse HTTPS telemetry| I[FarmPi node + ingest API]
+  S[16-node explicit simulator] -->|bearer-auth simulated telemetry| I
   I --> D[(MariaDB)]
-  W[Diagnostic browser] --> A[FastAPI learner API]
-  N[Native Android: Ask/Course, text, voice, charts, settings] --> A
+  W[Diagnostic browser] --> A[FastAPI application API]
+  N[Native Android: Ask, graphs, voice, settings, Nodes] -->|HTTPS farmpi.local| A
   A --> R[Deterministic router + semantic interpretation]
   R -->|farm fact/action| X[Approved resolver, analytics, confirmation]
-  R -->|learning/conversation| K[Knowledge-source and reviewed course-context selection]
+  R -->|explanation / broad information| K[Grounding + source/provenance selection]
   X <--> D
-  X --> P[Authoritative farm evidence]
-  K --> S[Tiered external/general evidence]
-  P --> C[Provenance-labelled context]
-  S --> C
-  C --> Q[Configured Qwen/OpenAI-compatible server]
+  X --> PEV[Authoritative farm evidence]
+  K --> SEV[Reviewed / model evidence]
+  PEV --> C[Provenance-labelled context]
+  SEV --> C
+  C --> Q[Pi-local Qwen3 1.7B via llama.cpp]
   Q --> A
-  X --> G[Charts + bounded evidence]
+  X --> G[Verified charts + bounded evidence]
   G --> A
-  A -->|course payload; answer always useful when safe; never invent farm facts| N
+  A -->|answer / chart / evidence / status| N
+  N -->|administrator node approval + desired config| A
