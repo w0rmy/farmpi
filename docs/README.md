@@ -16,6 +16,7 @@ The current electives are **Advanced Application Development Concepts** and **Ar
 | [AI, grounding, and sources](learning-and-sources.md) | Semantic interpretation, deterministic/LLM boundaries, source hierarchy, provenance, recovery behaviour, and AI constraints. |
 | [Testing and evaluation](testing-and-evaluation.md) | Automated checks, Android acceptance, integration/deployment validation, usability, performance, and capstone evidence collection. |
 | [Development record](development-record.md) | Material design decisions, faults, fixes, direction changes, rationale, and verification. |
+| [Operational database transition](database-transition-2026-09-27.md) | Clean managed-node baseline, explicit demo data, farmer-defined locations, and OFF/SIMULATED/LIVE source modes. |
 | [ESP32-S3 node bring-up](s3-node-bringup.md) | Managed physical-node registration, configuration synchronisation, sparse telemetry contract, and hardware bring-up evidence. |
 | [ESP32-S3 implementation plan](s3-implementation-plan.md) | Design rationale and acceptance scope for the managed S3 node block. |
 | [Visual documentation](diagrams/README.md) | Mermaid diagrams and their maintenance ownership. |
