@@ -4,8 +4,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Air
-import androidx.compose.material.icons.rounded.Explore
-import androidx.compose.material.icons.rounded.Grass
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.Speed
@@ -31,8 +29,8 @@ private fun measurementVisual(key: String): MeasurementVisual = MeasurementVisua
         "light_lux" -> Icons.Rounded.LightMode
         "barometric_pressure_hpa" -> Icons.Rounded.Speed
         "wind_speed_kmh" -> Icons.Rounded.Air
-        "wind_direction_deg" -> Icons.Rounded.Explore
-        "pasture_height_cm" -> Icons.Rounded.Grass
+        "wind_direction_deg" -> Icons.Rounded.Air
+        "pasture_height_cm" -> Icons.Rounded.Science
         "soil_ph", "soil_ec_ms_cm" -> Icons.Rounded.Science
         else -> Icons.Rounded.Science
     }
