@@ -2,6 +2,21 @@
 
 This record captures material design decisions and their outcome/evidence rationale. Current operating instructions live in the subject guides; historical performance measurements live under `docs/history`.
 
+
+## 27 September 2026 - clean operational database and per-sensor source modes
+
+The move from a 16-location synthetic prototype toward two managed physical ESP32-S3 nodes exposed a data-model transition issue. The old simulated dataset was useful for early UI, graph, analytics and conversation testing, but retaining it as normal operational state risked making simulated locations look like live deployment state and preserving assumptions that no longer matched the managed-node architecture.
+
+Jeremy rejected simply carrying the old synthetic database forward. His correction was to preserve it as explicit demo/test data, back it up as historical evidence, and establish a clean operational database before real sensor acquisition begins. Normal setup/update paths therefore apply schema only; the old 16-location seed is loaded only through an explicit demo helper. A destructive reset is a separate confirmed operation and creates timestamped backups before dropping the database.
+
+The same review changed simulation responsibility. Instead of synthesising values centrally, each managed ESP32 measurement now has one explicit operating mode: **OFF**, **SIMULATED**, or **LIVE**. Simulation occurs at the sensor-driver boundary so simulated values still exercise the real device identity, configuration fingerprint, clock, sequence, TLS/network, ingest, MariaDB and Android path. SIMULATED and LIVE values are emitted as separate sparse observations so physical-versus-simulated provenance remains exact. LIVE cannot be selected unless the firmware advertises an implemented physical driver.
+
+Identity was also clarified. Immutable hardware UID, stable FarmPi logical ID and farmer-defined location are separate. New logical IDs use the support-oriented `FP-001` style. Farmers can use their normal location names such as `Bob's`, `Back Hill` or `Down by the Trough`, and a node can later move location without changing its hardware or logical identity. The optional friendly node name remains separate from the location name.
+
+This is another material human correction to the AI-assisted development process. The initial suggestion was to audit and separate the old mixed database. Jeremy proposed the cleaner operational reset plus device-bound simulation model and then identified that farmer-facing naming also needed to be separated from node identity. The resulting architecture is simpler to reason about and gives cleaner T01 provenance evidence without pretending that simulation is physical sensing.
+
+See [Operational database and managed-node transition](database-transition-2026-09-27.md) for the implementation and reset procedure.
+
 ## 26 September 2026 - live Raspberry Pi backend validation
 
 After the managed ESP32-S3 deployment/documentation update, the FarmPi validation suite was run on the deployed Raspberry Pi from `~/farmpi` using the Pi's Python 3.13 virtual environment.
