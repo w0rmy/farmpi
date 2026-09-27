@@ -44,7 +44,7 @@ def _measurement_payload(key: str, value: float, mode: str | None, observed_at: 
 
 def build_monitoring_overview(now: datetime | None = None) -> dict[str, object]:
     """Build current dashboard state without invoking the LLM."""
-    current_time = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    current_time = _utc(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     identities = active_paddocks()
 
     try:
@@ -100,7 +100,7 @@ def build_monitoring_overview(now: datetime | None = None) -> dict[str, object]:
             latest_received,
             current_time,
         )
-        payload["reporting_locations"] = len(contributors)
+        payload["contributing_locations"] = len(contributors)
         farm_measurements.append(payload)
 
     featured_chart = None
