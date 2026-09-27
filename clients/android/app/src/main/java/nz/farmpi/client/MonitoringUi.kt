@@ -340,7 +340,15 @@ internal fun MonitoringArea(
             }
         }
         if (loading) { LinearProgressIndicator(Modifier.fillMaxWidth()); Text("Retrieving verified FarmPi information…") }
-        requestError?.let { InfoCard("Information unavailable", it) { Button(onClick = { query(requested) }) { Text("Try again") } } }
+        requestError?.let {
+            InfoCard("Information unavailable", it) {
+                if (destination == "Compare") {
+                    Button(onClick = { requestError = null }) { Text("Return to comparison") }
+                } else {
+                    Button(onClick = { query(requested) }) { Text("Try again") }
+                }
+            }
+        }
         result?.let { response ->
             InfoCard("FarmPi result", requested) {
                 Text(response.answer, style = MaterialTheme.typography.bodyLarge)
