@@ -256,12 +256,21 @@ class NodeFlowTests(unittest.TestCase):
 class ConfigurationTests(unittest.TestCase):
     def test_canonical_full_hash_and_validation(self):
         capabilities = ["soil_moisture_pct", "air_temperature_c"]
-        config = configuration("node-001", capabilities, capabilities)
+        modes = {"soil_moisture_pct": "LIVE", "air_temperature_c": "SIMULATED"}
+        config = configuration("FP-001", modes, capabilities)
         self.assertEqual(len(fingerprint(config)), 64)
-        self.assertEqual(fingerprint(config), fingerprint(configuration("node-001", list(reversed(capabilities)), capabilities)))
-        for bad in [config | {"schema_version": 2}, config | {"node_uid": "FP-002"}, config | {"enabled": ["rainfall_mm"]}]:
+        self.assertEqual(
+            fingerprint(config),
+            fingerprint(configuration("FP-001", dict(reversed(list(modes.items()))), list(reversed(capabilities)))),
+        )
+        for bad in [
+            config | {"schema_version": 3},
+            config | {"node_uid": "FP-002"},
+            config | {"modes": config["modes"] | {"rainfall_mm": "LIVE"}},
+            config | {"modes": config["modes"] | {"soil_moisture_pct": "INVALID"}},
+        ]:
             with self.assertRaises(ValueError):
-                validate_config(bad, "node-001", capabilities, fingerprint(config))
+                validate_config(bad, "FP-001", capabilities, fingerprint(config))
         self.assertEqual(sync_state("a", "b", "a"), "UPDATE FAILED")
         self.assertEqual(sync_state("c", "b", "a"), "UPDATE PENDING")
 
