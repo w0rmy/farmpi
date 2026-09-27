@@ -4,7 +4,7 @@
 
 ## Implemented
 
-- FarmPi green is the new-install default; white rounded cards and green/earth/blue chart accents. Previously saved themes remain respected. App text size now respects the device's accessibility font scaling.
+- FarmPi now uses one fixed light visual system: white/off-white surfaces, dark text, restrained green accents, rounded cards and semantic status colours. Previously saved theme values are ignored rather than migrated. App text size continues to respect the device's accessibility font scaling.
 - Dashboard / Compare / Ask FarmPi / Alerts / More navigation, with Location Detail, History, Nodes and System Status destinations.
 - Dashboard/location requests, comparison controls and history controls call the existing authoritative Ask API and render answers, graphs and evidence in their own native screens. These requests are independent of the Ask conversation.
 - Ask retains bounded backend conversation context and now shows up to eight previous exchanges with inspectable sources/charts. Current source category and reading timestamps are visible. Old evidence is cleared when new requests start. Speech normalization, Heard/Interpreted, TTS and a globally accessible Stop speaking control remain.
@@ -17,7 +17,7 @@
 
 The current backend does not provide a public structured snapshot, persistent alerts/acknowledgement, threshold editing, or configurable long history windows. Automatic location cards, per-measurement cards, reporting counts, alerts, month/quarter/custom history, automatic discovery, editable server address, and voice-selection/rate settings are explicitly labelled Coming later or Not available yet. Native monitoring panels show real server responses rather than invented values. Current history controls offer one or seven days.
 
-The exact generated stakeholder images were not included in retrievable conversation attachments. Styling follows the recovered specification and written visual direction; pixel-level matching has not been verified. Dedicated tablet navigation remains a follow-up; the current navigation is shared across form factors.
+The fixed theme follows the supplied FarmPi stakeholder/reference image as the visual target. The implementation adopts its overall visual language rather than attempting a pixel-for-pixel reproduction. Dedicated tablet navigation remains a follow-up; the current navigation is shared across form factors.
 
 ## Validation
 
@@ -44,7 +44,7 @@ The initially missing `org.json` test dependency was downloaded successfully. Su
 
 ## Device acceptance before release
 
-Install the supplied debug APK on a test device with FarmPi certificate trust. Check existing preferences on upgrade; all primary and secondary destinations; current/old/missing/unavailable and simulated responses; comparisons and irregular history; typed/spoken follow-ups, corrections and Stop speaking; request failures versus disconnection; node registration followed by enabling supported sensors, location edits and configuration conflict recovery. Check narrow phones, tablets and all text sizes/themes. No live node configuration was changed during this task.
+Install the supplied debug APK on a test device with FarmPi certificate trust. Check existing preferences on upgrade; all primary and secondary destinations; current/old/missing/unavailable and simulated responses; comparisons and irregular history; typed/spoken follow-ups, corrections and Stop speaking; request failures versus disconnection; node registration followed by enabling supported sensors, location edits and configuration conflict recovery. Check narrow phones, tablets and all text sizes under the fixed FarmPi theme. No live node configuration was changed during this task.
 
 ## Final packaged checkpoint
 
