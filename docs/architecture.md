@@ -46,12 +46,12 @@ FarmPi now separates four concepts that must not be collapsed:
 
 1. **Measurement catalogue** - the 13 reviewed measurement types the application understands, including units, ranges, aliases and analytic capabilities.
 2. **Firmware/node capabilities** - the subset a particular firmware and hardware profile can support.
-3. **Per-node desired configuration** - the supported measurements enabled for a particular registered physical node.
-4. **Runtime/reporting state** - whether an enabled measurement is actually producing observations, is configured but not reporting, or is not fitted/disabled.
+3. **Per-node desired configuration** - one explicit `OFF`, `SIMULATED`, or `LIVE` mode for each supported measurement on a registered node. `LIVE` requires an advertised physical driver.
+4. **Runtime/reporting state** - whether a configured measurement is actually producing observations, including exact physical-versus-simulated provenance.
 
 FR01 still requires the final T01 concept-demonstrator evidence to show six physical measurements: soil moisture, soil temperature, air temperature, relative humidity, ambient light and barometric pressure. That is an **acceptance requirement for the completed physical prototype**, not a requirement that every node or every telemetry payload contain all six values.
 
-Managed physical telemetry is sparse. A node submits only measurements that were actually observed and are enabled in its acknowledged configuration. FarmPi does not fabricate zeroes or placeholder measurements to make a row appear complete. Missing values remain absent/SQL `NULL`, and current/history/analytics code operates only on measurements actually present.
+Managed telemetry is sparse. A node submits only measurements actually produced by its acknowledged source mode. `SIMULATED` values are generated on the ESP32; `LIVE` values come from an implemented physical driver. FarmPi does not fabricate zeroes or placeholder measurements to make a row appear complete. Missing values remain absent/SQL `NULL`, and current/history/analytics code operates only on measurements actually present.
 
 Optional/add-on measurements include pH, EC, rainfall, wind speed/direction, pasture height and leaf wetness. The simulator may emit a broader set because it is explicitly synthetic and exists to exercise the application/data model.
 
