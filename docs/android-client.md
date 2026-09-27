@@ -28,7 +28,7 @@ The current capstone direction evaluates the Android client as part of a functio
 
 ## Navigation after course retirement
 
-The Android client now opens Dashboard with primary destinations **Dashboard / Compare / Ask FarmPi / Alerts / More**. More opens History, Nodes, Settings and System Status. Dashboard, Location Detail, Compare and History request real information through the existing Ask contract and show native response/chart/evidence panels. Automatic structured location/measurement cards and reporting counts are labelled Coming later because no public snapshot endpoint supplies them. Alerts and thresholds are explicitly unavailable prototypes. Nodes shows compact cards; configuration and registration live on a separate Node Detail page. See [the UX v0.1 refactor map](android-ux-v01-refactor-map.md).
+The Android client opens Dashboard with primary destinations **Dashboard / Compare / Ask FarmPi / Alerts / More**. More opens History, Nodes, Settings and System Status. Dashboard and Location Detail now use the deterministic `/api/monitoring/overview` contract for graphical current-state cards, location cards, age/provenance metadata and the featured 24-hour soil-moisture chart. Compare and History continue to use the existing deterministic Ask/analytics contract. Alerts and thresholds remain explicitly unavailable prototypes. Nodes shows compact cards; configuration and registration live on a separate Node Detail page. See [the UX v0.1 refactor map](android-ux-v01-refactor-map.md).
 
 Learn, module navigation, Try/Check/Continue, progress, Return to Module and course quick actions have been removed, together with their Android models and API parsing. All questions omit `course_module_id`; contextual explanations, Guide me and ordinary conversation continuity remain.
 
@@ -49,6 +49,19 @@ The retained settings have verified plumbing:
 - `guidance` is sent as `preferences.guidance_level` on Ask and as `guidance_level` for Guide me. The backend uses `more / normal / less` to vary suggested next questions.
 - `display_density` remains Android presentation-only and never enters the FarmPi data/AI request contract.
 - voice input/read-aloud use Android SpeechRecognizer/TextToSpeech. The Settings screen reports current voice status but does not pretend to offer voice/rate controls that are not implemented.
+
+## Graphical dashboard
+
+The monitoring UI now has a reusable visual layer rather than relying on text cards alone:
+
+- Material vector icons map measurement keys to recognisable visual cues such as moisture, temperature, light, pressure and wind;
+- farm-summary measurement cards show formatted values, source mode and reading age;
+- the soil-moisture summary card can include a compact sparkline from the same verified historical series used by the full chart;
+- the Dashboard shows the existing interactive chart renderer for the verified 24-hour soil-moisture trend when history exists;
+- farmer-named location cards show up to three latest measurements and open Location Detail;
+- Location Detail reuses the same measurement-card system rather than generating prose to display current readings.
+
+Icons are measurement labels, not weather claims. For example, a sun icon denotes the light/lux measurement; it does not mean FarmPi has classified the weather as sunny.
 
 ## Graph presentation
 
