@@ -60,6 +60,8 @@ Hardware UID, logical FarmPi node identity, optional friendly node name and assi
 
 The sensor/transport boundary remains deliberately separate from the application. Current Wi-Fi, a future LoRa/LoRaWAN gateway, or Wi-Fi HaLow can feed the same transport-neutral ingest semantics without changing MariaDB, analytics, graphing, Android, or LLM authority.
 
+Managed-node time follows the same local-first boundary. FarmPi returns authoritative Unix `server_time` in the 15-second node contact response. The ESP32 uses that value to establish/correct its application clock and retains the telemetry guard that prevents invalid observation timestamps. The design does not require FarmPi to run NTP and does not introduce an Internet time dependency.
+
 ## Dashboard/current-state path
 
 1. Android requests `GET /api/monitoring/overview`.

@@ -11,7 +11,7 @@
 // and tested on this board profile.
 
 static const char* BOARD_PROFILE = "esp32-s3-managed-v2";
-static const char* FIRMWARE_VERSION = "0.3.0-sensor-modes";
+static const char* FIRMWARE_VERSION = "0.3.1-contact-time";
 
 // Alphabetical order is intentional: it matches the canonical configuration.
 static const char* CONFIGURABLE_MEASUREMENTS[] = {

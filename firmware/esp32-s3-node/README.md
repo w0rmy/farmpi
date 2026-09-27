@@ -5,6 +5,19 @@ authenticates with its persisted per-device credential, pulls one complete desir
 configuration, validates its SHA-256 fingerprint, persists the last-known-good
 configuration in NVS, and acknowledges what it applied.
 
+## Time source
+
+FarmPi itself is the managed node's application time authority. The node does not
+treat `farmpi.local` as an NTP server and does not require Internet time. Every
+successful `POST /api/nodes/contact` response already carries authoritative
+`server_time`; the firmware validates that Unix time and applies it with
+`settimeofday()` when its local clock is invalid or differs by more than five
+seconds.
+
+Telemetry retains the existing safety guard and is deferred until the node has a
+valid clock. Contact remains every 15 seconds and telemetry remains every 60
+seconds.
+
 ## Sensor modes
 
 Each catalogue measurement has exactly one mode:

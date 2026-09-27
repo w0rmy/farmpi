@@ -119,6 +119,15 @@ class NodeFlowTests(unittest.TestCase):
             "simulated": False, "soil_moisture_pct": 21.5, "clock_valid": True, "device_time_unix": int(datetime.now(timezone.utc).timestamp()) - 1,
             "sample_seq": 1, **extra}
 
+    def test_contact_returns_authoritative_server_time(self):
+        before = int(datetime.now(timezone.utc).timestamp())
+        response = self.contact(1)
+        after = int(datetime.now(timezone.utc).timestamp())
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIn("server_time", response.json())
+        self.assertGreaterEqual(response.json()["server_time"], before)
+        self.assertLessEqual(response.json()["server_time"], after)
+
     def test_two_nodes_start_empty_and_sync_independently(self):
         first, second = self.register(1), self.register(2)
         one, two = self.pull(1), self.pull(2)
