@@ -142,9 +142,12 @@ class MonitoringOverviewTests(unittest.TestCase):
         self.assertEqual(missing.status_code, 404)
 
     def test_canonical_and_composed_applications_mount_monitoring_routes(self) -> None:
+        # FastAPI 0.141 keeps included routers as a live route tree; app.routes
+        # is no longer a reliable flat list of every final path operation.
+        # OpenAPI is the supported composed-application view used by clients.
         for name, candidate in (("base", base_app), ("composed", composed_app)):
             with self.subTest(application=name):
-                paths = {getattr(route, "path", None) for route in candidate.routes}
+                paths = set(candidate.openapi().get("paths", {}))
                 self.assertIn("/api/monitoring/overview", paths)
                 self.assertIn("/api/monitoring/compare", paths)
 
