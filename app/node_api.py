@@ -251,19 +251,35 @@ def list_nodes():
         desired = decode(row.get("desired_config_json"), {})
         modes = desired.get("modes", {})
         capabilities = decode(row.get("capabilities_json"), [])
-        # Bounded, per-measurement last observation; no fabricated samples.
-        stamps = fetch_all("SELECT " + ",".join(f"MAX(CASE WHEN {m.key} IS NOT NULL THEN observed_at END) AS {m.key}" for m in MEASUREMENTS) + " FROM readings WHERE sensor_node_id=%s", (row["id"],))
-        last = stamps[0] if stamps else {}
+        # Reporting state must match the *current mode*. A recent simulated
+        # sample must not make a newly selected LIVE mode look operational.
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         sensors = []
         for m in MEASUREMENTS:
-            timestamp = last.get(m.key)
-            reporting = isinstance(timestamp, datetime) and 0 <= (now - timestamp).total_seconds() <= 600
+            latest_rows = fetch_all(
+                f"""SELECT observed_at,simulated,measurement_modes_json
+                    FROM readings
+                    WHERE sensor_node_id=%s AND {m.key} IS NOT NULL
+                    ORDER BY observed_at DESC,id DESC LIMIT 1""",
+                (row["id"],),
+            )
+            latest = latest_rows[0] if latest_rows else {}
+            timestamp = latest.get("observed_at")
+            latest_modes = decode(latest.get("measurement_modes_json"), {})
+            latest_mode = latest_modes.get(m.key)
+            if not latest_mode and timestamp is not None:
+                latest_mode = "SIMULATED" if latest.get("simulated") else "LIVE"
             mode = modes.get(m.key, "OFF")
+            reporting = (
+                mode != "OFF"
+                and latest_mode == mode
+                and isinstance(timestamp, datetime)
+                and 0 <= (now - timestamp).total_seconds() <= 600
+            )
             sensors.append({"key": m.key, "label": m.label, "unit": m.unit, "supported": m.key in capabilities,
                 "mode": mode, "enabled": mode != "OFF",
                 "state": "OFF" if mode == "OFF" else ("REPORTING" if reporting else f"{mode} / NOT REPORTING"),
-                "last_observed_at": timestamp})
+                "last_observed_at": timestamp, "last_observed_mode": latest_mode})
         result.append({**status_for(row), "id": row["id"], "name": row["name"], "hardware_uid": row["hardware_uid"],
             "paddock_id": row["paddock_id"], "paddock_name": row["paddock_name"], "firmware_version": row.get("firmware_version"),
             "last_seen": row.get("last_seen"), "config_error": row.get("config_error"), "sensors": sensors})
