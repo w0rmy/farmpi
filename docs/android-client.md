@@ -24,7 +24,7 @@ The current capstone direction evaluates the Android client as part of a functio
 - six presentation themes and compact/standard/large text-size choices;
 - bounded conversation continuity supplied by the backend;
 - visible connection/dependency status and differentiated request/connection failures;
-- a Nodes administration screen for pending discovery, explicit registration, identity/location display, desired/applied configuration state, per-sensor enablement and runtime reporting state.
+- a Nodes administration screen with compact node cards, separate Node Detail, pending registration, farmer-defined location naming, desired/applied configuration state, and per-measurement OFF/SIMULATED/LIVE modes.
 
 ## Navigation after course retirement
 
