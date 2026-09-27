@@ -145,10 +145,10 @@ private fun NodeDetailCard(node: JSONObject, response: JSONObject, busy: Boolean
     val sensors = node.getJSONArray("sensors")
     var modes by remember {
         mutableStateOf(
-            (0 until sensors.length()).associate {
-                val item = sensors.getJSONObject(it)
-                item.getString("key") to item.optString("mode", "OFF")
-            }
+            (0 until sensors.length())
+                .map { sensors.getJSONObject(it) }
+                .filter { it.getBoolean("supported") }
+                .associate { item -> item.getString("key") to item.optString("mode", "OFF") }
         )
     }
 
