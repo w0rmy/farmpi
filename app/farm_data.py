@@ -30,6 +30,7 @@ class PaddockEnvironment:
     observed_at: datetime
     sensor_count: int
     contains_simulated: bool
+    measurement_modes: dict[str, str]
     sources: tuple[dict[str, object], ...] = ()
 
     def __getattr__(self, key: str) -> float:
@@ -68,7 +69,8 @@ SELECT
     COUNT(*) AS sensor_count,
     MAX(CASE WHEN r.simulated = 1 THEN 1 ELSE 0 END) AS contains_simulated,
     JSON_ARRAYAGG(JSON_OBJECT('sensor',s.node_uid,'observed_at',r.observed_at,
-        'received_at',r.received_at,'simulated',r.simulated,'paddock_id',r.paddock_id)) AS sources_json
+        'received_at',r.received_at,'simulated',r.simulated,'paddock_id',r.paddock_id,
+        'measurement_modes',r.measurement_modes_json)) AS sources_json
 FROM paddocks AS p
 JOIN sensor_nodes AS s ON s.paddock_id = p.id AND s.active = 1
 JOIN readings AS r ON r.id = (
@@ -93,6 +95,14 @@ def get_environment_snapshot() -> list[PaddockEnvironment]:
         observed_at = row.get("observed_at", received_at)
         if not isinstance(received_at, datetime) or not isinstance(observed_at, datetime):
             raise NoFarmData("A current reading has an invalid timestamp.")
+        sources = tuple(json.loads(row["sources_json"])) if row.get("sources_json") else ()
+        measurement_modes: dict[str, str] = {}
+        for source in sources:
+            raw_modes = source.get("measurement_modes")
+            modes = json.loads(raw_modes) if isinstance(raw_modes, str) and raw_modes else {}
+            for key, mode in modes.items():
+                if mode == "SIMULATED" or key not in measurement_modes:
+                    measurement_modes[key] = mode
         snapshot.append(PaddockEnvironment(
             id=int(row["id"]),
             name=str(row["name"]),
@@ -100,8 +110,9 @@ def get_environment_snapshot() -> list[PaddockEnvironment]:
             received_at=received_at,
             observed_at=observed_at,
             sensor_count=int(row["sensor_count"]),
-            contains_simulated=bool(row["contains_simulated"]),
-            sources=tuple(json.loads(row["sources_json"])) if row.get("sources_json") else (),
+            contains_simulated=any(mode == "SIMULATED" for mode in measurement_modes.values()) or bool(row["contains_simulated"]),
+            measurement_modes=measurement_modes,
+            sources=sources,
         ))
     if not snapshot:
         raise NoFarmData("No current farm readings are available.")
@@ -200,6 +211,7 @@ def _current_evidence(item: PaddockEnvironment) -> tuple[dict[str, object], ...]
         "observed_at": item.observed_at.isoformat(),
         "received_at": item.received_at.isoformat(),
         "simulated": item.contains_simulated,
+        "measurement_modes": item.measurement_modes,
         "source_category": "observational",
         "sources": item.sources,
         "units": {key: BY_KEY[key].unit for key in item.values},
@@ -298,7 +310,8 @@ def _current_average(key: str) -> GroundingData:
         "sensor": None,
         "timestamp": item.received_at.isoformat(),
         "value": item.values[key],
-        "simulated": item.contains_simulated,
+        "simulated": item.measurement_modes.get(key) == "SIMULATED",
+        "source_mode": item.measurement_modes.get(key),
     } for item in items)
     fact = f"Farm average {label} across {len(items)} reporting paddocks: {format_measurement(value, key)}."
     return GroundingData(
@@ -316,7 +329,8 @@ def _current_ranking(key: str, highest: bool) -> GroundingData:
     winner = max(items, key=lambda item: item.values[key]) if highest else min(items, key=lambda item: item.values[key])
     direction = "Highest" if highest else "Lowest"
     values = dict(sorted(((item.name, item.values[key]) for item in items), key=lambda entry: entry[1], reverse=highest))
-    evidence = tuple({"paddock": item.name, "sensor": None, "timestamp": item.received_at.isoformat(), "value": item.values[key], "simulated": item.contains_simulated} for item in items)
+    evidence = tuple({"paddock": item.name, "sensor": None, "timestamp": item.received_at.isoformat(), "value": item.values[key],
+        "simulated": item.measurement_modes.get(key) == "SIMULATED", "source_mode": item.measurement_modes.get(key)} for item in items)
     return GroundingData("ranking", (f"{direction} {measurement(key).label}: {winner.name}.", _measurement_fact(winner, key), _provenance_fact(items)), evidence, comparison_chart(key, values, "current/latest", direction.casefold(), any(item.contains_simulated for item in items)))
 
 
@@ -336,7 +350,9 @@ def _historical_rows(key: str, minutes: int, paddock_name: str | None) -> tuple[
         params.append(target.id)
         resolved_name = target.name
     sql = f"""
-SELECT p.name, s.node_uid AS sensor_uid, r.{key} AS value, {analysis_time} AS analysis_at, r.simulated
+SELECT p.name, s.node_uid AS sensor_uid, r.{key} AS value, {analysis_time} AS analysis_at,
+       CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(r.measurement_modes_json, '$."{key}"'))='SIMULATED'
+            THEN 1 ELSE r.simulated END AS simulated
 FROM readings AS r
 JOIN sensor_nodes AS s ON s.id = r.sensor_node_id
 JOIN paddocks AS p ON p.id = r.paddock_id
@@ -410,7 +426,9 @@ def historical_rows_from(key: str, start_at: datetime, paddock_name: str | None 
         params.append(target.id)
         resolved_name = target.name
     sql = f"""
-SELECT p.name, s.node_uid AS sensor_uid, r.{key} AS value, {analysis_time} AS analysis_at, r.simulated
+SELECT p.name, s.node_uid AS sensor_uid, r.{key} AS value, {analysis_time} AS analysis_at,
+       CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(r.measurement_modes_json, '$."{key}"'))='SIMULATED'
+            THEN 1 ELSE r.simulated END AS simulated
 FROM readings AS r JOIN sensor_nodes AS s ON s.id = r.sensor_node_id JOIN paddocks AS p ON p.id = r.paddock_id
 WHERE {" AND ".join(where)} ORDER BY {analysis_time} ASC, r.id ASC
 """
