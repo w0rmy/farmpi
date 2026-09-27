@@ -138,10 +138,9 @@ internal fun MonitoringArea(
                     TextButton(onClick = { details = !details }) { Text(if (details) "Hide technical details" else "Technical details") }
                     if (details) Text(health?.toString(2) ?: "No current status response.", style = MaterialTheme.typography.bodySmall)
                 }
-                InfoCard("Connection help", "Connect this device to the FarmPi network and check that its server certificate is trusted.") {
-                    Text("Server: ${BuildConfig.FARMPI_BASE_URL}")
-                    Text("Automatic discovery and editing the server address: Coming later.")
+                InfoCard("Connection help", "FarmPi connects automatically over the local FarmPi network. If it is unavailable, check that this device is on FarmLAN and that the FarmPi certificate is trusted.") {
                     Text("Application ${BuildConfig.VERSION_NAME} · Prototype")
+                    Text("The server address is fixed by the local FarmPi installation and is not a user setting.")
                     Text("Sensor reporting totals and independent network diagnostics: Not available yet.")
                 }
             }

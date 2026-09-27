@@ -530,7 +530,10 @@ private fun FarmPiApp() {
     }
     }
     if (showSettings) SettingsDialog(
-        explanation, guidance, displayDensity,
+        explanation = explanation,
+        guidance = guidance,
+        displayDensity = displayDensity,
+        voiceStatus = ttsStatus,
         setExplanation = { explanation = it; preferences.edit().putString("explanation", it).apply() },
         setGuidance = { guidance = it; preferences.edit().putString("guidance", it).apply() },
         setDisplayDensity = { displayDensity = it; preferences.edit().putString("display_density", it).apply() },
@@ -539,35 +542,117 @@ private fun FarmPiApp() {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SettingsDialog(
-    explanation: String, guidance: String, displayDensity: String,
-    setExplanation: (String) -> Unit, setGuidance: (String) -> Unit,
-    setDisplayDensity: (String) -> Unit, close: () -> Unit,
+    explanation: String,
+    guidance: String,
+    displayDensity: String,
+    voiceStatus: String,
+    setExplanation: (String) -> Unit,
+    setGuidance: (String) -> Unit,
+    setDisplayDensity: (String) -> Unit,
+    close: () -> Unit,
 ) = AlertDialog(
     onDismissRequest = close,
-    title = { Text("Settings") },
-    text = { Column(Modifier.verticalScroll(rememberScrollState())) {
-        Text("Connection", fontWeight = FontWeight.Bold)
-        Text(BuildConfig.FARMPI_BASE_URL)
-        Text("Server address editing — Coming later", style = MaterialTheme.typography.bodySmall)
-        Text("Voice", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
-        Text("Speech input and read-aloud are available in Ask FarmPi. Use Stop speaking to interrupt playback.")
-        Text("Voice selection and speech-rate controls — Coming later", style = MaterialTheme.typography.bodySmall)
-        Text("Explanation depth", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
-        SettingChips(listOf("simple", "normal", "technical"), explanation, setExplanation)
-        Text("Guidance prompts", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
-        SettingChips(listOf("more", "normal", "less"), guidance, setGuidance)
-        Text("Text size", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
-        SettingChips(listOf("compact", "standard", "large"), displayDensity, setDisplayDensity)
-    } },
-    confirmButton = { TextButton(onClick = close) { Text("Done") } },
+    containerColor = MaterialTheme.colorScheme.surface,
+    shape = MaterialTheme.shapes.large,
+    title = {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("FarmPi Settings", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Text(
+                "Response style and accessibility",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    },
+    text = {
+        Column(
+            Modifier.verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SettingsSection(
+                title = "AI response detail",
+                description = "Controls how much explanation FarmPi asks the local AI to provide. It does not change sensor facts, calculations or source authority.",
+            ) {
+                SettingChips(EXPLANATION_OPTIONS, explanation, setExplanation)
+            }
+
+            SettingsSection(
+                title = "Follow-up guidance",
+                description = "Controls how many suggested next questions FarmPi offers after a response and in Guide me.",
+            ) {
+                SettingChips(GUIDANCE_OPTIONS, guidance, setGuidance)
+            }
+
+            SettingsSection(
+                title = "Text size",
+                description = "Changes app text size only. It does not alter FarmPi answers or measurements.",
+            ) {
+                SettingChips(TEXT_SIZE_OPTIONS, displayDensity, setDisplayDensity)
+            }
+
+            SettingsSection(
+                title = "Voice",
+                description = "Speech input and read-aloud use the Android device. Voice selection and server configuration are not user settings.",
+            ) {
+                Text(
+                    voiceStatus,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    },
+    confirmButton = {
+        Button(onClick = close) { Text("Done") }
+    },
 )
 
 @Composable
-private fun SettingChips(values: List<String>, selected: String, setValue: (String) -> Unit) = Row {
-    values.forEach { value ->
-        FilterChip(selected = selected == value, onClick = { setValue(value) }, label = { Text(value) }, modifier = Modifier.padding(end = 6.dp))
+private fun SettingsSection(
+    title: String,
+    description: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 0.dp,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            content()
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SettingChips(
+    options: List<SettingOption>,
+    selected: String,
+    setValue: (String) -> Unit,
+) = FlowRow(
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+    verticalArrangement = Arrangement.spacedBy(4.dp),
+) {
+    options.forEach { option ->
+        FilterChip(
+            selected = selected == option.key,
+            onClick = { setValue(option.key) },
+            label = { Text(option.label) },
+        )
     }
 }
 

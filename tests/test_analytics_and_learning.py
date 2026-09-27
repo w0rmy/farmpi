@@ -10,7 +10,7 @@ from app.analytics import compare_paddocks, historical_analysis
 from app.education import CONCEPTS, concept_for_measurement, render_concept
 from app.learning import ACTIVITIES
 from app.question_router import route_question
-from app.app import AskRequest, ask
+from app.app import AskRequest, ClientPreferences, ask
 
 
 class AnalyticsAndLearningTests(unittest.TestCase):
@@ -85,6 +85,32 @@ class AnalyticsAndLearningTests(unittest.TestCase):
         self.assertEqual(response.source_category, "educational")
         self.assertIn("electrical conductivity", response.answer)
         self.assertEqual(response.timings.llm_ms, 0.0)
+
+
+    def test_explanation_preference_changes_reviewed_answer_detail(self) -> None:
+        simple = asyncio.run(ask(AskRequest(
+            question="What does soil EC mean?",
+            preferences=ClientPreferences(explanation_level="simple", guidance_level="normal"),
+        )))
+        technical = asyncio.run(ask(AskRequest(
+            question="What does soil EC mean?",
+            preferences=ClientPreferences(explanation_level="technical", guidance_level="normal"),
+        )))
+        self.assertNotEqual(simple.answer, technical.answer)
+        self.assertEqual(simple.preferences.explanation_level, "simple")
+        self.assertEqual(technical.preferences.explanation_level, "technical")
+
+    def test_guidance_preference_changes_follow_up_count(self) -> None:
+        less = asyncio.run(ask(AskRequest(
+            question="What does soil EC mean?",
+            preferences=ClientPreferences(explanation_level="normal", guidance_level="less"),
+        )))
+        normal = asyncio.run(ask(AskRequest(
+            question="What does soil EC mean?",
+            preferences=ClientPreferences(explanation_level="normal", guidance_level="normal"),
+        )))
+        self.assertEqual(len(less.suggestions), 1)
+        self.assertGreater(len(normal.suggestions), len(less.suggestions))
 
 
 if __name__ == "__main__":
