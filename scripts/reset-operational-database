@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Destructively reset FarmPi to a clean operational database after taking backups.
+set -Eeuo pipefail
+
+if [[ ${EUID} -ne 0 ]]; then
+  echo "Run this helper through sudo." >&2
+  exit 1
+fi
+
+if [[ "${1:-}" != "--yes" ]]; then
+  echo "This will back up then DROP and recreate the FarmPi database." >&2
+  echo "Re-run as: sudo scripts/reset-operational-database --yes" >&2
+  exit 2
+fi
+
+project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+schema_file=${project_dir}/config/database/schema.sql
+backup_dir=/var/backups/farmpi
+stamp=$(date -u +%Y%m%dT%H%M%SZ)
+
+mkdir -p "${backup_dir}"
+chmod 0700 "${backup_dir}"
+
+if systemctl list-unit-files farmpi.service --no-legend 2>/dev/null | grep -q '^farmpi.service'; then
+  systemctl stop farmpi.service || true
+fi
+
+echo "Backing up current FarmPi database..."
+mariadb-dump --protocol=socket --single-transaction --routines --triggers farmpi | gzip -9 > "${backup_dir}/farmpi-pre-reset-${stamp}.sql.gz"
+mariadb-dump --protocol=socket --no-data farmpi | gzip -9 > "${backup_dir}/farmpi-schema-pre-reset-${stamp}.sql.gz"
+
+echo "Creating clean FarmPi operational database..."
+mariadb --protocol=socket <<'EOF_SQL'
+DROP DATABASE IF EXISTS farmpi;
+CREATE DATABASE farmpi
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+EOF_SQL
+mariadb --protocol=socket farmpi < "${schema_file}"
+
+if systemctl list-unit-files farmpi.service --no-legend 2>/dev/null | grep -q '^farmpi.service'; then
+  systemctl start farmpi.service
+fi
+
+echo "Clean operational database created."
+echo "No synthetic locations, nodes or readings were loaded."
+echo "Backups:"
+echo "  ${backup_dir}/farmpi-pre-reset-${stamp}.sql.gz"
+echo "  ${backup_dir}/farmpi-schema-pre-reset-${stamp}.sql.gz"
+echo "Existing ESP32-S3 device keys remain in NVS; nodes will rediscover as pending and must be approved again."
+echo "Use scripts/load-demo-data only when the explicit 16-location synthetic dataset is wanted."
