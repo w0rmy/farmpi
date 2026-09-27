@@ -7,6 +7,7 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.app import app as base_app
 from app.farm_data import GroundingData, NoFarmData, PaddockEnvironment
 from app.monitoring_api import build_monitoring_overview, router
 from app.main import app as composed_app
@@ -140,10 +141,12 @@ class MonitoringOverviewTests(unittest.TestCase):
         self.assertEqual(same.status_code, 422)
         self.assertEqual(missing.status_code, 404)
 
-    def test_composed_application_mounts_monitoring_routes(self) -> None:
-        paths = {getattr(route, "path", None) for route in composed_app.routes}
-        self.assertIn("/api/monitoring/overview", paths)
-        self.assertIn("/api/monitoring/compare", paths)
+    def test_canonical_and_composed_applications_mount_monitoring_routes(self) -> None:
+        for name, candidate in (("base", base_app), ("composed", composed_app)):
+            with self.subTest(application=name):
+                paths = {getattr(route, "path", None) for route in candidate.routes}
+                self.assertIn("/api/monitoring/overview", paths)
+                self.assertIn("/api/monitoring/compare", paths)
 
     @patch("app.monitoring_api.build_monitoring_overview")
     def test_endpoint_exposes_overview_contract(self, build) -> None:
