@@ -180,14 +180,7 @@ private fun NodeDetail(
     val sensors = node.getJSONArray("sensors")
     val registered = node.getBoolean("registered")
     var technical by remember { mutableStateOf(false) }
-    var modes by remember(node.toString()) {
-        mutableStateOf(
-            (0 until sensors.length())
-                .map { sensors.getJSONObject(it) }
-                .filter { it.getBoolean("supported") }
-                .associate { item -> item.getString("key") to item.optString("mode", "OFF") }
-        )
-    }
+    var modes by remember(node.toString()) { mutableStateOf(supportedNodeModes(sensors)) }
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -258,7 +251,7 @@ private fun NodeDetail(
                                     FilterChip(
                                         selected = selectedMode == mode,
                                         onClick = { modes = modes + (key to mode) },
-                                        enabled = !busy && (mode != "LIVE" || liveSupported),
+                                        enabled = !busy && canSelectNodeMode(item, mode),
                                         label = { Text(mode.lowercase().replaceFirstChar { it.uppercase() }) },
                                     )
                                 }
@@ -319,9 +312,7 @@ private fun NodeDetail(
                         .put("name", name.trim())
                         .put("paddock_id", if (location == 0) JSONObject.NULL else location)
                     if (registered) {
-                        val modeObject = JSONObject()
-                        modes.toSortedMap().forEach { (key, value) -> modeObject.put(key, value) }
-                        body.put("modes", modeObject)
+                        body.put("modes", nodeModesJson(modes))
                         body.put("expected_fingerprint", node.getString("desired_fingerprint"))
                     }
                     save(body, !registered)
