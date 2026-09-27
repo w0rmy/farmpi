@@ -334,3 +334,35 @@ This is a compatibility correction to the model integration boundary. It improve
 ## 26 September 2026 — Android course UI retirement
 
 Reshaped the existing Android client into Ask and Nodes destinations. Removed course navigation, module/progress state and course request context while retaining monitoring, contextual explanations, speech/TTS, graphs, provenance and settings. Historical course records and backend contracts are preserved. See [audit and validation record](android-ui-refactor-2026-09-26.md) for dependency analysis, the refactor boundary, 146 passing backend tests and the unresolved local Gradle loopback failure that prevented Android build/test/lint validation.
+
+
+## 27 September 2026 — transition from synthetic farm state to managed-node operational baseline
+
+### Transition issue identified
+
+The earlier prototype used a centrally generated 16-location synthetic dataset as normal working data. That was useful while developing dashboards, graphing, conversational queries and deterministic analytics. Once two real ESP32-S3 managed nodes existed, the same arrangement became misleading: the application could still appear to have sixteen actively reporting locations while the real hardware had no physical probes.
+
+Jeremy identified this as a design-transition problem rather than a reason to preserve the old prototype state. The synthetic readings have no operational value that justifies carrying their assumptions into the managed-node architecture.
+
+### Decision
+
+- Keep the old 16-location ESP32 simulator as an explicit test/demo tool, not the normal operational database baseline.
+- Add an explicit destructive transition helper that archives the existing MariaDB database before recreating a clean operational database. Applying code alone never performs the reset.
+- Separate immutable hardware UID, stable FarmPi logical node ID, friendly node name and farmer-defined location. Farmer locations may use ordinary names such as `Bob's` or `Down by the Trough`; moving hardware does not rename the hardware.
+- Replace the earlier enabled/disabled sensor configuration with one explicit state per supported measurement: `OFF`, `SIMULATED`, or `LIVE`.
+- Move simulation to the ESP32 sensor-driver boundary. A simulated reading must travel through the same device authentication, configuration fingerprint, clock/sequence, ingest, database and application path that a later physical reading will use.
+- Preserve provenance per measurement in storage. A mixed development sample can therefore distinguish which values are simulated and which came from a live driver.
+- Keep LIVE honest: selecting LIVE does not fabricate a value. Until the corresponding physical driver and probe exist, that measurement reports nothing.
+
+### AI collaboration and judgement
+
+The initial AI suggestion was to audit and separate the old synthetic database from the new physical-node state while preserving the existing dataset. Jeremy challenged that approach. Because the old observations were entirely synthetic, he proposed taking the opportunity to establish a clean operational baseline instead. He also proposed OFF/SIMULATED/LIVE as a per-sensor state so that each physical channel can move from simulation to a real probe without rebuilding the telemetry path.
+
+Jeremy then identified a second usability/identity issue: farmers will normally use their own location names rather than generic labels such as Paddock A or Paddock B. This led to the explicit separation of hardware identity, FarmPi node identity and editable farmer location.
+
+The resulting design is simpler than preserving two competing operational models and gives stronger provenance. It also records a practical consequence of evolving an existing prototype: earlier test assumptions can become architectural liabilities when the intent of the system changes.
+
+### Evidence boundary
+
+This work does not complete T01 or T02. Node-local simulated telemetry demonstrates the managed end-to-end software path only. T01 still requires the six FR01 measurements from real physical sensors. Persistent sequence allocation is present, but communication-loss buffering/recovery remains separate T02 work.
+
