@@ -15,7 +15,7 @@
 
 ## Deliberately incomplete target features
 
-The current backend does not provide a public structured snapshot, persistent alerts/acknowledgement, threshold editing, or configurable long history windows. Automatic location cards, per-measurement cards, reporting counts, alerts, month/quarter/custom history, automatic discovery, editable server address, and voice-selection/rate settings are explicitly labelled Coming later or Not available yet. Native monitoring panels show real server responses rather than invented values. Current history controls offer one or seven days.
+The current backend does not provide a public structured snapshot, persistent alerts/acknowledgement, threshold editing, or configurable long history windows. Automatic location cards, per-measurement cards, reporting counts, alerts, month/quarter/custom history and automatic discovery remain explicitly labelled Coming later or Not available yet. FarmPi is local-only, so the client no longer presents server-address editing as a future user feature. Voice selection/rate controls were also removed from Settings because they are not implemented; current Android voice status is shown instead. Native monitoring panels show real server responses rather than invented values. Current history controls offer one or seven days.
 
 The fixed theme follows the supplied FarmPi stakeholder/reference image as the visual target. The implementation adopts its overall visual language rather than attempting a pixel-for-pixel reproduction. Dedicated tablet navigation remains a follow-up; the current navigation is shared across form factors.
 
@@ -23,6 +23,7 @@ The fixed theme follows the supplied FarmPi stakeholder/reference image as the v
 
 - `testDebugUnitTest`, `assembleDebug`, and `lintDebug` passed at the shared/navigation checkpoint and at the monitoring/graph checkpoint.
 - Five JVM tests cover the unchanged Ask request contract and UTC/offset/categorical/irregular-time graph positions.
+- JVM coverage now also checks that the retained Settings option keys match the backend contract, that Ask carries explanation/guidance preferences, and that text size remains Android-only.
 - Final build result and artifact hash are recorded below after packaging.
 - Lint reports no errors; existing dependency/API/icon/style warnings remain.
 - `git diff --check` passed for source and documentation.
