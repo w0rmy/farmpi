@@ -54,7 +54,7 @@ class MonitoringOverviewTests(unittest.TestCase):
         moisture = next(item for item in result["farm_measurements"] if item["key"] == "soil_moisture_pct")
         self.assertEqual(moisture["value"], 32.0)
         self.assertEqual(moisture["source_mode"], "SIMULATED")
-        self.assertEqual(moisture["reporting_locations"], 2)
+        self.assertEqual(moisture["contributing_locations"], 2)
         self.assertEqual(result["featured_chart"]["type"], "line")
 
     @patch("app.monitoring_api.analytics_grounding")
