@@ -41,11 +41,11 @@ FarmPi's application catalogue contains 13 reviewed measurements. The managed ph
 
 Acceptance should include at minimum:
 
-1. registration starts with no enabled measurements;
-2. a node may enable only measurements advertised by its firmware capability set;
-3. a nonempty sparse telemetry payload containing an enabled/supported physical measurement is accepted;
+1. registration starts with every advertised measurement in `OFF` mode;
+2. a node may configure only measurements advertised by its firmware; `LIVE` may be selected only for measurements with an advertised physical driver;
+3. a nonempty sparse telemetry payload is accepted only when each value matches its acknowledged `SIMULATED` or `LIVE` mode;
 4. omitted measurements remain absent/SQL `NULL` and are never converted into fabricated zeroes or placeholder values;
-5. a supplied disabled or unsupported measurement is rejected;
+5. a supplied `OFF`, unsupported, unapplied, or wrong-provenance measurement is rejected;
 6. invalid types, non-finite values and out-of-range supplied values are rejected;
 7. retry/deduplication works for sparse payloads;
 8. current paddock summaries show only measurements actually present in the selected observation;
