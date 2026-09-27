@@ -85,6 +85,7 @@ class SensorReadingResponse(BaseModel):
     paddock: str
     values: dict[str, float]
     simulated: bool
+    measurement_modes: dict[str, str] = Field(default_factory=dict)
     observed_at: str
     received_at: str
     recorded_at: str
@@ -165,7 +166,8 @@ async def ingest_sensor_reading(request: SensorReadingRequest, authorization: st
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
     return SensorReadingResponse(
         reading_id=stored.reading_id, sensor=stored.sensor_uid, paddock=stored.paddock_name,
-        values=stored.values, simulated=stored.simulated, observed_at=stored.observed_at.isoformat(),
+        values=stored.values, simulated=stored.simulated, measurement_modes=stored.measurement_modes or {},
+        observed_at=stored.observed_at.isoformat(),
         received_at=stored.received_at.isoformat(), recorded_at=stored.recorded_at.isoformat(),
         clock_valid=stored.clock_valid, clock_offset_seconds=stored.clock_offset_seconds,
         clock_out_of_tolerance=stored.clock_out_of_tolerance, sample_seq=stored.sample_seq,
