@@ -24,7 +24,7 @@ The current capstone direction evaluates the Android client as part of a functio
 - one fixed FarmPi light visual system with compact/standard/large text-size choices;
 - bounded conversation continuity supplied by the backend;
 - visible connection/dependency status and differentiated request/connection failures;
-- a Nodes administration screen for pending discovery, explicit registration, farmer-defined location assignment, stable node identity, desired/applied configuration state, read-only per-sensor OFF/SIMULATED/LIVE modes and runtime reporting state. Mode changes are console-only; Android saves friendly names and locations without submitting a mode map.
+- a Nodes administration screen for pending discovery, explicit registration, farmer-defined location assignment, stable node identity, desired/applied configuration state, editable per-sensor OFF/SIMULATED/LIVE modes and runtime reporting state. Android submits the complete supported mode map with the current expected fingerprint, so stale edits are rejected rather than overwriting a newer configuration.
 
 ## Navigation after course retirement
 
@@ -149,6 +149,9 @@ On macOS/Linux use `./gradlew assembleDebug`.
 - settings survive process restart;
 - sources/evidence remain inspectable and are not calculated by the phone;
 - certificate failure remains visible and no insecure trust bypass exists;
+- Node Detail can switch a supported measurement between OFF and SIMULATED, and can select LIVE only when the firmware advertises a live driver;
+- saving a sensor-mode change shows UPDATE PENDING until the ESP32 acknowledges the new fingerprint, then IN SYNC;
+- a stale configuration save is rejected and requires a refresh rather than silently overwriting the current desired state;
 - portrait, landscape, and at least one small phone display remain usable.
 
 Acceptance must verify that no Learn tab, module link or course quick action is reachable, including on an upgrade with saved course progress. Switch Ask → Nodes → Ask during a request and after a graph response; confirm Ask state survives and Nodes refresh/registration/configuration still work. Verify ordinary follow-ups retain conversation context without a module field.
