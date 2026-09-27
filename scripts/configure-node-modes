@@ -61,7 +61,7 @@ def api(path: str, token: str, method: str = "GET", body: dict | None = None) ->
 def usage() -> None:
     print(
         "Usage:\n"
-        "  scripts/configure-node-modes FP-001 soil_moisture_pct=SIMULATED [air_temperature_c=OFF ...]\n\n"
+        "  .venv/bin/python scripts/configure-node-modes FP-001 soil_moisture_pct=SIMULATED [air_temperature_c=OFF ...]\n\n"
         "Modes: OFF, SIMULATED, LIVE\n"
         "LIVE is accepted only when firmware advertises a tested physical driver.",
         file=sys.stderr,
