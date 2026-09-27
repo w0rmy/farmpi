@@ -21,7 +21,7 @@ class MonitoringOverviewTest {
                   "display_value": "31.40%",
                   "source_mode": "SIMULATED",
                   "age_seconds": 90,
-                  "reporting_locations": 1
+                  "contributing_locations": 1
                 }
               ],
               "locations": [
