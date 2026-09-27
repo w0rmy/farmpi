@@ -6,6 +6,7 @@
 
 - FarmPi now uses one fixed light visual system: white/off-white surfaces, dark text, restrained green accents, rounded cards and semantic status colours. Previously saved theme values are ignored rather than migrated. App text size continues to respect the device's accessibility font scaling.
 - Dashboard / Compare / Ask FarmPi / Alerts / More navigation, with Location Detail, History, Nodes and System Status destinations.
+- Dashboard and Location Detail now consume a deterministic structured monitoring endpoint, render Material measurement icons, current-value cards, farmer-named location cards, a soil-moisture sparkline and the existing full interactive graph without invoking the LLM for screen construction.
 - Dashboard/location requests, comparison controls and history controls call the existing authoritative Ask API and render answers, graphs and evidence in their own native screens. These requests are independent of the Ask conversation.
 - Ask retains bounded backend conversation context and now shows up to eight previous exchanges with inspectable sources/charts. Current source category and reading timestamps are visible. Old evidence is cleared when new requests start. Speech normalization, Heard/Interpreted, TTS and a globally accessible Stop speaking control remain.
 - Nodes main screen contains compact cards and access controls. Selecting a card opens Node Detail. Registration, farmer locations and OFF/SIMULATED/LIVE sensor modes use the existing administrator API and optimistic configuration fingerprint. LIVE is selectable only when the node advertises a supported physical driver. Hardware/configuration diagnostics are behind Technical details. No online status is invented from timestamps.
@@ -15,7 +16,7 @@
 
 ## Deliberately incomplete target features
 
-The current backend does not provide a public structured snapshot, persistent alerts/acknowledgement, threshold editing, or configurable long history windows. Automatic location cards, per-measurement cards, reporting counts, alerts, month/quarter/custom history and automatic discovery remain explicitly labelled Coming later or Not available yet. FarmPi is local-only, so the client no longer presents server-address editing as a future user feature. Voice selection/rate controls were also removed from Settings because they are not implemented; current Android voice status is shown instead. Native monitoring panels show real server responses rather than invented values. Current history controls offer one or seven days.
+The backend now provides the structured monitoring snapshot needed by Dashboard and Location Detail. Persistent alerts/acknowledgement, threshold editing, configurable long history windows, month/quarter/custom history and automatic discovery remain explicitly labelled Coming later or Not available yet. FarmPi is local-only, so the client no longer presents server-address editing as a future user feature. Voice selection/rate controls were also removed from Settings because they are not implemented; current Android voice status is shown instead. Native monitoring panels show real server responses rather than invented values. Current history controls offer one or seven days.
 
 The fixed theme follows the supplied FarmPi stakeholder/reference image as the visual target. The implementation adopts its overall visual language rather than attempting a pixel-for-pixel reproduction. Dedicated tablet navigation remains a follow-up; the current navigation is shared across form factors.
 
@@ -24,6 +25,7 @@ The fixed theme follows the supplied FarmPi stakeholder/reference image as the v
 - `testDebugUnitTest`, `assembleDebug`, and `lintDebug` passed at the shared/navigation checkpoint and at the monitoring/graph checkpoint.
 - Five JVM tests cover the unchanged Ask request contract and UTC/offset/categorical/irregular-time graph positions.
 - JVM coverage now also checks that the retained Settings option keys match the backend contract, that Ask carries explanation/guidance preferences, and that text size remains Android-only.
+- Monitoring overview tests cover configured locations with and without readings, deterministic farm averages/provenance, reading age, chart presence, Android JSON parsing and the rule that stored data must not be presented as proof of node connectivity.
 - Final build result and artifact hash are recorded below after packaging.
 - Lint reports no errors; existing dependency/API/icon/style warnings remain.
 - `git diff --check` passed for source and documentation.
