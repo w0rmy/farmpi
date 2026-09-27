@@ -44,18 +44,22 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.SocketTimeoutException
 import java.net.URL
 import java.util.Locale
 import javax.net.ssl.HttpsURLConnection
 
 private const val TTS_TAG = "FarmPiTTS"
 private const val TTS_CHUNK_LIMIT = 3000
+internal const val DEFAULT_API_READ_TIMEOUT_MS = 30_000
+internal const val ASK_API_READ_TIMEOUT_MS = 130_000
 
 private data class SpeechResult(val heard: String, val interpreted: String, val changed: Boolean)
 internal data class ChartPoint(val label: String, val value: Double)
 internal data class ChartPayload(val type: String, val title: String, val unit: String, val period: String, val provenance: String, val series: List<Pair<String, List<ChartPoint>>>)
 internal data class AskResult(val answer: String, val spokenAnswer: String, val suggestions: List<String>, val intent: String, val conversationId: String?, val chart: ChartPayload?, val evidence: List<String>, val provenance: List<String>, val sourceTier: String, val sourceCategory: String)
 private class FarmPiApiException(message: String) : Exception(message)
+private class FarmPiTimeoutException(message: String) : Exception(message)
 
 private fun ttsSpeechText(text: String): String = text
     .replace(Regex("\\bFarmPi\\b"), "Farm Pi")
@@ -331,6 +335,9 @@ private fun FarmPiApp() {
         } catch (error: FarmPiApiException) {
             answer = error.message ?: "FarmPi could not complete that request."
             connection = "FarmPi connected — request not completed"
+        } catch (error: FarmPiTimeoutException) {
+            answer = "FarmPi is still available, but that answer took too long. Try the question again or use a direct monitoring view."
+            connection = "FarmPi connected — response timeout"
         } catch (error: Exception) {
             val detail = error.message?.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: ""
             answer = "I could not reach FarmPi$detail. Check the local connection and certificate trust."
@@ -685,30 +692,42 @@ private fun SettingChips(
 }
 
 private object FarmPiApi {
-    private fun request(path: String, method: String = "GET", body: JSONObject? = null, token: String? = null): JSONObject {
+    private fun request(
+        path: String,
+        method: String = "GET",
+        body: JSONObject? = null,
+        token: String? = null,
+        readTimeoutMs: Int = DEFAULT_API_READ_TIMEOUT_MS,
+    ): JSONObject {
         val connection = (URL(BuildConfig.FARMPI_BASE_URL + path.removePrefix("/")).openConnection() as HttpsURLConnection)
-        connection.requestMethod = method
-        connection.connectTimeout = 5_000
-        connection.readTimeout = 30_000
-        connection.setRequestProperty("Accept", "application/json")
-        if (token != null) connection.setRequestProperty("Authorization", "Bearer $token")
-        if (body != null) {
-            connection.doOutput = true
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.outputStream.use { it.write(body.toString().toByteArray()) }
-        }
-        val status = connection.responseCode
-        val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-        val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-        if (status !in 200..299) {
-            val detail = try {
-                JSONObject(text).optString("detail").takeIf { it.isNotBlank() }
-            } catch (_: Exception) {
-                null
+        try {
+            connection.requestMethod = method
+            connection.connectTimeout = 5_000
+            connection.readTimeout = readTimeoutMs
+            connection.setRequestProperty("Accept", "application/json")
+            if (token != null) connection.setRequestProperty("Authorization", "Bearer $token")
+            if (body != null) {
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.outputStream.use { it.write(body.toString().toByteArray()) }
             }
-            throw FarmPiApiException(detail ?: "FarmPi returned HTTP $status.")
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (status !in 200..299) {
+                val detail = try {
+                    JSONObject(text).optString("detail").takeIf { it.isNotBlank() }
+                } catch (_: Exception) {
+                    null
+                }
+                throw FarmPiApiException(detail ?: "FarmPi returned HTTP $status.")
+            }
+            return JSONObject(text)
+        } catch (error: SocketTimeoutException) {
+            throw FarmPiTimeoutException("FarmPi took too long to answer that request.")
+        } finally {
+            connection.disconnect()
         }
-        return JSONObject(text)
     }
 
     suspend fun nodes(token: String): JSONObject = withContext(Dispatchers.IO) { request("api/nodes", token = token) }
@@ -746,12 +765,23 @@ private object FarmPiApi {
 
     suspend fun ask(question: String, explanation: String, guidance: String, conversationId: String?): AskResult = withContext(Dispatchers.IO) {
         val body = askRequestBody(question, explanation, guidance, conversationId)
-        val json = request("api/ask", "POST", body)
+        parseAskResult(request("api/ask", "POST", body, readTimeoutMs = ASK_API_READ_TIMEOUT_MS))
+    }
+
+    suspend fun compareLocations(leftId: Int, rightId: Int, measurement: String, windowMinutes: Int): AskResult = withContext(Dispatchers.IO) {
+        parseAskResult(
+            request(
+                "api/monitoring/compare?left_id=$leftId&right_id=$rightId&measurement=$measurement&window_minutes=$windowMinutes"
+            )
+        )
+    }
+
+    private fun parseAskResult(json: JSONObject): AskResult {
         val answerText = json.getString("answer")
         val spokenText = (json.opt("spoken_answer") as? String)
             ?.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) && !it.equals("none", ignoreCase = true) }
             ?: answerText
-        AskResult(
+        return AskResult(
             answerText,
             spokenText,
             json.optJSONArray("suggestions").strings(),
@@ -782,6 +812,8 @@ private object FarmPiApi {
 }
 
 internal suspend fun fetchMonitoringOverview() = FarmPiApi.monitoringOverview().monitoringOverview()
+internal suspend fun compareMonitoringLocations(leftId: Int, rightId: Int, measurement: String, windowMinutes: Int) =
+    FarmPiApi.compareLocations(leftId, rightId, measurement, windowMinutes)
 internal suspend fun fetchNodes(token: String) = FarmPiApi.nodes(token)
 internal suspend fun saveManagedNode(token: String, id: Int, approve: Boolean, body: JSONObject) = FarmPiApi.saveNode(token, id, approve, body)
 internal suspend fun createManagedLocation(token: String, name: String) = FarmPiApi.createLocation(token, name)

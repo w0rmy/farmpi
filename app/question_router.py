@@ -77,7 +77,15 @@ _INVENTORY_LIST_RE = re.compile(
 )
 _PADDOCK_SUMMARY_RE = re.compile(r"\b(?:what\s+(?:stats|data|measurements?)\s+(?:are|do)\s+(?:available|we\s+have)|what\s+are\s+we\s+monitoring|tell\s+me\s+about|what\s+do\s+we\s+know\s+about)\b", re.IGNORECASE)
 _FOLLOW_UP_RE = re.compile(r"^\s*what\s+about\s+(.+?)\s*[?!.]*\s*$", re.IGNORECASE)
-_SUMMARY_TARGET_RE = re.compile(r"\b(?:tell\s+me\s+about|what\s+do\s+we\s+know\s+about|what\s+has\s+happened\s+in)\s+([a-z][a-z0-9 '&-]{0,98}?)(?=\s+(?:today|this\s+morning)\b|[?!.]|$)", re.IGNORECASE)
+_SUMMARY_TARGET_RE = re.compile(
+    r"\b(?:"
+    r"tell\s+me\s+about|"
+    r"what\s+do\s+we\s+know\s+about|"
+    r"what\s+has\s+happened\s+in|"
+    r"what\s+(?:stats|data|measurements?)\s+(?:are\s+available|do\s+we\s+have)\s+(?:on|for|at|in)"
+    r")\s+([a-z][a-z0-9 ’'&-]{0,98}?)(?=\s+(?:today|this\s+morning)\b|[?!.]|$)",
+    re.IGNORECASE,
+)
 
 
 def _canonical_paddock_name(name: str) -> str:

@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.farm_data import GroundingData, NoFarmData, PaddockEnvironment
 from app.monitoring_api import build_monitoring_overview, router
+from app.main import app as composed_app
 from app.paddock_resolver import PaddockIdentity
 
 
@@ -74,6 +75,75 @@ class MonitoringOverviewTests(unittest.TestCase):
         self.assertEqual(result["locations"][0]["measurements"], [])
         self.assertEqual(result["farm_measurements"], [])
         self.assertIsNone(result["featured_chart"])
+
+    @patch("app.monitoring_api.historical_rows_from")
+    @patch("app.monitoring_api.active_paddocks")
+    def test_compare_endpoint_uses_only_two_selected_locations(self, paddocks, historical_rows) -> None:
+        paddocks.return_value = (
+            PaddockIdentity(1, "Bob's paddock", 1, 1),
+            PaddockIdentity(2, "Fred's paddock", 2, 1),
+            PaddockIdentity(3, "Back Hill", 3, 1),
+        )
+        when = datetime(2026, 9, 27, 6, 0, tzinfo=timezone.utc)
+
+        def rows_for(_key, _start, name):
+            value = 30.0 if name == "Bob's paddock" else 36.0
+            return ([{
+                "name": name,
+                "sensor_uid": "FP-001" if name == "Bob's paddock" else "FP-002",
+                "analysis_at": when,
+                "value": value,
+                "simulated": True,
+            }], name)
+
+        historical_rows.side_effect = rows_for
+        app = FastAPI()
+        app.include_router(router)
+
+        response = TestClient(app).get(
+            "/api/monitoring/compare",
+            params={
+                "left_id": 1,
+                "right_id": 2,
+                "measurement": "soil_moisture_pct",
+                "window_minutes": 1440,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        self.assertEqual(payload["intent"], "comparison")
+        self.assertEqual(payload["left_location"]["name"], "Bob's paddock")
+        self.assertEqual(payload["right_location"]["name"], "Fred's paddock")
+        self.assertEqual({item["paddock"] for item in payload["evidence"]}, {"Bob's paddock", "Fred's paddock"})
+        chart_names = {item["x"] for item in payload["chart"]["series"][0]["data"]}
+        self.assertEqual(chart_names, {"Bob's paddock", "Fred's paddock"})
+        self.assertNotIn("Back Hill", response.text)
+
+    @patch("app.monitoring_api.active_paddocks")
+    def test_compare_endpoint_rejects_same_or_missing_location(self, paddocks) -> None:
+        paddocks.return_value = (
+            PaddockIdentity(1, "Bob's paddock", 1, 1),
+            PaddockIdentity(2, "Fred's paddock", 2, 1),
+        )
+        app = FastAPI()
+        app.include_router(router)
+        client = TestClient(app)
+
+        same = client.get("/api/monitoring/compare", params={
+            "left_id": 1, "right_id": 1, "measurement": "soil_moisture_pct", "window_minutes": 1440,
+        })
+        missing = client.get("/api/monitoring/compare", params={
+            "left_id": 1, "right_id": 99, "measurement": "soil_moisture_pct", "window_minutes": 1440,
+        })
+
+        self.assertEqual(same.status_code, 422)
+        self.assertEqual(missing.status_code, 404)
+
+    def test_composed_application_mounts_monitoring_routes(self) -> None:
+        paths = {getattr(route, "path", None) for route in composed_app.routes}
+        self.assertIn("/api/monitoring/overview", paths)
+        self.assertIn("/api/monitoring/compare", paths)
 
     @patch("app.monitoring_api.build_monitoring_overview")
     def test_endpoint_exposes_overview_contract(self, build) -> None:

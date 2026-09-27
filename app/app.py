@@ -527,6 +527,11 @@ async def status() -> dict[str, Any]:
             "available": database_ok,
             "status": database_detail,
         },
+        "monitoring": {
+            "available": True,
+            "overview_endpoint": "/api/monitoring/overview",
+            "compare_endpoint": "/api/monitoring/compare",
+        },
         "grounding": "hybrid-provenance",
     }
 

@@ -38,6 +38,9 @@ class StatusTests(unittest.TestCase):
         self.assertEqual(client.last_url, LLAMA_MODELS_URL)
         self.assertTrue(result["llm"]["available"])
         self.assertEqual(result["llm"]["status"], "ok")
+        self.assertTrue(result["monitoring"]["available"])
+        self.assertEqual(result["monitoring"]["overview_endpoint"], "/api/monitoring/overview")
+        self.assertEqual(result["monitoring"]["compare_endpoint"], "/api/monitoring/compare")
 
 
 if __name__ == "__main__":

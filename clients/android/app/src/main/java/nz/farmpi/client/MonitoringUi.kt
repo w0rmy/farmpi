@@ -35,6 +35,57 @@ private fun InfoCard(title: String, detail: String, content: @Composable ColumnS
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LocationSelector(
+    label: String,
+    locations: List<OverviewLocation>,
+    selected: String,
+    onSelect: (String) -> Unit,
+    allowFarmWide: Boolean = false,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val displayValue = selected.ifBlank { if (allowFarmWide) "Across the farm" else "Select location" }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+    ) {
+        OutlinedTextField(
+            value = displayValue,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.fillMaxWidth().menuAnchor(),
+            singleLine = true,
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            if (allowFarmWide) {
+                DropdownMenuItem(
+                    text = { Text("Across the farm") },
+                    onClick = { onSelect(""); expanded = false },
+                )
+            }
+            locations.forEach { item ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(item.name)
+                            Text(
+                                "${item.activeSensorCount} active node${if (item.activeSensorCount == 1) "" else "s"} · " +
+                                    if (item.hasReading) ageLabel(item.ageSeconds) else "No stored reading yet",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
+                    onClick = { onSelect(item.name); expanded = false },
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun MonitoringArea(
@@ -69,7 +120,11 @@ internal fun MonitoringArea(
             try {
                 overview = fetchMonitoringOverview()
             } catch (e: Exception) {
-                overviewError = e.message ?: "FarmPi could not load the monitoring overview."
+                overviewError = if (e.message?.contains("HTTP 404") == true || e.message.equals("Not Found", ignoreCase = true)) {
+                    "This FarmPi server does not expose the monitoring overview API yet. Update and restart the FarmPi server, then try again."
+                } else {
+                    e.message ?: "FarmPi could not load the monitoring overview."
+                }
             } finally {
                 overviewLoading = false
             }
@@ -84,7 +139,12 @@ internal fun MonitoringArea(
     var details by remember { mutableStateOf(false) }
     LaunchedEffect(location) { locationA = location }
     LaunchedEffect(destination) {
-        if (destination == "Dashboard" || destination == "Location Detail") refreshOverview()
+        if (destination in setOf("Dashboard", "Location Detail", "Compare", "History")) refreshOverview()
+    }
+    LaunchedEffect(overview, location) {
+        if (locationA.isBlank() && location.isNotBlank()) {
+            overview?.locations?.firstOrNull { it.name.equals(location, ignoreCase = true) }?.let { locationA = it.name }
+        }
     }
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(destination, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -160,23 +220,91 @@ internal fun MonitoringArea(
                 }
             }
             "Compare", "History" -> {
-                InfoCard(if (destination == "Compare") "Compare two locations" else "Explore a measurement", "Results below use the server's calculation, chart and evidence. Missing or unsupported data is reported by FarmPi.") {
-                    OutlinedTextField(locationA, { locationA = it }, label = { Text(if (destination == "Compare") "Location A" else "Location (leave blank for farm)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    if (destination == "Compare") OutlinedTextField(locationB, { locationB = it }, label = { Text("Location B") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                val locations = overview?.locations.orEmpty()
+                val measurementOptions = listOf(
+                    "Soil moisture" to "soil_moisture_pct",
+                    "Soil temperature" to "soil_temperature_c",
+                    "Air temperature" to "air_temperature_c",
+                    "Humidity" to "relative_humidity_pct",
+                    "Light" to "light_lux",
+                    "Pressure" to "barometric_pressure_hpa",
+                )
+                val selectedMeasurementKey = measurementOptions.first { it.first == measurement }.second
+                val windowMinutes = if (period == "7 days") 7 * 24 * 60 else 24 * 60
+
+                if (overviewLoading && overview == null) LinearProgressIndicator(Modifier.fillMaxWidth())
+                overviewError?.let {
+                    InfoMessageCard("Monitoring locations unavailable", it)
+                    OutlinedButton(onClick = { refreshOverview() }) { Text("Try again") }
+                }
+
+                InfoCard(
+                    if (destination == "Compare") "Compare two locations" else "Explore a measurement",
+                    if (destination == "Compare")
+                        "Choose two configured FarmPi locations. The comparison is calculated directly from verified history; the language model is not used."
+                    else
+                        "Choose a configured location or the whole farm. Results use deterministic FarmPi history and graph calculations.",
+                ) {
+                    if (locations.isEmpty() && !overviewLoading) {
+                        Text("No configured FarmPi locations are available yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        LocationSelector(
+                            label = if (destination == "Compare") "Location A" else "Location",
+                            locations = locations,
+                            selected = locationA,
+                            onSelect = { locationA = it },
+                            allowFarmWide = destination == "History",
+                        )
+                        if (destination == "Compare") {
+                            LocationSelector(
+                                label = "Location B",
+                                locations = locations,
+                                selected = locationB,
+                                onSelect = { locationB = it },
+                            )
+                        }
+                    }
+
                     Text("Measurement", style = MaterialTheme.typography.labelLarge)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Soil moisture", "Soil temperature", "Air temperature", "Humidity", "Light", "Pressure").forEach { name ->
+                        measurementOptions.forEach { (name, _) ->
                             FilterChip(selected = measurement == name, onClick = { measurement = name }, label = { Text(name) })
                         }
                     }
                     Text("Period", style = MaterialTheme.typography.labelLarge)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("1 day", "7 days").forEach { name -> FilterChip(selected = period == name, onClick = { period = name }, label = { Text(name) }) }
+                        listOf("1 day", "7 days").forEach { name ->
+                            FilterChip(selected = period == name, onClick = { period = name }, label = { Text(name) })
+                        }
                     }
                     Text("1 month · 3 months · Custom — Coming later. Current history is limited to seven days.", style = MaterialTheme.typography.bodySmall)
-                    Button(enabled = !loading && (destination == "History" || (locationA.isNotBlank() && locationB.isNotBlank() && !locationA.trim().equals(locationB.trim(), true))), onClick = {
-                        query(if (destination == "Compare") "Compare $measurement between ${locationA.trim()} and ${locationB.trim()} over the last $period" else "Show a graph of $measurement ${if (locationA.isBlank()) "across the farm" else "for ${locationA.trim()}"} over the last $period")
-                    }) { Text(if (destination == "Compare") "Show comparison" else "Show history") }
+
+                    val left = locations.firstOrNull { it.name == locationA }
+                    val right = locations.firstOrNull { it.name == locationB }
+                    val compareReady = destination != "Compare" || (left != null && right != null && left.id != right.id)
+                    Button(
+                        enabled = !loading && compareReady && (destination == "History" || locations.isNotEmpty()),
+                        onClick = {
+                            if (destination == "Compare" && left != null && right != null) {
+                                loading = true
+                                result = null
+                                requestError = null
+                                requested = "Compare $measurement between ${left.name} and ${right.name} over the last $period"
+                                scope.launch {
+                                    try {
+                                        result = compareMonitoringLocations(left.id, right.id, selectedMeasurementKey, windowMinutes)
+                                        receivedAt = java.time.LocalTime.now().withNano(0).toString()
+                                    } catch (e: Exception) {
+                                        requestError = e.message ?: "FarmPi could not provide this comparison. Try again."
+                                    } finally {
+                                        loading = false
+                                    }
+                                }
+                            } else {
+                                query("Show a graph of $measurement ${if (locationA.isBlank()) "across the farm" else "for ${locationA.trim()}"} over the last $period")
+                            }
+                        },
+                    ) { Text(if (destination == "Compare") "Show comparison" else "Show history") }
                 }
             }
             "Alerts" -> {
@@ -198,8 +326,9 @@ internal fun MonitoringArea(
                     Text("Last successful check: $checkedAt")
                     fun availability(key: String): String = health?.optJSONObject(key)?.let { if (it.optBoolean("available")) "Available" else "Unavailable" } ?: "Not checked"
                     StatusChip("Database · ${availability("database")}")
+                    StatusChip("Monitoring API · ${availability("monitoring")}")
                     StatusChip("AI service · ${availability("llm")}")
-                    if (health?.optJSONObject("database")?.optBoolean("available") == true && health.optJSONObject("llm")?.optBoolean("available") == false) Text("The database is available. AI explanations are unavailable; some natural-language requests may fail.")
+                    if (health?.optJSONObject("database")?.optBoolean("available") == true && health.optJSONObject("llm")?.optBoolean("available") == false) Text("The database is available. AI explanations are unavailable; deterministic dashboard and comparison functions can still work.")
                     Button(onClick = refresh) { Text("Try again") }
                     TextButton(onClick = { details = !details }) { Text(if (details) "Hide technical details" else "Technical details") }
                     if (details) Text(health?.toString(2) ?: "No current status response.", style = MaterialTheme.typography.bodySmall)
@@ -212,7 +341,15 @@ internal fun MonitoringArea(
             }
         }
         if (loading) { LinearProgressIndicator(Modifier.fillMaxWidth()); Text("Retrieving verified FarmPi information…") }
-        requestError?.let { InfoCard("Information unavailable", it) { Button(onClick = { query(requested) }) { Text("Try again") } } }
+        requestError?.let {
+            InfoCard("Information unavailable", it) {
+                if (destination == "Compare") {
+                    Button(onClick = { requestError = null }) { Text("Return to comparison") }
+                } else {
+                    Button(onClick = { query(requested) }) { Text("Try again") }
+                }
+            }
+        }
         result?.let { response ->
             InfoCard("FarmPi result", requested) {
                 Text(response.answer, style = MaterialTheme.typography.bodyLarge)

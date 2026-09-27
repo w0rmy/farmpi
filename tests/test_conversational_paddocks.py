@@ -58,6 +58,35 @@ class ConversationalPaddockTests(unittest.TestCase):
         self.assertEqual(route_question("What is the temperature in Paddock B?").measurement, "air_temperature_c")
         self.assertEqual(route_question("What is the temperature in Paddock number 2?").paddock_name, "Paddock number 2")
 
+    def test_farmer_named_summary_wording_routes_without_semantic_model(self) -> None:
+        for question in (
+            "What stats are available on Fred's paddock?",
+            "What measurements are available for Bob's paddock?",
+            "What data do we have at Fred’s paddock?",
+            "Tell me about Bob's paddock.",
+        ):
+            with self.subTest(question=question):
+                route = route_question(question)
+                self.assertEqual(route.intent, "paddock_summary")
+                self.assertIsNotNone(route.paddock_name)
+        self.assertEqual(route_question("What stats are available on Fred's paddock?").paddock_name, "Fred's paddock")
+
+    def test_smart_apostrophe_resolves_to_configured_farmer_name(self) -> None:
+        paddocks = (
+            PaddockIdentity(1, "Bob's paddock", 1, 1),
+            PaddockIdentity(2, "Fred's paddock", 2, 1),
+        )
+        result = resolve_paddock("Fred’s paddock", paddocks, {})
+        self.assertEqual((result.status, result.paddock.id, result.paddock.name), ("resolved", 2, "Fred's paddock"))
+
+    @patch("app.app.get_grounding_data")
+    def test_farmer_named_stats_request_is_direct_and_has_zero_llm_time(self, grounding) -> None:
+        grounding.return_value = GroundingData("paddock_summary", ("Fred's paddock currently has monitored measurements.",))
+        response = asyncio.run(ask(AskRequest(question="What stats are available on Fred's paddock?")))
+        self.assertEqual(response.intent, "paddock_summary")
+        self.assertEqual(response.timings.llm_ms, 0.0)
+        self.assertEqual(grounding.call_args.args[:2], ("paddock_summary", "Fred's paddock"))
+
     def test_numeric_word_and_previous_name_aliases_keep_the_same_identity(self) -> None:
         paddocks = self._paddocks()
         aliases = {"paddock b": (20,)}

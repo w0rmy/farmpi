@@ -28,7 +28,7 @@ The current capstone direction evaluates the Android client as part of a functio
 
 ## Navigation after course retirement
 
-The Android client opens Dashboard with primary destinations **Dashboard / Compare / Ask FarmPi / Alerts / More**. More opens History, Nodes, Settings and System Status. Dashboard and Location Detail now use the deterministic `/api/monitoring/overview` contract for graphical current-state cards, location cards, age/provenance metadata and the featured 24-hour soil-moisture chart. Compare and History continue to use the existing deterministic Ask/analytics contract. Alerts and thresholds remain explicitly unavailable prototypes. Nodes shows compact cards; configuration and registration live on a separate Node Detail page. See [the UX v0.1 refactor map](android-ux-v01-refactor-map.md).
+The Android client opens Dashboard with primary destinations **Dashboard / Compare / Ask FarmPi / Alerts / More**. More opens History, Nodes, Settings and System Status. Dashboard and Location Detail use the deterministic `/api/monitoring/overview` contract for graphical current-state cards, location cards, age/provenance metadata and the featured 24-hour soil-moisture chart. Compare now loads those configured farmer locations into drop-down selectors and calls `/api/monitoring/compare` with the two stable location IDs, so the selected pair is compared without LLM interpretation. History uses the same configured-location selector but retains the existing deterministic Ask/analytics contract. Alerts and thresholds remain explicitly unavailable prototypes. Nodes shows compact cards; configuration and registration live on a separate Node Detail page. See [the UX v0.1 refactor map](android-ux-v01-refactor-map.md).
 
 Learn, module navigation, Try/Check/Continue, progress, Return to Module and course quick actions have been removed, together with their Android models and API parsing. All questions omit `course_module_id`; contextual explanations, Guide me and ordinary conversation continuity remain.
 
@@ -92,6 +92,12 @@ Text-to-speech:
 A previous integration fault allowed JSON `null` for `spoken_answer` to become the literal four-character string `"null"` through Android `JSONObject.optString`. Both server and client now fall back to the visible answer when spoken text is null/blank. This should remain part of regression testing.
 
 If voice is unavailable, the visible response must remain usable.
+
+## Request timeout behaviour
+
+Ordinary local API calls retain a 30-second read timeout. `/api/ask` has a separate 130-second read window because a genuine Pi-local language-model explanation may take longer than a database or monitoring request. A response timeout is reported as a processing timeout, not as a certificate or FarmLAN failure. Deterministic dashboard and comparison operations do not depend on that longer LLM window.
+
+Farmer-defined names such as `Bob's paddock` and `Fred's paddock` are treated as location names. Summary questions such as `What stats are available on Fred's paddock?` route directly to the deterministic paddock-summary path with zero LLM generation time. Smart/curly apostrophes from speech input are normalised before location resolution.
 
 ## HTTPS and certificate trust
 

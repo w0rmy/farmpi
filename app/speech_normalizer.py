@@ -55,6 +55,10 @@ _RENAME_CONFUSION_RE = re.compile(
     r"\brename\s+(?:" + "|".join(_PADDOCK_CONFUSIONS) + r")\s+[a-z0-9_-]+\b",
     re.IGNORECASE,
 )
+_STATS_CONFUSION_RE = re.compile(
+    r"\bwhat\s+states(?=\s+(?:are\s+available|do\s+we\s+have)\b)",
+    re.IGNORECASE,
+)
 
 
 def current_paddock_names() -> tuple[str, ...]:
@@ -64,7 +68,9 @@ def current_paddock_names() -> tuple[str, ...]:
 
 
 def _contains_phrase(text: str, phrase: str) -> bool:
-    return bool(re.search(r"(?<![a-z0-9])" + re.escape(phrase.casefold()) + r"(?![a-z0-9])", text.casefold()))
+    haystack = text.replace("’", "'").replace("‘", "'").casefold()
+    needle = phrase.replace("’", "'").replace("‘", "'").casefold()
+    return bool(re.search(r"(?<![a-z0-9])" + re.escape(needle) + r"(?![a-z0-9])", haystack))
 
 
 def _mentions_paddock_name(text: str, paddock_names: Iterable[str]) -> bool:
@@ -91,9 +97,22 @@ def _preserve_case(match: re.Match[str]) -> str:
 
 
 def _correct_known_confusions(text: str, paddock_names: Iterable[str]) -> tuple[str, bool]:
-    if not _PADDOCK_CONFUSION_RE.search(text) or not _has_farm_context(text, paddock_names):
-        return text, False
-    return _PADDOCK_CONFUSION_RE.sub(_preserve_case, text), True
+    result = text
+    changed = False
+    if _PADDOCK_CONFUSION_RE.search(result) and _has_farm_context(result, paddock_names):
+        result = _PADDOCK_CONFUSION_RE.sub(_preserve_case, result)
+        changed = True
+
+    # Android speech recognition can hear "stats" as "states". Only correct
+    # the narrow summary phrase when the transcript already contains a known
+    # configured farmer location, avoiding a general English rewrite rule.
+    if _STATS_CONFUSION_RE.search(result) and _mentions_paddock_name(result, paddock_names):
+        result = _STATS_CONFUSION_RE.sub(
+            lambda match: "What stats" if match.group(0)[:1].isupper() else "what stats",
+            result,
+        )
+        changed = True
+    return result, changed
 
 
 def _domain_score(text: str, paddock_names: Iterable[str], had_confusion: bool) -> int:

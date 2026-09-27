@@ -110,6 +110,8 @@ The endpoint deliberately separates **data availability** from connectivity. A l
 
 The optional featured chart is the existing deterministic 24-hour soil-moisture trend payload. If no verified history exists, the field is null rather than synthesised.
 
+The Compare screen uses `/api/monitoring/compare` rather than converting two selected locations back into natural-language text. Android passes the two stable location IDs, measurement key and bounded window. This prevents a farmer-defined display name from changing comparison semantics and ensures that selecting Bob's paddock and Fred's paddock compares only those two locations rather than every paddock in the database.
+
 ## Current values across mixed capabilities
 
 A current paddock snapshot uses each active node’s latest observation at its current assigned location, ordered by observation time. It does not require six measurements. Only values present in that sample are included; a different sparse sample does not silently carry an older measurement forward. This means:
@@ -137,8 +139,9 @@ Evidence items preserve paddock, sensor UID where available, timestamp, value, a
 |---|---|---|
 | `/` | GET | Diagnostic browser client. |
 | `/health` | GET | Application-process liveness. |
-| `/api/status` | GET | Application, MariaDB, and configured LLM status. |
+| `/api/status` | GET | Application, MariaDB, configured LLM, and monitoring-API capability status. |
 | `/api/monitoring/overview` | GET | Deterministic Android dashboard snapshot: configured locations, latest stored measurements, provenance/age metadata, farm summary values and a verified 24-hour soil-moisture chart when history is available. No LLM is involved. |
+| `/api/monitoring/compare` | GET | Deterministic comparison of two explicitly selected active locations over a bounded history window. Uses location IDs, application analytics and verified evidence; no LLM is involved. |
 | `/api/guidance` | GET | Reviewed onboarding text and suggestions; accepts `guidance_level`. |
 | `/api/speech/normalize` | POST | Deterministic spoken-domain correction. |
 | `/api/ask` | POST | Main conversational/data-query contract for Android/browser clients. |

@@ -56,7 +56,8 @@ ORDER BY a.id DESC
 
 
 def normalise_paddock_reference(reference: str) -> str:
-    return " ".join(reference.strip(" .?!,\"'").split()).casefold()
+    value = reference.replace("’", "'").replace("‘", "'")
+    return " ".join(value.strip(" .?!,\"'").split()).casefold()
 
 
 def active_paddocks() -> tuple[PaddockIdentity, ...]:
