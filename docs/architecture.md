@@ -73,6 +73,10 @@ Managed-node time follows the same local-first boundary. FarmPi returns authorit
 
 A stored reading is not treated as proof that a node is currently connected. Connectivity/sync state remains a separate managed-node concern.
 
+For two-location comparison, Android first gets the configured locations from the overview contract and then calls `GET /api/monitoring/compare` with two stable location IDs, the selected measurement key and window. FastAPI resolves those IDs to active farmer locations, retrieves only those locations' verified history, and returns deterministic facts/chart/evidence. The LLM is not part of this path.
+
+Natural-language farm requests remain a separate interface. The fast router now recognises arbitrary farmer-defined summary targets such as `Fred's paddock`; once the request is structurally understood, the canonical resolver checks it against current configured names/aliases and the deterministic summary path can return without semantic-model inference.
+
 ## Ask/answer path
 
 1. Typed text is used unchanged. Spoken text can first pass through deterministic domain normalisation using measurement vocabulary and active paddock names.
