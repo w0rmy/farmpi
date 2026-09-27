@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
+import json
 import math
 
 from .database import execute, fetch_one
@@ -31,6 +32,7 @@ class StoredReading:
     clock_out_of_tolerance: bool
     sample_seq: int | None
     deduplicated: bool = False
+    measurement_modes: dict[str, str] | None = None
 
     @property
     def recorded_at(self) -> datetime:
@@ -60,6 +62,7 @@ INSERT INTO readings (
     paddock_id,
     {_COLUMNS},
     simulated,
+    measurement_modes_json,
     observed_at,
     received_at,
     recorded_at,
@@ -69,11 +72,11 @@ INSERT INTO readings (
     sample_seq,
     protocol_version
 )
-VALUES (%s, %s, {_PLACEHOLDERS}, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+VALUES (%s, %s, {_PLACEHOLDERS}, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 DUPLICATE_READING_SQL = f"""
-SELECT id, {_COLUMNS}, simulated, observed_at, received_at, clock_valid,
+SELECT id, {_COLUMNS}, simulated, measurement_modes_json, observed_at, received_at, clock_valid,
        clock_offset_seconds, clock_out_of_tolerance, sample_seq
 FROM readings
 WHERE sensor_node_id = %s AND sample_seq = %s
@@ -150,6 +153,9 @@ def store_sensor_reading(
                 for item in MEASUREMENTS
                 if duplicate.get(item.key) is not None
             }
+            modes = json.loads(duplicate["measurement_modes_json"]) if duplicate.get("measurement_modes_json") else {
+                key: ("SIMULATED" if duplicate["simulated"] else "LIVE") for key in duplicate_values
+            }
             return StoredReading(
                 int(duplicate["id"]), str(sensor["node_uid"]), str(sensor["paddock_name"]),
                 duplicate_values, bool(duplicate["simulated"]),
@@ -158,15 +164,17 @@ def store_sensor_reading(
                 float(duplicate["clock_offset_seconds"]) if duplicate["clock_offset_seconds"] is not None else None,
                 bool(duplicate["clock_out_of_tolerance"]),
                 int(duplicate["sample_seq"]) if duplicate["sample_seq"] is not None else None,
-                True,
+                True, modes,
             )
 
     received_at_db = received_at_utc.replace(tzinfo=None)
     observed_at_db = observed_at_utc.replace(tzinfo=None)
+    modes = {key: ("SIMULATED" if simulated else "LIVE") for key in validated}
     reading_id = execute(
         INSERT_READING_SQL,
         (
             int(sensor["sensor_node_id"]), sensor.get("paddock_id"), *(validated.get(item.key) for item in MEASUREMENTS), bool(simulated),
+            json.dumps(modes, sort_keys=True, separators=(",", ":")),
             observed_at_db, received_at_db, received_at_db, effective_clock_valid,
             round(clock_offset_seconds, 3) if clock_offset_seconds is not None else None,
             bool(clock_out_of_tolerance), sample_seq, protocol_version,
@@ -175,5 +183,5 @@ def store_sensor_reading(
     return StoredReading(
         reading_id, str(sensor["node_uid"]), str(sensor["paddock_name"]), validated, bool(simulated),
         observed_at_utc, received_at_utc, effective_clock_valid, clock_offset_seconds,
-        bool(clock_out_of_tolerance), sample_seq,
+        bool(clock_out_of_tolerance), sample_seq, False, modes,
     )

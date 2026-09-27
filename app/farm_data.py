@@ -30,6 +30,7 @@ class PaddockEnvironment:
     observed_at: datetime
     sensor_count: int
     contains_simulated: bool
+    measurement_modes: dict[str, str]
     sources: tuple[dict[str, object], ...] = ()
 
     def __getattr__(self, key: str) -> float:
@@ -68,7 +69,8 @@ SELECT
     COUNT(*) AS sensor_count,
     MAX(CASE WHEN r.simulated = 1 THEN 1 ELSE 0 END) AS contains_simulated,
     JSON_ARRAYAGG(JSON_OBJECT('sensor',s.node_uid,'observed_at',r.observed_at,
-        'received_at',r.received_at,'simulated',r.simulated,'paddock_id',r.paddock_id)) AS sources_json
+        'received_at',r.received_at,'simulated',r.simulated,'paddock_id',r.paddock_id,
+        'measurement_modes',r.measurement_modes_json)) AS sources_json
 FROM paddocks AS p
 JOIN sensor_nodes AS s ON s.paddock_id = p.id AND s.active = 1
 JOIN readings AS r ON r.id = (
@@ -93,6 +95,14 @@ def get_environment_snapshot() -> list[PaddockEnvironment]:
         observed_at = row.get("observed_at", received_at)
         if not isinstance(received_at, datetime) or not isinstance(observed_at, datetime):
             raise NoFarmData("A current reading has an invalid timestamp.")
+        sources = tuple(json.loads(row["sources_json"])) if row.get("sources_json") else ()
+        measurement_modes: dict[str, str] = {}
+        for source in sources:
+            raw_modes = source.get("measurement_modes")
+            modes = json.loads(raw_modes) if isinstance(raw_modes, str) and raw_modes else {}
+            for key, mode in modes.items():
+                if mode == "SIMULATED" or key not in measurement_modes:
+                    measurement_modes[key] = mode
         snapshot.append(PaddockEnvironment(
             id=int(row["id"]),
             name=str(row["name"]),
@@ -100,8 +110,9 @@ def get_environment_snapshot() -> list[PaddockEnvironment]:
             received_at=received_at,
             observed_at=observed_at,
             sensor_count=int(row["sensor_count"]),
-            contains_simulated=bool(row["contains_simulated"]),
-            sources=tuple(json.loads(row["sources_json"])) if row.get("sources_json") else (),
+            contains_simulated=any(mode == "SIMULATED" for mode in measurement_modes.values()) or bool(row["contains_simulated"]),
+            measurement_modes=measurement_modes,
+            sources=sources,
         ))
     if not snapshot:
         raise NoFarmData("No current farm readings are available.")
@@ -200,6 +211,7 @@ def _current_evidence(item: PaddockEnvironment) -> tuple[dict[str, object], ...]
         "observed_at": item.observed_at.isoformat(),
         "received_at": item.received_at.isoformat(),
         "simulated": item.contains_simulated,
+        "measurement_modes": item.measurement_modes,
         "source_category": "observational",
         "sources": item.sources,
         "units": {key: BY_KEY[key].unit for key in item.values},
@@ -275,8 +287,29 @@ def get_average_measurement(key: str, snapshot: list[PaddockEnvironment] | None 
     return fmean(values)
 
 
-def _provenance_fact(items: list[PaddockEnvironment]) -> str:
-    return "The result includes simulated test readings." if any(item.contains_simulated for item in items) else "The result uses non-simulated sensor readings."
+def _provenance_fact(items: list[PaddockEnvironment], key: str | None = None) -> str:
+    if key:
+        simulated = any(item.measurement_modes.get(key) == "SIMULATED" for item in items)
+    else:
+        simulated = any(item.contains_simulated for item in items)
+    return "The result includes simulated test readings." if simulated else "The result uses non-simulated sensor readings."
+
+
+def _historical_provenance(rows: list[dict[str, object]], key: str) -> list[dict[str, object]]:
+    """Resolve legacy row-level provenance into the selected measurement's mode."""
+    result: list[dict[str, object]] = []
+    for row in rows:
+        modes_raw = row.get("measurement_modes_json")
+        try:
+            modes = json.loads(modes_raw) if isinstance(modes_raw, str) and modes_raw else {}
+        except (TypeError, json.JSONDecodeError):
+            modes = {}
+        updated = dict(row)
+        mode = modes.get(key)
+        updated["source_mode"] = mode
+        updated["simulated"] = mode == "SIMULATED" if mode else bool(row.get("simulated"))
+        result.append(updated)
+    return result
 
 
 def _measurement_fact(item: PaddockEnvironment, key: str) -> str:
@@ -298,12 +331,13 @@ def _current_average(key: str) -> GroundingData:
         "sensor": None,
         "timestamp": item.received_at.isoformat(),
         "value": item.values[key],
-        "simulated": item.contains_simulated,
+        "simulated": item.measurement_modes.get(key) == "SIMULATED",
+        "source_mode": item.measurement_modes.get(key),
     } for item in items)
     fact = f"Farm average {label} across {len(items)} reporting paddocks: {format_measurement(value, key)}."
     return GroundingData(
         "farm-average",
-        (fact, _provenance_fact(items)),
+        (fact, _provenance_fact(items, key)),
         evidence,
         spoken_facts=(fact,),
     )
@@ -316,8 +350,14 @@ def _current_ranking(key: str, highest: bool) -> GroundingData:
     winner = max(items, key=lambda item: item.values[key]) if highest else min(items, key=lambda item: item.values[key])
     direction = "Highest" if highest else "Lowest"
     values = dict(sorted(((item.name, item.values[key]) for item in items), key=lambda entry: entry[1], reverse=highest))
-    evidence = tuple({"paddock": item.name, "sensor": None, "timestamp": item.received_at.isoformat(), "value": item.values[key], "simulated": item.contains_simulated} for item in items)
-    return GroundingData("ranking", (f"{direction} {measurement(key).label}: {winner.name}.", _measurement_fact(winner, key), _provenance_fact(items)), evidence, comparison_chart(key, values, "current/latest", direction.casefold(), any(item.contains_simulated for item in items)))
+    evidence = tuple({"paddock": item.name, "sensor": None, "timestamp": item.received_at.isoformat(), "value": item.values[key],
+        "simulated": item.measurement_modes.get(key) == "SIMULATED", "source_mode": item.measurement_modes.get(key)} for item in items)
+    return GroundingData(
+        "ranking",
+        (f"{direction} {measurement(key).label}: {winner.name}.", _measurement_fact(winner, key), _provenance_fact(items, key)),
+        evidence,
+        comparison_chart(key, values, "current/latest", direction.casefold(), any(item.measurement_modes.get(key) == "SIMULATED" for item in items)),
+    )
 
 
 def _historical_rows(key: str, minutes: int, paddock_name: str | None) -> tuple[list[dict[str, object]], str | None]:
@@ -336,14 +376,15 @@ def _historical_rows(key: str, minutes: int, paddock_name: str | None) -> tuple[
         params.append(target.id)
         resolved_name = target.name
     sql = f"""
-SELECT p.name, s.node_uid AS sensor_uid, r.{key} AS value, {analysis_time} AS analysis_at, r.simulated
+SELECT p.name, s.node_uid AS sensor_uid, r.{key} AS value, {analysis_time} AS analysis_at,
+       r.simulated, r.measurement_modes_json
 FROM readings AS r
 JOIN sensor_nodes AS s ON s.id = r.sensor_node_id
 JOIN paddocks AS p ON p.id = r.paddock_id
 WHERE {" AND ".join(where)}
 ORDER BY {analysis_time} ASC, r.id ASC
 """
-    return fetch_all(sql, tuple(params)), resolved_name
+    return _historical_provenance(fetch_all(sql, tuple(params)), key), resolved_name
 
 
 def historical_grounding(key: str, operation: str, minutes: int, paddock_name: str | None = None) -> GroundingData:
@@ -410,11 +451,12 @@ def historical_rows_from(key: str, start_at: datetime, paddock_name: str | None 
         params.append(target.id)
         resolved_name = target.name
     sql = f"""
-SELECT p.name, s.node_uid AS sensor_uid, r.{key} AS value, {analysis_time} AS analysis_at, r.simulated
+SELECT p.name, s.node_uid AS sensor_uid, r.{key} AS value, {analysis_time} AS analysis_at,
+       r.simulated, r.measurement_modes_json
 FROM readings AS r JOIN sensor_nodes AS s ON s.id = r.sensor_node_id JOIN paddocks AS p ON p.id = r.paddock_id
 WHERE {" AND ".join(where)} ORDER BY {analysis_time} ASC, r.id ASC
 """
-    return fetch_all(sql, tuple(params)), resolved_name
+    return _historical_provenance(fetch_all(sql, tuple(params)), key), resolved_name
 
 
 def analytics_grounding(key: str, operation: str, window_minutes: int | None, window_label: str | None, paddock_name: str | None = None, comparison: bool = False) -> GroundingData:
@@ -475,8 +517,8 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
     """Return precisely the deterministic facts approved by a router route."""
     if intent in {"capability", "help"}:
         return GroundingData(intent, (
-            "Every standard FarmPi node reports soil moisture, soil temperature, air temperature, relative humidity, light, and barometric pressure.",
-            "Optional add-on sensors can also provide pH, EC, rainfall, wind, pasture height, and leaf wetness; FarmPi only presents those measurements where a node actually reports them.",
+            "The standard FarmPi node design supports soil moisture, soil temperature, air temperature, relative humidity, light, and barometric pressure, but each channel may be off, simulated, or live.",
+            "Optional add-on sensors can also provide pH, EC, rainfall, wind, pasture height, and leaf wetness; FarmPi only presents measurements where a node actually reports them.",
             "FarmPi can calculate supported averages, rankings, comparisons, bounded history, trends, evidence, and graphs from the measurements that are available. It does not currently provide forecasts or irrigation recommendations.",
         ), source_category="educational")
     if intent == "irrigation-decision":
@@ -519,13 +561,13 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
         return latest_paddock_summary(paddock_name)
     if intent == "driest":
         item = get_driest_paddock()
-        return GroundingData(intent, (f"Driest paddock: {item.name}.", f"Soil moisture: {format_measurement(item.soil_moisture_pct, 'soil_moisture_pct')}.", _provenance_fact([item])))
+        return GroundingData(intent, (f"Driest paddock: {item.name}.", f"Soil moisture: {format_measurement(item.soil_moisture_pct, 'soil_moisture_pct')}.", _provenance_fact([item], "soil_moisture_pct")))
     if intent == "wettest":
         item = get_wettest_paddock()
-        return GroundingData(intent, (f"Wettest paddock: {item.name}.", f"Soil moisture: {format_measurement(item.soil_moisture_pct, 'soil_moisture_pct')}.", _provenance_fact([item])))
+        return GroundingData(intent, (f"Wettest paddock: {item.name}.", f"Soil moisture: {format_measurement(item.soil_moisture_pct, 'soil_moisture_pct')}.", _provenance_fact([item], "soil_moisture_pct")))
     if intent == "average":
         snapshot = get_moisture_snapshot()
-        return GroundingData(intent, (f"Farm average soil moisture: {format_measurement(get_average_soil_moisture(snapshot), 'soil_moisture_pct')}.", _provenance_fact(snapshot)))
+        return GroundingData(intent, (f"Farm average soil moisture: {format_measurement(get_average_soil_moisture(snapshot), 'soil_moisture_pct')}.", _provenance_fact(snapshot, "soil_moisture_pct")))
     if intent == "farm-average" and measurement_key and measurement_key in BY_KEY:
         return _current_average(measurement_key)
     if intent == "ranking" and measurement_key and operation in {"highest", "lowest"}:
@@ -552,17 +594,17 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
         if key not in BY_KEY or CURRENT not in BY_KEY[key].operations:
             return GroundingData("interpretation-boundary", ("FarmPi does not have a reviewed current-reading operation for that measurement.",))
         if key not in item.values:
-            return GroundingData(intent, (f"{item.name} does not currently report {measurement(key).label}. That measurement requires an installed add-on sensor for this paddock.",), _current_evidence(item))
-        screen_facts = (_measurement_fact(item, key), _display_reading_time(item.observed_at), _provenance_fact([item]))
-        return GroundingData(intent, screen_facts, _current_evidence(item), spoken_facts=(_measurement_fact(item, key), _provenance_fact([item])))
+            return GroundingData(intent, (f"{item.name} does not currently report {measurement(key).label}. That measurement needs a configured and reporting sensor for this location.",), _current_evidence(item))
+        screen_facts = (_measurement_fact(item, key), _display_reading_time(item.observed_at), _provenance_fact([item], "soil_moisture_pct"))
+        return GroundingData(intent, screen_facts, _current_evidence(item), spoken_facts=(_measurement_fact(item, key), _provenance_fact([item], "soil_moisture_pct")))
     if intent == "measurement-fallback" and measurement_key in BY_KEY:
         snapshot = [item for item in get_environment_snapshot() if measurement_key in item.values]
         if not snapshot:
             return GroundingData(intent, (f"No active paddock currently reports {measurement(measurement_key).label}.",))
-        return GroundingData(intent, (*(_measurement_fact(item, measurement_key) for item in snapshot), _provenance_fact(snapshot)))
+        return GroundingData(intent, (*(_measurement_fact(item, measurement_key) for item in snapshot), _provenance_fact(snapshot, "soil_moisture_pct")))
     snapshot = get_moisture_snapshot()
     driest, wettest = get_driest_paddock(snapshot), get_wettest_paddock(snapshot)
-    facts = [*(f"{item.name} soil moisture: {format_measurement(item.soil_moisture_pct, 'soil_moisture_pct')}." for item in snapshot), f"Farm average soil moisture: {format_measurement(get_average_soil_moisture(snapshot), 'soil_moisture_pct')}.", f"Driest paddock: {driest.name} at {format_measurement(driest.soil_moisture_pct, 'soil_moisture_pct')}.", f"Wettest paddock: {wettest.name} at {format_measurement(wettest.soil_moisture_pct, 'soil_moisture_pct')}.", _provenance_fact(snapshot)]
+    facts = [*(f"{item.name} soil moisture: {format_measurement(item.soil_moisture_pct, 'soil_moisture_pct')}." for item in snapshot), f"Farm average soil moisture: {format_measurement(get_average_soil_moisture(snapshot), 'soil_moisture_pct')}.", f"Driest paddock: {driest.name} at {format_measurement(driest.soil_moisture_pct, 'soil_moisture_pct')}.", f"Wettest paddock: {wettest.name} at {format_measurement(wettest.soil_moisture_pct, 'soil_moisture_pct')}.", _provenance_fact(snapshot, "soil_moisture_pct")]
     return GroundingData("moisture-fallback", tuple(facts))
 
 

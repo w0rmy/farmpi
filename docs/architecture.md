@@ -46,16 +46,16 @@ FarmPi now separates four concepts that must not be collapsed:
 
 1. **Measurement catalogue** - the 13 reviewed measurement types the application understands, including units, ranges, aliases and analytic capabilities.
 2. **Firmware/node capabilities** - the subset a particular firmware and hardware profile can support.
-3. **Per-node desired configuration** - the supported measurements enabled for a particular registered physical node.
-4. **Runtime/reporting state** - whether an enabled measurement is actually producing observations, is configured but not reporting, or is not fitted/disabled.
+3. **Per-node desired configuration** - one explicit OFF, SIMULATED, or LIVE mode for every measurement capability advertised by that registered node.
+4. **Runtime/reporting state** - whether the measurement in its current mode is actually producing observations. A recent simulated observation must not make a newly selected LIVE mode appear to be reporting.
 
 FR01 still requires the final T01 concept-demonstrator evidence to show six physical measurements: soil moisture, soil temperature, air temperature, relative humidity, ambient light and barometric pressure. That is an **acceptance requirement for the completed physical prototype**, not a requirement that every node or every telemetry payload contain all six values.
 
-Managed physical telemetry is sparse. A node submits only measurements that were actually observed and are enabled in its acknowledged configuration. FarmPi does not fabricate zeroes or placeholder measurements to make a row appear complete. Missing values remain absent/SQL `NULL`, and current/history/analytics code operates only on measurements actually present.
+Managed telemetry is sparse. OFF produces no value. SIMULATED produces a bounded node-local test value. LIVE submits a value only when the physical driver succeeds. FarmPi does not fabricate zeroes or placeholders to make a row appear complete. Missing values remain absent/SQL `NULL`. Per-measurement source mode is stored with the observation so a development sample can distinguish simulated and live values.
 
 Optional/add-on measurements include pH, EC, rainfall, wind speed/direction, pasture height and leaf wetness. The simulator may emit a broader set because it is explicitly synthetic and exists to exercise the application/data model.
 
-Hardware UID, logical FarmPi node identity and assigned paddock/location are separate concepts. Physical nodes are discovered, explicitly approved, receive a complete desired configuration, validate and persist it, then acknowledge the applied SHA-256 configuration fingerprint. Desired and applied fingerprints determine IN SYNC / UPDATE PENDING / UPDATE FAILED state; an increasing human-facing revision counter is deliberately not used.
+Hardware UID, logical FarmPi node identity, optional friendly node name and assigned farmer location are separate concepts. Farmer locations can use ordinary names and are not encoded into the hardware or logical ID. Physical nodes are discovered, explicitly approved, receive a complete desired configuration, validate and persist it, then acknowledge the applied SHA-256 configuration fingerprint. Desired and applied fingerprints determine IN SYNC / UPDATE PENDING / UPDATE FAILED state; an increasing human-facing revision counter is deliberately not used.
 
 The sensor/transport boundary remains deliberately separate from the application. Current Wi-Fi, a future LoRa/LoRaWAN gateway, or Wi-Fi HaLow can feed the same transport-neutral ingest semantics without changing MariaDB, analytics, graphing, Android, or LLM authority.
 
@@ -123,8 +123,8 @@ app/                    FastAPI, routing, data, analytics, source and LLM integr
 clients/android/        native Kotlin/Jetpack Compose client and device-local preferences
 config/                 Caddy, systemd, database schema and repeatable seed
 docs/                   current architecture, deployment, AI/data and evaluation docs
-firmware/esp32-sensor/  16-paddock synthetic telemetry firmware
-firmware/esp32-s3-node/ managed physical-node registration/configuration client and later acquisition target
+firmware/esp32-sensor/  legacy opt-in 16-location synthetic test/demo firmware
+firmware/esp32-s3-node/ managed registration/configuration plus node-local simulation and later physical drivers
 scripts/                database and service installation helpers
 tests/                  deterministic behavioural and integration-contract tests
 update                  repeatable Pi update/validation entry point

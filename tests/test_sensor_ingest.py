@@ -37,7 +37,8 @@ class SensorStorageTests(unittest.TestCase):
         self.assertEqual(stored.wind_direction_deg, 226.0)
         self.assertTrue(stored.simulated)
         execute.assert_called_once()
-        self.assertEqual(len(execute.call_args.args[1]), len(MEASUREMENTS) + 11)
+        self.assertEqual(len(execute.call_args.args[1]), len(MEASUREMENTS) + 12)
+        self.assertTrue(all(mode == "SIMULATED" for mode in stored.measurement_modes.values()))
 
     @patch("app.sensor_ingest.execute", return_value=43)
     @patch("app.sensor_ingest.fetch_one")

@@ -60,8 +60,29 @@ class Approval(StrictModel):
 
 
 class Desired(Approval):
-    enabled: list[str] = Field(max_length=13)
+    modes: dict[str, str]
     expected_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @field_validator("modes")
+    @classmethod
+    def valid_modes(cls, value):
+        if set(value) - set(BY_KEY):
+            raise ValueError("Unknown measurement.")
+        if any(mode not in {"OFF", "SIMULATED", "LIVE"} for mode in value.values()):
+            raise ValueError("Sensor mode must be OFF, SIMULATED, or LIVE.")
+        return value
+
+
+class LocationCreate(StrictModel):
+    name: str = Field(min_length=1, max_length=100)
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value):
+        cleaned = " ".join(value.split())
+        if not cleaned:
+            raise ValueError("Location name is required.")
+        return cleaned
 
 
 class Acknowledgement(DeviceAuth):
@@ -165,6 +186,17 @@ def check_location(cursor, paddock_id):
             raise HTTPException(422, "Unknown or inactive location.")
 
 
+@router.post("/locations", dependencies=[Depends(require_admin)])
+def create_location(request: LocationCreate):
+    """Create a farmer-named monitoring location without coupling it to hardware identity."""
+    with transaction() as cursor:
+        cursor.execute("SELECT id,name FROM paddocks WHERE name=%s", (request.name,))
+        if cursor.fetchone():
+            raise HTTPException(409, "A location with that name already exists.")
+        cursor.execute("INSERT INTO paddocks (name,active) VALUES (%s,1)", (request.name,))
+        return {"id": cursor.lastrowid, "name": request.name}
+
+
 @router.post("/{node_id}/approve", dependencies=[Depends(require_admin)])
 def approve(node_id: int, request: Approval):
     with transaction() as cursor:
@@ -175,10 +207,10 @@ def approve(node_id: int, request: Approval):
         if row["registration_state"] == "registered":
             return status_for(row)
         check_location(cursor, request.paddock_id)
-        # Database identity allocation is atomic and stable; existing simulator
-        # rows may mean the first assigned physical UID is above node-001.
-        uid = f"node-{node_id:03d}"
-        config = configuration(uid, [], decode(row["capabilities_json"], []))
+        # Hardware identity, FarmPi logical identity and farmer location name
+        # are deliberately separate. The logical ID never changes when moved.
+        uid = f"FP-{node_id:03d}"
+        config = configuration(uid, {}, decode(row["capabilities_json"], []))
         digest = fingerprint(config)
         cursor.execute("""UPDATE sensor_nodes SET node_uid=%s,name=%s,paddock_id=%s,
             registration_state='registered',active=1,desired_config_json=%s,desired_fingerprint=%s
@@ -198,7 +230,7 @@ def set_configuration(node_id: int, request: Desired):
             raise HTTPException(409, "Configuration changed; refresh before saving.")
         check_location(cursor, request.paddock_id)
         try:
-            config = configuration(row["node_uid"], request.enabled, decode(row["capabilities_json"], []))
+            config = configuration(row["node_uid"], request.modes, decode(row["capabilities_json"], []))
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         # Telemetry includes location
@@ -216,18 +248,38 @@ def list_nodes():
     for row in rows:
         if not row.get("hardware_uid"):
             continue
-        enabled = decode(row.get("desired_config_json"), {}).get("enabled", [])
+        desired = decode(row.get("desired_config_json"), {})
+        modes = desired.get("modes", {})
         capabilities = decode(row.get("capabilities_json"), [])
-        # Bounded, per-measurement last observation; no fabricated samples.
-        stamps = fetch_all("SELECT " + ",".join(f"MAX(CASE WHEN {m.key} IS NOT NULL THEN observed_at END) AS {m.key}" for m in MEASUREMENTS) + " FROM readings WHERE sensor_node_id=%s", (row["id"],))
-        last = stamps[0] if stamps else {}
+        # Reporting state must match the *current mode*. A recent simulated
+        # sample must not make a newly selected LIVE mode look operational.
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         sensors = []
         for m in MEASUREMENTS:
-            timestamp = last.get(m.key)
-            reporting = isinstance(timestamp, datetime) and 0 <= (now - timestamp).total_seconds() <= 600
+            latest_rows = fetch_all(
+                f"""SELECT observed_at,simulated,measurement_modes_json
+                    FROM readings
+                    WHERE sensor_node_id=%s AND {m.key} IS NOT NULL
+                    ORDER BY observed_at DESC,id DESC LIMIT 1""",
+                (row["id"],),
+            )
+            latest = latest_rows[0] if latest_rows else {}
+            timestamp = latest.get("observed_at")
+            latest_modes = decode(latest.get("measurement_modes_json"), {})
+            latest_mode = latest_modes.get(m.key)
+            if not latest_mode and timestamp is not None:
+                latest_mode = "SIMULATED" if latest.get("simulated") else "LIVE"
+            mode = modes.get(m.key, "OFF")
+            reporting = (
+                mode != "OFF"
+                and latest_mode == mode
+                and isinstance(timestamp, datetime)
+                and 0 <= (now - timestamp).total_seconds() <= 600
+            )
             sensors.append({"key": m.key, "label": m.label, "unit": m.unit, "supported": m.key in capabilities,
-                "enabled": m.key in enabled, "state": "NOT FITTED / DISABLED" if m.key not in enabled else ("REPORTING" if reporting else "CONFIGURED BUT NOT REPORTING"), "last_observed_at": timestamp})
+                "mode": mode, "enabled": mode != "OFF",
+                "state": "OFF" if mode == "OFF" else ("REPORTING" if reporting else f"{mode} / NOT REPORTING"),
+                "last_observed_at": timestamp, "last_observed_mode": latest_mode})
         result.append({**status_for(row), "id": row["id"], "name": row["name"], "hardware_uid": row["hardware_uid"],
             "paddock_id": row["paddock_id"], "paddock_name": row["paddock_name"], "firmware_version": row.get("firmware_version"),
             "last_seen": row.get("last_seen"), "config_error": row.get("config_error"), "sensors": sensors})

@@ -16,7 +16,7 @@ python -m compileall -q app tests
 The suite should cover:
 
 - measurement validation, natural-language aliases, and the standard-versus-optional capability catalogue;
-- managed sparse telemetry ingest, capability/enablement validation, and optional/add-on values when supplied;
+- managed sparse telemetry ingest, capability/mode validation, per-measurement provenance, and optional/add-on values when supplied;
 - telemetry time, sequence, deduplication, and ingest behaviour;
 - database operations and paddock identity;
 - current paddock summaries that omit unavailable optional measurements rather than inventing values;
@@ -41,19 +41,23 @@ FarmPi's application catalogue contains 13 reviewed measurements. The managed ph
 
 Acceptance should include at minimum:
 
-1. registration starts with no enabled measurements;
-2. a node may enable only measurements advertised by its firmware capability set;
-3. a nonempty sparse telemetry payload containing an enabled/supported physical measurement is accepted;
-4. omitted measurements remain absent/SQL `NULL` and are never converted into fabricated zeroes or placeholder values;
-5. a supplied disabled or unsupported measurement is rejected;
-6. invalid types, non-finite values and out-of-range supplied values are rejected;
-7. retry/deduplication works for sparse payloads;
-8. current paddock summaries show only measurements actually present in the selected observation;
-9. direct requests for unavailable measurements say the paddock does not currently report them;
-10. farm-wide analytics use only paddocks that actually report the requested measurement;
-11. historical queries/graphs ignore rows where the requested measurement is `NULL`;
-12. simulated telemetry remains explicitly distinguishable with `simulated=true`;
-13. per-node configuration changes are isolated: changing node A must not alter node B's desired/applied fingerprint or enabled set.
+1. registration starts every advertised measurement in OFF mode;
+2. a node may configure only measurements advertised by its firmware capability set;
+3. OFF produces no reading and a supplied OFF/unsupported measurement is rejected;
+4. SIMULATED produces bounded node-local test telemetry through the same authenticated path as later LIVE telemetry;
+5. LIVE produces no value until a real driver succeeds; selecting LIVE must not fabricate a reading;
+6. a nonempty sparse telemetry payload is accepted only when each supplied measurement matches the acknowledged configured mode;
+7. omitted measurements remain absent/SQL `NULL` and are never converted into fabricated zeroes or placeholders;
+8. per-measurement provenance survives ingest/storage and distinguishes SIMULATED from LIVE values;
+9. invalid types, non-finite values and out-of-range supplied values are rejected;
+10. retry/deduplication works for sparse payloads;
+11. current location summaries show only measurements actually present in the selected observation;
+12. direct requests for unavailable measurements say the location does not currently report them;
+13. farm-wide analytics use only locations that actually report the requested measurement;
+14. historical queries/graphs ignore rows where the requested measurement is `NULL`;
+15. changing a sensor from SIMULATED to LIVE cannot reuse a recent simulated timestamp to appear as LIVE reporting;
+16. per-node configuration changes are isolated: changing node A must not alter node B's desired/applied fingerprint or mode map;
+17. farmer location assignment is separate from hardware/FarmPi identity, and moving a node preserves its historical readings at the old location.
 
 Separately, **T01 final physical acceptance still requires all six FR01 measurements** - soil moisture, soil temperature, air temperature, relative humidity, light and barometric pressure - to be demonstrated from real hardware with correct source/location/time/units and physical-versus-simulated provenance. That requirement must not be implemented by forcing every intermediate node payload to contain all six values.
 
@@ -133,7 +137,7 @@ Every material change should link implementation, verification, and capstone evi
 | Functional requirement | working end-to-end behaviour plus acceptance result |
 | Architecture | component/responsibility mapping and rationale |
 | Farm facts and calculations | exact fixtures, provenance fields, failure-path tests |
-| Sensor capability model | managed sparse ingest, capability/enablement checks, nullable storage, mixed-capability current/history behaviour |
+| Sensor capability model | managed sparse ingest, OFF/SIMULATED/LIVE checks, per-measurement provenance, nullable storage, mixed-capability current/history behaviour |
 | Mobile interface | device build/acceptance, layout/usability observations, state persistence |
 | Graphing/analytics | deterministic value tests plus visual acceptance |
 | AI interpretation | constrained schema tests, semantic recovery, no model authority over farm facts |

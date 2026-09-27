@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Archive the current FarmPi database, then rebuild a clean operational baseline.
+set -Eeuo pipefail
+
+if [[ ${EUID} -ne 0 ]]; then
+  echo "Run through sudo: sudo bash ./scripts/reset-operational-database --yes-really-reset" >&2
+  exit 1
+fi
+if [[ ${1:-} != "--yes-really-reset" ]]; then
+  echo "Refusing destructive reset without --yes-really-reset." >&2
+  exit 2
+fi
+
+project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+schema_file=${project_dir}/config/database/schema.sql
+seed_file=${project_dir}/config/database/seed.sql
+backup_dir=/var/backups/farmpi
+stamp=$(date -u +%Y%m%dT%H%M%SZ)
+backup_file=${backup_dir}/farmpi-pre-operational-reset-${stamp}.sql
+
+mkdir -p "${backup_dir}"
+chmod 0700 "${backup_dir}"
+
+echo "Archiving existing FarmPi database to ${backup_file}..."
+mariadb-dump --protocol=socket --single-transaction --routines --triggers farmpi > "${backup_file}"
+chmod 0600 "${backup_file}"
+
+service_was_active=0
+if systemctl is-active --quiet farmpi.service 2>/dev/null; then
+  service_was_active=1
+  systemctl stop farmpi.service
+fi
+restore_service() {
+  if [[ ${service_was_active} -eq 1 ]]; then
+    systemctl start farmpi.service || true
+  fi
+}
+trap restore_service EXIT
+
+echo "Dropping synthetic/prototype operational state and rebuilding schema..."
+mariadb --protocol=socket <<'EOF_SQL'
+DROP DATABASE IF EXISTS farmpi;
+CREATE DATABASE farmpi
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+EOF_SQL
+
+mariadb --protocol=socket farmpi < "${schema_file}"
+mariadb --protocol=socket farmpi < "${seed_file}"
+
+echo "Clean FarmPi operational database created."
+echo "Archive retained at: ${backup_file}"
+echo "No locations, nodes or readings are preloaded."

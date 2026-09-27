@@ -639,6 +639,10 @@ private object FarmPiApi {
         request("api/nodes/$id/" + if (approve) "approve" else "configuration", if (approve) "POST" else "PUT", body, token)
     }
 
+    suspend fun createLocation(token: String, name: String): JSONObject = withContext(Dispatchers.IO) {
+        request("api/nodes/locations", "POST", JSONObject().put("name", name), token)
+    }
+
     suspend fun health(): JSONObject = withContext(Dispatchers.IO) { request("api/status") }
 
     suspend fun status(): Boolean = withContext(Dispatchers.IO) {
@@ -700,6 +704,7 @@ private object FarmPiApi {
 
 internal suspend fun fetchNodes(token: String) = FarmPiApi.nodes(token)
 internal suspend fun saveManagedNode(token: String, id: Int, approve: Boolean, body: JSONObject) = FarmPiApi.saveNode(token, id, approve, body)
+internal suspend fun createManagedLocation(token: String, name: String) = FarmPiApi.createLocation(token, name)
 
 
 internal suspend fun queryMonitoring(question: String, explanation: String, guidance: String): AskResult = FarmPiApi.ask(question, explanation, guidance, null)
