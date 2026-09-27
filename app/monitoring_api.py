@@ -89,15 +89,15 @@ def build_monitoring_overview(now: datetime | None = None) -> dict[str, object]:
         if not contributors:
             continue
         value = fmean(environment.values[item.key] for environment in contributors)
-        latest_received = max(environment.received_at for environment in contributors)
-        latest_observed = max(environment.observed_at for environment in contributors)
+        oldest_received = min(environment.received_at for environment in contributors)
+        oldest_observed = min(environment.observed_at for environment in contributors)
         simulated = any(environment.measurement_modes.get(item.key) == "SIMULATED" for environment in contributors)
         payload = _measurement_payload(
             item.key,
             value,
             "SIMULATED" if simulated else "LIVE",
-            latest_observed,
-            latest_received,
+            oldest_observed,
+            oldest_received,
             current_time,
         )
         payload["contributing_locations"] = len(contributors)
