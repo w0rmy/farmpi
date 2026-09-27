@@ -692,6 +692,8 @@ private object FarmPiApi {
         request("api/nodes/locations", "POST", JSONObject().put("name", name), token)
     }
 
+    suspend fun monitoringOverview(): JSONObject = withContext(Dispatchers.IO) { request("api/monitoring/overview") }
+
     suspend fun health(): JSONObject = withContext(Dispatchers.IO) { request("api/status") }
 
     suspend fun status(): Boolean = withContext(Dispatchers.IO) {
@@ -751,6 +753,7 @@ private object FarmPiApi {
     private fun JSONArray.objectsAsStrings(): List<String> = (0 until length()).map { index -> getJSONObject(index).toString() }
 }
 
+internal suspend fun fetchMonitoringOverview() = FarmPiApi.monitoringOverview().monitoringOverview()
 internal suspend fun fetchNodes(token: String) = FarmPiApi.nodes(token)
 internal suspend fun saveManagedNode(token: String, id: Int, approve: Boolean, body: JSONObject) = FarmPiApi.saveNode(token, id, approve, body)
 internal suspend fun createManagedLocation(token: String, name: String) = FarmPiApi.createLocation(token, name)
