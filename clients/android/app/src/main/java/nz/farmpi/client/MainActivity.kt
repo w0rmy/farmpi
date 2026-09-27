@@ -401,7 +401,12 @@ private fun FarmPiApp() {
     FarmPiTheme(displayDensity) {
     Scaffold(topBar = {
         TopAppBar(
-            title = { Column { Text("FarmPi", fontWeight = FontWeight.Bold); Text("Local farm monitoring · Prototype", style = MaterialTheme.typography.labelSmall) } },
+            title = {
+                Column {
+                    Text("FarmPi", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Local farm monitoring · Prototype", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.surface,
                 titleContentColor = MaterialTheme.colorScheme.onSurface,
@@ -541,7 +546,7 @@ private fun SettingsDialog(
     setDisplayDensity: (String) -> Unit, close: () -> Unit,
 ) = AlertDialog(
     onDismissRequest = close,
-    title = { Text("Accessibility and display settings") },
+    title = { Text("Settings") },
     text = { Column(Modifier.verticalScroll(rememberScrollState())) {
         Text("Connection", fontWeight = FontWeight.Bold)
         Text(BuildConfig.FARMPI_BASE_URL)
@@ -553,8 +558,6 @@ private fun SettingsDialog(
         SettingChips(listOf("simple", "normal", "technical"), explanation, setExplanation)
         Text("Guidance prompts", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
         SettingChips(listOf("more", "normal", "less"), guidance, setGuidance)
-        Text("FarmPi appearance", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
-        Text("FarmPi uses one consistent light interface with green accents and status colours. Theme selection is no longer required.", style = MaterialTheme.typography.bodySmall)
         Text("Text size", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
         SettingChips(listOf("compact", "standard", "large"), displayDensity, setDisplayDensity)
     } },
