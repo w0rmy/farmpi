@@ -507,7 +507,7 @@ Live Android use exposed three connected usability/integration problems after th
 ### Decision
 
 - Extend deterministic summary-target extraction so normal farmer names such as `Bob's paddock` and `Fred's paddock` route directly to `paddock_summary`.
-- Normalise smart apostrophes from speech/transcription before canonical location resolution.
+- Normalise smart apostrophes from speech/transcription before canonical location resolution. The speech normaliser also corrects the narrow `What states are available...` → `What stats are available...` transcription error only when the utterance already names a configured FarmPi location.
 - Preserve deterministic authority: a recognised summary request has zero LLM generation time.
 - Give `/api/ask` a separate 130-second Android read window while ordinary local API calls remain at 30 seconds. A socket/read timeout is now reported as a response timeout rather than a network/certificate failure.
 - Advertise monitoring API capability in `/api/status` and regression-test that the composed deployed FastAPI application actually mounts `/api/monitoring/overview` and `/api/monitoring/compare`.
