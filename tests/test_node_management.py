@@ -189,7 +189,7 @@ class NodeFlowTests(unittest.TestCase):
 
     def test_relocation_preserves_history_and_rejects_old_assignment(self):
         node_id = self.register(1); config = self.set_mode(1, node_id, "SIMULATED")
-        payload = self.sample(1, config)
+        payload = self.sample(1, config, simulated=True)
         self.assertEqual(self.client.post("/api/ingest", json=payload).status_code, 201)
         response = self.client.put(f"/api/nodes/{node_id}/configuration", headers=self.admin, json={"name": "Moved", "paddock_id": 2, "modes": {"soil_moisture_pct": "SIMULATED"}, "expected_fingerprint": config["fingerprint"]})
         self.assertEqual(response.status_code, 200)
