@@ -38,4 +38,4 @@ See [setup, contract and hardware evidence checklist](../../docs/s3-node-bringup
 The older `../esp32-sensor` sketch remains an explicit 16-location test/demo
 generator. It is no longer the normal operational database baseline.
 
-Source-mode changes are console-only through `scripts/configure-node-modes`; Android presents them read-only. See the [upgrade procedure](../../docs/s3-node-bringup.md) when replacing the six-key profile.
+Source-mode changes can be made from Android Node Detail or from `scripts/configure-node-modes`. Both paths update the same desired configuration and fingerprint contract. Android enables LIVE only when this firmware advertises a matching physical driver. See the [upgrade procedure](../../docs/s3-node-bringup.md) when replacing the six-key profile.
