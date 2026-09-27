@@ -219,23 +219,91 @@ internal fun MonitoringArea(
                 }
             }
             "Compare", "History" -> {
-                InfoCard(if (destination == "Compare") "Compare two locations" else "Explore a measurement", "Results below use the server's calculation, chart and evidence. Missing or unsupported data is reported by FarmPi.") {
-                    OutlinedTextField(locationA, { locationA = it }, label = { Text(if (destination == "Compare") "Location A" else "Location (leave blank for farm)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    if (destination == "Compare") OutlinedTextField(locationB, { locationB = it }, label = { Text("Location B") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                val locations = overview?.locations.orEmpty()
+                val measurementOptions = listOf(
+                    "Soil moisture" to "soil_moisture_pct",
+                    "Soil temperature" to "soil_temperature_c",
+                    "Air temperature" to "air_temperature_c",
+                    "Humidity" to "relative_humidity_pct",
+                    "Light" to "light_lux",
+                    "Pressure" to "barometric_pressure_hpa",
+                )
+                val selectedMeasurementKey = measurementOptions.first { it.first == measurement }.second
+                val windowMinutes = if (period == "7 days") 7 * 24 * 60 else 24 * 60
+
+                if (overviewLoading && overview == null) LinearProgressIndicator(Modifier.fillMaxWidth())
+                overviewError?.let {
+                    InfoMessageCard("Monitoring locations unavailable", it)
+                    OutlinedButton(onClick = { refreshOverview() }) { Text("Try again") }
+                }
+
+                InfoCard(
+                    if (destination == "Compare") "Compare two locations" else "Explore a measurement",
+                    if (destination == "Compare")
+                        "Choose two configured FarmPi locations. The comparison is calculated directly from verified history; the language model is not used."
+                    else
+                        "Choose a configured location or the whole farm. Results use deterministic FarmPi history and graph calculations.",
+                ) {
+                    if (locations.isEmpty() && !overviewLoading) {
+                        Text("No configured FarmPi locations are available yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        LocationSelector(
+                            label = if (destination == "Compare") "Location A" else "Location",
+                            locations = locations,
+                            selected = locationA,
+                            onSelect = { locationA = it },
+                            allowFarmWide = destination == "History",
+                        )
+                        if (destination == "Compare") {
+                            LocationSelector(
+                                label = "Location B",
+                                locations = locations,
+                                selected = locationB,
+                                onSelect = { locationB = it },
+                            )
+                        }
+                    }
+
                     Text("Measurement", style = MaterialTheme.typography.labelLarge)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Soil moisture", "Soil temperature", "Air temperature", "Humidity", "Light", "Pressure").forEach { name ->
+                        measurementOptions.forEach { (name, _) ->
                             FilterChip(selected = measurement == name, onClick = { measurement = name }, label = { Text(name) })
                         }
                     }
                     Text("Period", style = MaterialTheme.typography.labelLarge)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("1 day", "7 days").forEach { name -> FilterChip(selected = period == name, onClick = { period = name }, label = { Text(name) }) }
+                        listOf("1 day", "7 days").forEach { name ->
+                            FilterChip(selected = period == name, onClick = { period = name }, label = { Text(name) })
+                        }
                     }
                     Text("1 month · 3 months · Custom — Coming later. Current history is limited to seven days.", style = MaterialTheme.typography.bodySmall)
-                    Button(enabled = !loading && (destination == "History" || (locationA.isNotBlank() && locationB.isNotBlank() && !locationA.trim().equals(locationB.trim(), true))), onClick = {
-                        query(if (destination == "Compare") "Compare $measurement between ${locationA.trim()} and ${locationB.trim()} over the last $period" else "Show a graph of $measurement ${if (locationA.isBlank()) "across the farm" else "for ${locationA.trim()}"} over the last $period")
-                    }) { Text(if (destination == "Compare") "Show comparison" else "Show history") }
+
+                    val left = locations.firstOrNull { it.name == locationA }
+                    val right = locations.firstOrNull { it.name == locationB }
+                    val compareReady = destination != "Compare" || (left != null && right != null && left.id != right.id)
+                    Button(
+                        enabled = !loading && compareReady && (destination == "History" || locations.isNotEmpty()),
+                        onClick = {
+                            if (destination == "Compare" && left != null && right != null) {
+                                loading = true
+                                result = null
+                                requestError = null
+                                requested = "Compare $measurement between ${left.name} and ${right.name} over the last $period"
+                                scope.launch {
+                                    try {
+                                        result = compareMonitoringLocations(left.id, right.id, selectedMeasurementKey, windowMinutes)
+                                        receivedAt = java.time.LocalTime.now().withNano(0).toString()
+                                    } catch (e: Exception) {
+                                        requestError = e.message ?: "FarmPi could not provide this comparison. Try again."
+                                    } finally {
+                                        loading = false
+                                    }
+                                }
+                            } else {
+                                query("Show a graph of $measurement ${if (locationA.isBlank()) "across the farm" else "for ${locationA.trim()}"} over the last $period")
+                            }
+                        },
+                    ) { Text(if (destination == "Compare") "Show comparison" else "Show history") }
                 }
             }
             "Alerts" -> {
