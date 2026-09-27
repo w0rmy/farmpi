@@ -59,6 +59,28 @@ class SpeechNormalizerTests(unittest.TestCase):
         self.assertEqual(result.normalized_transcript, "What is the pasture height in North Flat?")
         self.assertTrue(result.alternative_selected)
 
+    def test_stats_states_confusion_is_corrected_only_for_known_location(self) -> None:
+        corrected = normalize_speech(
+            "What states are available on Fred's paddock?",
+            paddock_names=("Bob's paddock", "Fred's paddock"),
+        )
+        self.assertEqual(corrected.normalized_transcript, "What stats are available on Fred's paddock?")
+        self.assertTrue(corrected.correction_applied)
+
+        unrelated = normalize_speech(
+            "What states are available in Australia?",
+            paddock_names=("Fred's paddock",),
+        )
+        self.assertEqual(unrelated.normalized_transcript, "What states are available in Australia?")
+        self.assertFalse(unrelated.correction_applied)
+
+    def test_known_location_matching_accepts_smart_apostrophe(self) -> None:
+        result = normalize_speech(
+            "What states are available on Fred’s paddock?",
+            paddock_names=("Fred's paddock",),
+        )
+        self.assertEqual(result.normalized_transcript, "What stats are available on Fred’s paddock?")
+
     @patch("app.speech_normalizer.fetch_all")
     def test_current_paddock_names_reads_active_database_names(self, fetch_all) -> None:
         fetch_all.return_value = [{"name": "North Flat"}, {"name": "Back Hill"}]
