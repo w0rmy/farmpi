@@ -22,7 +22,7 @@ mkdir -p "${backup_dir}"
 chmod 0700 "${backup_dir}"
 
 echo "Archiving existing FarmPi database to ${backup_file}..."
-mysqldump --protocol=socket --single-transaction --routines --triggers farmpi > "${backup_file}"
+mariadb-dump --protocol=socket --single-transaction --routines --triggers farmpi > "${backup_file}"
 chmod 0600 "${backup_file}"
 
 service_was_active=0
