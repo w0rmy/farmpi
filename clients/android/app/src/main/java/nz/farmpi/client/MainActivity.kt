@@ -21,6 +21,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Chat
+import androidx.compose.material.icons.rounded.CompareArrows
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.StopCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -413,17 +422,31 @@ private fun FarmPiApp() {
                 actionIconContentColor = MaterialTheme.colorScheme.primary,
             ),
             actions = {
-                if (isSpeaking) TextButton(onClick = { stopSpeaking() }) { Text("Stop speaking", color = MaterialTheme.colorScheme.primary) }
-                TextButton(onClick = { showSettings = true }) { Text("Settings", color = MaterialTheme.colorScheme.primary) }
+                if (isSpeaking) {
+                    TextButton(onClick = { stopSpeaking() }) {
+                        Icon(Icons.Rounded.StopCircle, contentDescription = null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Stop")
+                    }
+                }
+                IconButton(onClick = { showSettings = true }) {
+                    Icon(Icons.Rounded.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
+                }
             },
         )
     }, bottomBar = {
         NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-            listOf("Dashboard" to "⌂", "Compare" to "⇄", "Ask FarmPi" to "?", "Alerts" to "!", "More" to "•••").forEach { (name, symbol) ->
+            listOf(
+                Triple("Dashboard", Icons.Rounded.Home, "Dashboard"),
+                Triple("Compare", Icons.Rounded.CompareArrows, "Compare"),
+                Triple("Ask FarmPi", Icons.Rounded.Chat, "Ask FarmPi"),
+                Triple("Alerts", Icons.Rounded.Notifications, "Alerts"),
+                Triple("More", Icons.Rounded.MoreHoriz, "More"),
+            ).forEach { (name, icon, description) ->
                 NavigationBarItem(
                     selected = destination == name,
                     onClick = { destination = name },
-                    icon = { Text(symbol) },
+                    icon = { Icon(icon, contentDescription = description) },
                     label = { Text(name, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -517,6 +540,11 @@ private fun FarmPiApp() {
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     enabled = !asking || isSpeaking,
                 ) {
+                    Icon(
+                        if (isSpeaking) Icons.Rounded.StopCircle else Icons.Rounded.Mic,
+                        contentDescription = null,
+                    )
+                    Spacer(Modifier.width(8.dp))
                     Text(if (isSpeaking) "Stop speaking" else "Speak a question", textAlign = TextAlign.Center, style = MaterialTheme.typography.titleLarge)
                 }
                 Spacer(Modifier.height(10.dp))
