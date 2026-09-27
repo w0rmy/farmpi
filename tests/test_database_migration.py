@@ -26,7 +26,7 @@ class DatabaseMigrationTests(unittest.TestCase):
     def test_demo_data_requires_explicit_loader(self) -> None:
         loader = (PROJECT_ROOT / "scripts/load-demo-data").read_text(encoding="utf-8")
         self.assertIn("config/database/seed.sql", loader)
-        self.assertIn('mariadb --protocol=socket farmpi < "\${seed_file}"', loader)
+        self.assertIn('mariadb --protocol=socket farmpi < "${seed_file}"', loader)
 
     def test_clean_reset_backs_up_before_drop_and_does_not_seed(self) -> None:
         reset = (PROJECT_ROOT / "scripts/reset-operational-database").read_text(encoding="utf-8")
