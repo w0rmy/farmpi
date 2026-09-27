@@ -10,14 +10,14 @@ FarmPi currently combines:
 
 - a Raspberry Pi FastAPI service, MariaDB, Caddy HTTPS, and a Pi-local OpenAI-compatible language-model endpoint;
 - two managed ESP32-S3 physical nodes using discovery, explicit administrator registration, per-device credentials, and latest-state configuration fingerprints, with the sparse physical-telemetry contract ready for the acquisition drivers;
-- one ESP32 simulator that generates 16 clearly labelled virtual paddocks for repeatable testing;
-- a reviewed 13-measurement application catalogue, with firmware capabilities, per-node enabled configuration, and actual reporting state kept separate;
+- an explicit 16-location simulator fixture available for repeatable demo/testing, but no longer loaded into the normal operational database automatically;
+- a reviewed 13-measurement application catalogue, with firmware capabilities, per-node OFF/SIMULATED/LIVE configuration, LIVE-driver capability and actual reporting state kept separate;
 - deterministic current and historical farm facts, calculations, identity resolution, timestamps, chart data, and controlled mutations;
 - a native Android client with text/voice interaction, text-to-speech, charts, evidence/provenance, settings, local state, and managed-node administration;
 - semantic interpretation and bounded conversation context for natural-language requests;
 - curated source metadata and provenance rules for external/general information.
 
-Synthetic telemetry is test evidence, not an agronomic model, forecast, or production-farm recommendation. The simulator deliberately emits a broad measurement set so the wider application can be exercised without implying that every physical node contains every sensor. The managed physical-telemetry contract is sparse: once acquisition drivers are added, a node sends only measurements that are actually enabled and observed. The current S3 bring-up firmware does not yet claim physical probe acquisition. Final T01 evidence still requires six real physical measurements, but that acceptance requirement is not implemented as a mandatory six-field payload.
+Synthetic telemetry is test evidence, not an agronomic model, forecast, or production-farm recommendation. The legacy simulator can emit a broad measurement set when explicitly loaded. Managed ESP32-S3 nodes can also generate SIMULATED values locally, so the real identity/configuration/network/ingest/database path can be tested before probes are fitted. Managed telemetry is sparse and source-labelled. The current S3 firmware advertises no LIVE probe driver yet and therefore does not claim physical acquisition. Final T01 evidence still requires six real physical measurements, but that acceptance requirement is not implemented as a mandatory six-field payload.
 
 ## Start here
 
@@ -50,7 +50,7 @@ managed ESP32-S3 nodes  | FarmLAN AP   |          |        +--> Pi-local llama.c
       |                 | 10.42.0.1/24 |          |               |
       +-- discovery ---->              |          |               +--> Qwen3 1.7B Q4_K_M
       +-- config sync -->              |          |
-      +.. sparse ingest (next) .......>|          +--> deterministic routing / analytics / provenance
+      +-- sparse managed ingest ----->|          +--> deterministic routing / analytics / provenance
                         |              |          |
 simulated ESP32 --------+-- HTTPS ingest -------->|
                         |                         +--> MariaDB
@@ -74,7 +74,7 @@ cd ~/farmpi
 sudo bash ./scripts/setup-database
 ```
 
-`./update` refuses a dirty checkout, performs a fast-forward pull, installs Python dependencies, compiles and runs the unit tests, installs both systemd units, reapplies the additive database schema/seed when configured, validates and reloads Caddy, and restarts the services.
+`./update` refuses a dirty checkout, performs a fast-forward pull, installs Python dependencies, compiles and runs the unit tests, installs both systemd units, reapplies the additive database schema without loading demo data, validates and reloads Caddy, and restarts the services.
 
 After setup:
 
@@ -103,7 +103,7 @@ FarmPi is authoritative only for application-controlled facts, identity/state, a
 
 - validated current and historical FarmPi readings and whether a measurement is actually available;
 - deterministic calculations and chart values over those readings;
-- active paddock/sensor identity and controlled rename history;
+- stable hardware/logical node identity, farmer-defined location identity/names and controlled rename history;
 - managed-node registration, location assignment, desired/applied configuration state, and capability availability;
 - timestamps, clock quality, deduplication state, and device-ingest state.
 
