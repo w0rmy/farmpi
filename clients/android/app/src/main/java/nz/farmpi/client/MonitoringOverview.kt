@@ -18,7 +18,7 @@ internal data class OverviewLocation(
     val id: Int,
     val name: String,
     val activeSensorCount: Int,
-    val reporting: Boolean,
+    val hasReading: Boolean,
     val ageSeconds: Int?,
     val containsSimulated: Boolean,
     val measurements: List<OverviewMeasurement>,
@@ -26,7 +26,7 @@ internal data class OverviewLocation(
 
 internal data class MonitoringOverview(
     val locationCount: Int,
-    val reportingLocationCount: Int,
+    val locationsWithReadingsCount: Int,
     val farmMeasurements: List<OverviewMeasurement>,
     val locations: List<OverviewLocation>,
     val featuredChart: ChartPayload?,
@@ -79,7 +79,7 @@ internal fun JSONObject.monitoringOverview(): MonitoringOverview {
                 id = item.getInt("id"),
                 name = item.getString("name"),
                 activeSensorCount = item.optInt("active_sensor_count"),
-                reporting = item.optBoolean("reporting"),
+                hasReading = item.optBoolean("has_reading"),
                 ageSeconds = if (item.isNull("age_seconds")) null else item.optInt("age_seconds"),
                 containsSimulated = item.optBoolean("contains_simulated"),
                 measurements = (item.optJSONArray("measurements") ?: JSONArray()).measurements(),
@@ -88,7 +88,7 @@ internal fun JSONObject.monitoringOverview(): MonitoringOverview {
     }
     return MonitoringOverview(
         locationCount = optInt("location_count"),
-        reportingLocationCount = optInt("reporting_location_count"),
+        locationsWithReadingsCount = optInt("locations_with_readings_count"),
         farmMeasurements = (optJSONArray("farm_measurements") ?: JSONArray()).measurements(),
         locations = locations,
         featuredChart = optJSONObject("featured_chart")?.overviewChart(),
