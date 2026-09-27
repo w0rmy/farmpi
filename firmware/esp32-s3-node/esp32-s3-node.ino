@@ -8,6 +8,7 @@
 #include <mbedtls/sha256.h>
 #include <math.h>
 #include <time.h>
+#include <sys/time.h>
 #include "config.h"
 #include "board_profile.h"
 
@@ -162,6 +163,35 @@ static bool readLiveMeasurement(const String& key, float& value) {
   return false;
 }
 
+static bool syncClockFromFarmPi(JsonDocument& response) {
+  if (!response["server_time"].is<uint64_t>()) {
+    Serial.println("FarmPi contact did not include server_time; clock unchanged.");
+    return false;
+  }
+
+  const uint64_t serverTime = response["server_time"].as<uint64_t>();
+  if (serverTime < 1700000000ULL || serverTime > 4102444800ULL) {
+    Serial.printf("FarmPi server_time rejected: %llu\n", (unsigned long long)serverTime);
+    return false;
+  }
+
+  const time_t localNow = time(nullptr);
+  const int64_t offset = (int64_t)serverTime - (int64_t)localNow;
+  if (localNow >= 1700000000 && llabs(offset) <= 5) return true;
+
+  struct timeval tv;
+  tv.tv_sec = (time_t)serverTime;
+  tv.tv_usec = 0;
+  if (settimeofday(&tv, nullptr) != 0) {
+    Serial.printf("Could not set clock from FarmPi server_time=%llu\n", (unsigned long long)serverTime);
+    return false;
+  }
+
+  Serial.printf("FarmPi time synchronised: %llu (offset=%llds)\n",
+    (unsigned long long)serverTime, (long long)offset);
+  return true;
+}
+
 static void contactFarmPi() {
   JsonDocument request, response; auth(request);
   request["firmware_version"] = FIRMWARE_VERSION;
@@ -173,6 +203,7 @@ static void contactFarmPi() {
   if (appliedHash.length()) request["applied_fingerprint"] = appliedHash;
   if (!post("/api/nodes/contact", request, response)) return;
 
+  syncClockFromFarmPi(response);
   locationEpoch = response["location_epoch"].as<uint64_t>();
   if (!response["registered"].as<bool>()) {
     Serial.println("Awaiting registration; all sensors remain off.");
@@ -280,7 +311,7 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(("farmpi-" + hardwareUid).c_str());
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  configTime(0, 0, "farmpi.local");
+  Serial.println("Clock will be synchronised from FarmPi contact.");
   lastContact = millis() - CONTACT_INTERVAL_MS;
   lastTelemetry = millis();
   Serial.printf("Hardware %s; saved config %.8s; sample seq=%llu\n",
