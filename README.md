@@ -9,15 +9,15 @@ Earlier work on **Developing Flexible IT Courses** remains part of the project h
 FarmPi currently combines:
 
 - a Raspberry Pi FastAPI service, MariaDB, Caddy HTTPS, and a Pi-local OpenAI-compatible language-model endpoint;
-- two managed ESP32-S3 physical nodes using discovery, explicit administrator registration, per-device credentials, and latest-state configuration fingerprints, with the sparse physical-telemetry contract ready for the acquisition drivers;
-- one ESP32 simulator that generates 16 clearly labelled virtual paddocks for repeatable testing;
-- a reviewed 13-measurement application catalogue, with firmware capabilities, per-node enabled configuration, and actual reporting state kept separate;
+- two managed ESP32-S3 physical nodes using discovery, explicit administrator registration, per-device credentials, latest-state configuration fingerprints, farmer-defined locations, and per-measurement OFF/SIMULATED/LIVE modes;
+- one older ESP32 simulator that can generate 16 clearly labelled virtual paddocks when an explicit test/demo dataset is wanted; it is no longer loaded into the normal operational database;
+- a reviewed 13-measurement application catalogue, with firmware capabilities, per-node mode configuration, per-measurement provenance, and actual reporting state kept separate;
 - deterministic current and historical farm facts, calculations, identity resolution, timestamps, chart data, and controlled mutations;
 - a native Android client with text/voice interaction, text-to-speech, charts, evidence/provenance, settings, local state, and managed-node administration;
 - semantic interpretation and bounded conversation context for natural-language requests;
 - curated source metadata and provenance rules for external/general information.
 
-Synthetic telemetry is test evidence, not an agronomic model, forecast, or production-farm recommendation. The simulator deliberately emits a broad measurement set so the wider application can be exercised without implying that every physical node contains every sensor. The managed physical-telemetry contract is sparse: once acquisition drivers are added, a node sends only measurements that are actually enabled and observed. The current S3 bring-up firmware does not yet claim physical probe acquisition. Final T01 evidence still requires six real physical measurements, but that acceptance requirement is not implemented as a mandatory six-field payload.
+Synthetic telemetry is test evidence, not an agronomic model, forecast, or production-farm recommendation. Managed nodes can now generate bounded simulated values at the sensor-driver boundary, so test values follow the same authenticated telemetry path as later LIVE values. The managed contract remains sparse: a node sends only measurements that actually produce a value. LIVE currently reports nothing until its physical driver exists. Final T01 evidence still requires six real physical measurements; simulation never satisfies that acceptance requirement.
 
 ## Start here
 
@@ -50,9 +50,9 @@ managed ESP32-S3 nodes  | FarmLAN AP   |          |        +--> Pi-local llama.c
       |                 | 10.42.0.1/24 |          |               |
       +-- discovery ---->              |          |               +--> Qwen3 1.7B Q4_K_M
       +-- config sync -->              |          |
-      +.. sparse ingest (next) .......>|          +--> deterministic routing / analytics / provenance
+      +-- sparse ingest -------------->|          +--> deterministic routing / analytics / provenance
                         |              |          |
-simulated ESP32 --------+-- HTTPS ingest -------->|
+legacy test simulator --+-- HTTPS ingest -------->|
                         |                         +--> MariaDB
                         +--------------+
 ```
@@ -73,6 +73,8 @@ cd ~/farmpi
 ./update
 sudo bash ./scripts/setup-database
 ```
+
+A new installation starts with an empty operational dataset: no preloaded locations, nodes, or readings. The older 16-location simulator is opt-in test tooling. An existing synthetic prototype can be archived and deliberately reset with `scripts/reset-operational-database`; that destructive transition is never run automatically.
 
 `./update` refuses a dirty checkout, performs a fast-forward pull, installs Python dependencies, compiles and runs the unit tests, installs both systemd units, reapplies the additive database schema/seed when configured, validates and reloads Caddy, and restarts the services.
 
