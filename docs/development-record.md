@@ -374,3 +374,24 @@ Two independent implementations of the same requested transition were opened as 
 Jeremy's console-only source-mode boundary is restored: Android shows modes but does not submit changes to them. The replacement retains #10's per-measurement provenance, location history, reset command and mode-aware reporting, adding #11's missing console helper, explicit demo loader, all-13 simulation and LIVE-driver declaration/checks. It does not merge either PR or run a database reset.
 
 The [transition/reconciliation record](database-transition-2026-09-27.md) identifies both branch tips, every overlapping file and the commits touching each. The baseline suite had two failures, one a legacy simulated-provenance fallback regression and one an obsolete missing-sensor text assertion; both are corrected in the replacement. Hardware acceptance is still outstanding.
+
+
+## 27 September 2026 — one fixed FarmPi Android visual identity
+
+### Context
+
+The Android client had accumulated six selectable colour themes from the earlier flexible-learning direction. That no longer matched the current capstone or the FarmPi stakeholder mockup. The theme selector also added settings and visual combinations that did not improve the farm-monitoring task.
+
+### Decision
+
+- Remove the selectable Neutral, NZ red/white/blue, Green/natural, Dark high contrast, Yellow/black and Muted themes from the Android client.
+- Use one fixed light FarmPi visual system based on the supplied reference image: white/off-white backgrounds, white cards, dark readable text, restrained FarmPi green for primary actions/selection, rounded surfaces and light grey structure.
+- Use semantic status colours consistently: green for current/online/in-sync, amber for old/stale/pending, red for missing/error/unavailable, and blue for simulated/prototype states.
+- Keep compact/standard/large text size because text scaling is an accessibility/usability control rather than a cosmetic skin.
+- Keep explanation depth, guidance and voice behaviour as independent functional preferences.
+- Leave any previously stored theme preference untouched but stop reading or writing it. This avoids an unnecessary preference migration while ensuring installed clients use the same current visual identity.
+- Do not change navigation, API behaviour, data authority or backend contracts as part of the theme refactor.
+
+### Evidence boundary
+
+This is a presentation and usability refactor. It does not prove that the reference-image dashboard data cards or tablet layout have been implemented, and it does not change any FarmPi readings, calculations, provenance or acceptance state. Device-level visual acceptance is still required across phone/tablet sizes and the retained text-size choices.
