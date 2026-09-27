@@ -165,6 +165,7 @@ private fun NodeListCard(node: JSONObject, open: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NodeDetail(
     node: JSONObject,
@@ -179,6 +180,14 @@ private fun NodeDetail(
     val sensors = node.getJSONArray("sensors")
     val registered = node.getBoolean("registered")
     var technical by remember { mutableStateOf(false) }
+    var modes by remember(node.toString()) {
+        mutableStateOf(
+            (0 until sensors.length())
+                .map { sensors.getJSONObject(it) }
+                .filter { it.getBoolean("supported") }
+                .associate { item -> item.getString("key") to item.optString("mode", "OFF") }
+        )
+    }
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -230,21 +239,57 @@ private fun NodeDetail(
             if (registered) {
                 Text("Sensor modes", fontWeight = FontWeight.SemiBold)
                 Text(
-                    "OFF sends nothing. SIMULATED exercises the real telemetry path with test values. LIVE requires a supported physical sensor. Modes are managed from the FarmPi console.",
+                    "Choose how each supported measurement behaves. OFF sends nothing. SIMULATED generates test values on the node. LIVE uses a real sensor driver and is only available when this firmware advertises one.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 for (j in 0 until sensors.length()) {
                     val item = sensors.getJSONObject(j)
+                    val key = item.getString("key")
+                    val supported = item.getBoolean("supported")
+                    val liveSupported = item.optBoolean("live_supported", false)
+                    val selectedMode = modes[key] ?: "OFF"
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(item.getString("label"))
-                        if (!item.getBoolean("supported")) {
+                        Text(item.getString("label"), fontWeight = FontWeight.Medium)
+                        if (!supported) {
                             Text("Not supported by this firmware", style = MaterialTheme.typography.bodySmall)
                         } else {
-                            Text("Mode: ${item.optString("mode", "OFF")}", style = MaterialTheme.typography.bodyMedium)
-                            Text(item.optString("state"), style = MaterialTheme.typography.bodySmall)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf("OFF", "SIMULATED", "LIVE").forEach { mode ->
+                                    FilterChip(
+                                        selected = selectedMode == mode,
+                                        onClick = { modes = modes + (key to mode) },
+                                        enabled = !busy && (mode != "LIVE" || liveSupported),
+                                        label = { Text(mode.lowercase().replaceFirstChar { it.uppercase() }) },
+                                    )
+                                }
+                            }
+                            Text(
+                                when {
+                                    selectedMode == "LIVE" && !liveSupported -> "LIVE is not supported by this firmware."
+                                    selectedMode == "LIVE" -> "LIVE will use the physical sensor driver."
+                                    selectedMode == "SIMULATED" -> "SIMULATED will use node-generated test values."
+                                    else -> "OFF: this measurement is not expected to report."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            val currentMode = item.optString("mode", "OFF")
+                            val currentState = item.optString("state")
+                            if (selectedMode != currentMode) {
+                                Text(
+                                    "Pending change: $currentMode → $selectedMode",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            } else if (currentState.isNotBlank()) {
+                                Text(currentState, style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
                 }
+                Text(
+                    "After saving, FarmPi will show Update pending until the node fetches and acknowledges the new configuration.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
 
             TextButton(onClick = { technical = !technical }) {
@@ -274,6 +319,9 @@ private fun NodeDetail(
                         .put("name", name.trim())
                         .put("paddock_id", if (location == 0) JSONObject.NULL else location)
                     if (registered) {
+                        val modeObject = JSONObject()
+                        modes.toSortedMap().forEach { (key, value) -> modeObject.put(key, value) }
+                        body.put("modes", modeObject)
                         body.put("expected_fingerprint", node.getString("desired_fingerprint"))
                     }
                     save(body, !registered)
