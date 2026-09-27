@@ -1,4 +1,4 @@
-"""Static deployment contracts for the repeatable 16-node database migration."""
+"""Static deployment contracts for FarmPi operational database management."""
 
 from __future__ import annotations
 
@@ -10,28 +10,42 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class DatabaseMigrationTests(unittest.TestCase):
-    def test_seed_declares_all_sixteen_stable_sensor_uids(self) -> None:
+    def test_demo_seed_remains_explicit_sixteen_location_fixture(self) -> None:
         seed = (PROJECT_ROOT / "config/database/seed.sql").read_text(encoding="utf-8")
         for suffix in "abcdefghijklmnop":
             self.assertIn(f"SELECT '{suffix}'", seed)
         self.assertIn("^test-moisture-[a-p]$", seed)
 
-    def test_repeatable_seed_never_reassigns_existing_sensor_paddock(self) -> None:
-        seed = (PROJECT_ROOT / "config/database/seed.sql").read_text(encoding="utf-8")
-        self.assertNotIn("paddock_id = VALUES(paddock_id)", seed)
-        self.assertIn("WHERE s.id IS NULL", seed)
-        self.assertIn("p.id = s.paddock_id", seed)
-
-    def test_normal_update_path_applies_schema_and_seed(self) -> None:
+    def test_normal_update_path_does_not_load_demo_seed(self) -> None:
         helper = (PROJECT_ROOT / "scripts/apply-database-schema").read_text(encoding="utf-8")
         update = (PROJECT_ROOT / "update").read_text(encoding="utf-8")
-        self.assertIn('seed_file=${project_dir}/config/database/seed.sql', helper)
-        self.assertIn('mariadb --protocol=socket farmpi < "${seed_file}"', helper)
-        self.assertIn('scripts/apply-database-schema', update)
+        self.assertNotIn("seed.sql", helper)
+        self.assertNotIn("prototype data", helper.lower())
+        self.assertIn("scripts/apply-database-schema", update)
 
-    def test_schema_has_observation_receive_and_sequence_contract(self) -> None:
+    def test_demo_data_requires_explicit_loader(self) -> None:
+        loader = (PROJECT_ROOT / "scripts/load-demo-data").read_text(encoding="utf-8")
+        self.assertIn("config/database/seed.sql", loader)
+        self.assertIn('mariadb --protocol=socket farmpi < "\${seed_file}"', loader)
+
+    def test_clean_reset_backs_up_before_drop_and_does_not_seed(self) -> None:
+        reset = (PROJECT_ROOT / "scripts/reset-operational-database").read_text(encoding="utf-8")
+        self.assertIn("mariadb-dump", reset)
+        self.assertLess(reset.index("mariadb-dump"), reset.index("DROP DATABASE IF EXISTS farmpi"))
+        self.assertNotIn("seed.sql", reset)
+        self.assertIn("--yes", reset)
+
+    def test_schema_has_observation_receive_sequence_and_capability_contract(self) -> None:
         schema = (PROJECT_ROOT / "config/database/schema.sql").read_text(encoding="utf-8")
-        for column in ("observed_at", "received_at", "clock_offset_seconds", "clock_out_of_tolerance", "sample_seq", "protocol_version"):
+        for column in (
+            "observed_at",
+            "received_at",
+            "clock_offset_seconds",
+            "clock_out_of_tolerance",
+            "sample_seq",
+            "protocol_version",
+            "live_capabilities_json",
+        ):
             self.assertIn(column, schema)
         self.assertIn("uq_readings_sensor_sample_seq", schema)
 
