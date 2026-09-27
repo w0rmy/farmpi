@@ -4,8 +4,11 @@ from datetime import datetime, timezone
 import unittest
 from unittest.mock import patch
 
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
 from app.farm_data import GroundingData, NoFarmData, PaddockEnvironment
-from app.monitoring_api import build_monitoring_overview
+from app.monitoring_api import build_monitoring_overview, router
 from app.paddock_resolver import PaddockIdentity
 
 
@@ -71,6 +74,25 @@ class MonitoringOverviewTests(unittest.TestCase):
         self.assertEqual(result["locations"][0]["measurements"], [])
         self.assertEqual(result["farm_measurements"], [])
         self.assertIsNone(result["featured_chart"])
+
+    @patch("app.monitoring_api.build_monitoring_overview")
+    def test_endpoint_exposes_overview_contract(self, build) -> None:
+        build.return_value = {
+            "generated_at": self.now.isoformat(),
+            "location_count": 0,
+            "locations_with_readings_count": 0,
+            "farm_measurements": [],
+            "locations": [],
+            "featured_chart": None,
+        }
+        app = FastAPI()
+        app.include_router(router)
+
+        response = TestClient(app).get("/api/monitoring/overview")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["location_count"], 0)
+        build.assert_called_once_with()
 
 
 if __name__ == "__main__":
