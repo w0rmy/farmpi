@@ -75,7 +75,7 @@ def build_monitoring_overview(now: datetime | None = None) -> dict[str, object]:
             "id": identity.id,
             "name": identity.name,
             "active_sensor_count": identity.active_sensor_count,
-            "reporting": environment is not None,
+            "has_reading": environment is not None,
             "observed_at": _utc(environment.observed_at).isoformat() if environment else None,
             "received_at": _utc(environment.received_at).isoformat() if environment else None,
             "age_seconds": _age_seconds(environment.received_at, current_time) if environment else None,
@@ -118,7 +118,7 @@ def build_monitoring_overview(now: datetime | None = None) -> dict[str, object]:
     return {
         "generated_at": current_time.isoformat(),
         "location_count": len(identities),
-        "reporting_location_count": len(snapshot),
+        "locations_with_readings_count": len(snapshot),
         "farm_measurements": farm_measurements,
         "locations": locations,
         "featured_chart": featured_chart,
