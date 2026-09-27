@@ -463,3 +463,32 @@ Jeremy asked for FarmPi to become visually informative rather than simply themed
 ### Evidence boundary
 
 The visual dashboard demonstrates structured API/client integration and deterministic presentation, but it does not establish sensor accuracy, physical T01 acceptance, alert completion or node connectivity. A stored reading can be old; the UI displays its age rather than silently converting it into an online/current claim. Device-level layout acceptance remains necessary after the Android build.
+
+
+## 27 September 2026 — managed-node telemetry blocked by false NTP assumption
+
+### Observation
+
+Both ESP32-S3 nodes were registered, contacting FarmPi and showing their SIMULATED configuration as applied/in sync, but the new operational MariaDB `readings` table remained empty. FarmPi logs showed node contact traffic but no `POST /api/ingest` traffic.
+
+The firmware had been calling `configTime(0, 0, "farmpi.local")`, which implicitly treated the FarmPi application host as an NTP server. The Raspberry Pi does not run an NTP service. Telemetry then reached its 60-second send path, checked `time(nullptr)`, and deferred the sample when the clock was not valid. The configuration/control plane could therefore appear healthy while the telemetry/data plane produced no database rows.
+
+### Decision
+
+- Remove the `configTime(..., "farmpi.local")` dependency.
+- Reuse the authoritative Unix `server_time` already returned by every successful `POST /api/nodes/contact`.
+- Validate the returned time before use.
+- Set/correct the ESP32 application clock with `settimeofday()` when its clock is invalid or differs from FarmPi by more than five seconds.
+- Keep the existing invalid-clock telemetry guard. Do not weaken timestamp validation to make simulation work.
+- Keep the existing 15-second contact cadence and 60-second telemetry cadence.
+- Do not add an NTP daemon or Internet time dependency to FarmPi.
+
+### Why this matters
+
+The fault was isolated by checking the system end to end rather than assuming that node registration and configuration synchronisation proved telemetry was working. The ESP32-to-FarmPi contact path was healthy, the desired/applied configuration was healthy, and the database contained no readings. Checking service traffic then separated contact from ingest and exposed the missing time dependency before `/api/ingest`.
+
+This preserves the local-only architecture: FarmPi remains the system time authority through an existing authenticated application exchange rather than adding another infrastructure service.
+
+### Verification boundary
+
+Source/tests now protect the contact `server_time` contract, the removal of the false NTP call, the retained 15-second/60-second cadences and the invalid-clock telemetry guard. The final live check still requires flashing both ESP32-S3 boards and confirming serial `FarmPi time synchronised` / `Telemetry accepted` output followed by new SIMULATED rows for both nodes in MariaDB. This remains simulation-path evidence, not T01 physical-sensor evidence.
