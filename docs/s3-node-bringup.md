@@ -16,15 +16,21 @@ Two hardware faults/bring-up conditions were also isolated:
 These results do not constitute physical sensing evidence. No real probe reading has yet been claimed here, and T01 remains incomplete until all six FR01 physical measurements are demonstrated with required provenance.
 
 
-## What exists
+## Current transition design - 27 September 2026
 
-The existing `sensor_nodes`, catalogue, readings table, `/api/ingest`, database connection layer and Android HTTPS client are extended. The old `firmware/esp32-sensor` remains the explicitly simulated 16-node generator. The new `firmware/esp32-s3-node` target is a physical configuration client; it never generates readings. Both physical boards use the same binary and network configuration. UID is read from factory eFuse MAC and an independently generated device key is persisted in NVS; the server stores only its SHA-256 hash.
+The earlier prototype treated a centrally generated 16-location synthetic dataset as normal application data. Once two real managed ESP32-S3 boards were introduced, that created an avoidable ambiguity: a simulated location could look operational while real hardware existed separately with no physical measurements.
 
-The S3 bring-up profile understands soil-moisture enablement only and has no acquisition driver. The Android screen shows all 13 catalogue entries, with unsupported capabilities disabled. Enabling soil moisture produces **CONFIGURED BUT NOT REPORTING** until the real identified probe driver exists. Do not equate configuration support with a working sensor.
+The current branch therefore establishes a clean operational baseline. The old `firmware/esp32-sensor` remains available as an explicit test/demo generator, but a normal FarmPi database starts with no locations, nodes or readings. The one-time reset helper archives the old database before recreating it; the reset is never triggered merely by applying code.
+
+Simulation has moved to the managed-node sensor boundary. Each standard measurement is now independently `OFF`, `SIMULATED`, or `LIVE`. Simulated values originate on the ESP32-S3 and use the same device authentication, configuration fingerprint, time, sequence, ingest, storage and Android path as later physical readings. LIVE mode produces no value until a real driver is implemented.
+
+Hardware UID, stable FarmPi node ID and farmer location are separate identities. The logical ID is `FP-xxx`. The farmer can assign names such as `Bob's`, `Back Hill` or `Down by the Trough`, and moving a node does not change its hardware or logical identity.
+
+The standard S3 profile advertises the six FR01 measurement keys so each can be switched OFF/SIMULATED/LIVE independently. This is configuration and test capability, not physical-sensor evidence. T01 still requires six real physical measurements.
 
 ## Software setup
 
-1. Back up the MariaDB database before applying `config/database/schema.sql` through the existing update workflow. This change preserves existing rows and relaxes old baseline NOT NULL columns. It adds registration/configuration fields to sensor_nodes and captures paddock_id in readings. The initial backfill uses the assignment known at migration time; it cannot reconstruct location changes that predate this migration. Live node registration now confirms that the managed-node schema is active on the deployed FarmPi database. A separate disposable-database double-apply/idempotence check is still useful evidence and should be retained when performed.
+1. Before the one-time transition to the clean operational baseline, run `sudo bash ./scripts/reset-operational-database --yes-really-reset`. The helper first creates a timestamped SQL archive under `/var/backups/farmpi`, then stops FarmPi, recreates the database, applies the current schema and empty operational seed, and restarts the service. Do not run it until the current synthetic dataset is no longer needed. Normal future updates continue to use the additive schema workflow and do not erase operational data.
 2. The updated `scripts/setup-database` preserves or generates `FARMPI_ADMIN_TOKEN` in the existing protected environment file. On an existing installation that only runs the schema update, add a separately generated administrator token to `/etc/farmpi/farmpi.env` and restart FarmPi. Do not reuse the ingest token. The Android Nodes screen holds this token only for its current screen session. No secrets belong in Git or evidence logs.
 3. Build/install the Android client, open **Nodes**, enter the administrator token and refresh. The earlier managed-environment Gradle attempt failed before Kotlin compilation because Gradle could not establish a loopback connection, but the live Android Nodes workflow has since been exercised successfully against FarmPi for S3 discovery/registration. Preserve both records: the earlier build failure is development evidence and the later device use is live integration evidence.
 4. Copy `firmware/esp32-s3-node/config.example.h` to `config.h`; set Wi-Fi and the FarmPi HTTPS address. Paste the existing Caddy local root CA certificate. The physical target verifies TLS and therefore needs a trustworthy clock before certificate validation. The two live boards successfully reached FarmPi registration, so the current test environment satisfied that dependency. The repeatable deployment mechanism for local time/NTP should still be recorded explicitly; the repository setup does not yet install a dedicated NTP service. No Internet time service is required by the intended architecture.
@@ -33,37 +39,45 @@ The S3 bring-up profile understands soil-moisture enablement only and has no acq
 
 ## Configuration contract
 
-Device contact: `POST /api/nodes/contact` with hardware_uid, device_key, firmware_version, board_profile, capabilities and optional applied_fingerprint. Unknown devices appear pending. Discovery cannot approve itself. `POST /api/nodes/{id}/approve`, using the administrator bearer token, assigns node UID and starts with `enabled: []`. Node IDs derive from existing numeric row IDs; seeded simulator rows may mean the first physical node is `node-017`, not `node-001`. Names are editable; IDs remain stable.
+Device contact remains `POST /api/nodes/contact` with hardware UID, device key, firmware version, board profile, capabilities and optional applied fingerprint. Unknown devices appear as pending and cannot approve themselves.
 
-The canonical document contains exactly `enabled` (sorted, unique catalogue keys), `node_uid`, and numeric `schema_version: 1`. JSON uses sorted keys and compact ASCII separators. SHA-256 over those exact bytes is authoritative; the UI shows its first eight hexadecimal characters only. Location, friendly name and firmware diagnostics are separate from sensor configuration and do not select GPIOs.
+`POST /api/nodes/{id}/approve` assigns a stable logical ID such as `FP-001`. Registration starts every advertised measurement in OFF mode. Friendly node name and assigned location remain separate from that logical identity.
 
-`PUT /api/nodes/{id}/configuration` accepts name, paddock_id, enabled and expected_fingerprint. It rejects unsupported capabilities and stale edits. The device compares fingerprints during each 15-second contact, requests the complete latest document with `POST /api/nodes/configuration`, checks schema/identity/capabilities/canonical bytes/hash, persists it, applies it and sends `/api/nodes/ack`. It never requests intermediate revisions. Acknowledgements for a superseded unknown configuration return 409; the device fetches latest on its next contact. A lost current acknowledgement is repaired by the next contact.
+The schema-version-2 canonical document contains exactly `modes`, `node_uid`, and `schema_version`. `modes` contains one of `OFF`, `SIMULATED`, or `LIVE` for every capability advertised by that firmware. JSON is compact and key-sorted before SHA-256 fingerprinting.
 
-The firmware has two NVS configuration slots. It writes and reads back the inactive complete document before switching the selector. Boot validates the selected document and can fall back to the other valid slot. A rejected candidate does not replace the active state. Physical reboot, power interruption and network-loss behaviour still require hardware evidence; a successful compile does not prove NVS recovery.
+`PUT /api/nodes/{id}/configuration` accepts friendly name, location ID, the mode map and the expected current fingerprint. Stale edits, unknown measurements and invalid modes are rejected. Location changes increase `location_epoch`; delayed samples carrying an old assignment are rejected rather than silently attributed to the new location.
 
-Sync is derived: matching desired/applied hashes = IN SYNC; failure for the current desired hash = UPDATE FAILED; otherwise UPDATE PENDING. An old failure cannot mark a newer desired state failed. Per-sensor reporting uses its last actual observation with a ten-minute freshness policy; node contact does not invent readings.
+The ESP32 checks FarmPi every 15 seconds. It fetches only the latest complete desired document, validates identity/schema/capabilities/canonical bytes/hash, persists it into the two-slot NVS last-known-good store, then acknowledges the applied fingerprint. Rejected candidates never replace the active configuration.
 
-## Sparse physical telemetry
+Sync state remains derived: matching desired/applied fingerprints = IN SYNC; a failure against the current desired fingerprint = UPDATE FAILED; otherwise UPDATE PENDING.
 
-The future acquisition driver will use the existing `/api/ingest` with sensor (assigned UID), hardware_uid, device_key, applied_fingerprint, location_epoch, simulated=false, clock_valid=true, device_time_unix, persistent sample_seq and only actual measurement values. The current bring-up firmware intentionally sends no telemetry.
+## Managed telemetry and simulation
 
-Managed ingestion requires authenticated registered identity, assigned active location, acknowledged configuration, catalogue membership, capability and enablement in both desired and applied state. It rejects simulated submissions from physical nodes, invalid types/ranges, missing or future observation times, duplicate sequences with changed content, and stale location assignment epochs. Exact retries return the original sample. The next driver must persist sequence allocation across reboot; this block does not claim a working offline observation queue.
+The managed S3 firmware now uses `/api/ingest` for both node-local simulation and later physical drivers. Every accepted sample includes the registered node identity, hardware UID, device credential, applied fingerprint, location epoch, valid observation time and persistent sample sequence.
 
-The server returns location_epoch in contact responses. A later driver must associate that epoch with each captured sample. Relocation increases it, and old-epoch arrivals are rejected for explicit reconciliation rather than silently placed in the new location. Already stored history uses its captured paddock_id. Existing valid delayed observation times are retained. Legacy simulator ingest remains explicitly simulated and cannot impersonate a managed physical node using only the shared ingest token.
+The server does not trust the device to declare provenance independently. It derives the source mode of each supplied measurement from the acknowledged desired/applied configuration. A supplied OFF measurement is rejected. A SIMULATED value is stored as simulated for that measurement. A LIVE value is accepted only when the firmware driver actually returns one.
 
-## Two-board evidence checklist
+`readings.measurement_modes_json` preserves that per-measurement provenance. The existing row-level `simulated` field remains as a conservative compatibility flag when any measurement in the sample is simulated.
 
-Record source revision, toolchain versions, binary SHA-256, hardware UIDs, assigned node IDs, UTC times, desired/applied full hashes and screenshots/serial output without credentials.
+The firmware currently generates bounded test values only for measurements configured SIMULATED. `readLiveMeasurement()` intentionally returns no value until a real probe driver is added. This lets one channel move from SIMULATED to LIVE without changing the telemetry, backend, database or Android contracts.
 
-1. Power on both boards without probes. Verify two pending entries, distinct hardware UIDs and no observations.
-2. Register both; verify separate assigned UIDs, all 13 disabled and both IN SYNC after pulling the initial empty configuration.
-3. Enable soil moisture only on the first node. Verify its desired hash changes, UPDATE PENDING transitions to IN SYNC, and its runtime state is CONFIGURED BUT NOT REPORTING. Verify the second node’s configuration/hash stays unchanged and IN SYNC.
-4. Disconnect the first node, change its desired state repeatedly, reconnect, and verify it pulls only the latest complete state.
-5. Reboot with FarmPi unreachable; record restoration of the same valid saved configuration. Reconnect and verify acknowledgement recovery.
-6. Exercise invalid schema, unsupported measurement, corrupted fingerprint and failed persistence in a controlled test build. Verify the working document remains intact. Interrupt power during persistence and inspect both slots after reboot.
-7. Verify location reassignment leaves old history in its original location. Verify disabled/unsupported/cross-node/simulated physical submissions are rejected and exact retry is idempotent using the test fixture; do not label fixture data as physical probe evidence.
+Sequence allocation is persisted in NVS. A full offline queue and resend policy are still T02 work; this change does not claim communication-loss recovery is complete.
 
-Only after this path passes should the actual probe/module be identified, wiring standardised in board_profile.h, its driver/calibration added and one real soil-moisture channel tested. T01 remains incomplete until all six FR01 measurements are demonstrated physically.
+## Updated two-board evidence checklist
+
+Record source revision, toolchain versions, binary SHA-256, hardware UIDs, assigned `FP-xxx` IDs, farmer location names, UTC times, desired/applied full hashes and screenshots/serial output without credentials.
+
+1. Archive the old synthetic database, create the clean operational baseline and confirm it contains no preloaded locations, nodes or readings.
+2. Flash both boards with the schema-v2 managed firmware. Verify they appear as two pending devices with distinct hardware UIDs.
+3. Create two farmer-named locations, register both nodes, and verify every standard measurement begins OFF.
+4. Set selected measurements SIMULATED on each node. Verify the ESP32s produce telemetry through the managed path and Android/database evidence identifies those measurements as simulated.
+5. Change one node without changing the other. Verify desired/applied fingerprints and mode state remain independent.
+6. Move one node to a different farmer-defined location. Verify its `FP-xxx` and hardware UID stay unchanged, its location epoch increases, and historical readings remain attached to the original location.
+7. Reboot with FarmPi unreachable and verify the last-known-good configuration survives. Reconnect and verify normal sync recovery.
+8. Only when a physical probe/driver is ready, change that measurement from SIMULATED to LIVE. Verify the same telemetry path now records non-simulated provenance.
+9. Continue one physical measurement at a time until all six FR01 measurements have real evidence. A configured LIVE mode with no driver is not a passing sensor.
+
+T01 remains incomplete until all six FR01 measurements are demonstrated physically. The node-local simulator is development evidence, not physical acquisition evidence.
 
 ## References
 
