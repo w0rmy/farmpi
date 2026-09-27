@@ -9,6 +9,7 @@ User=@FARMPI_USER@
 WorkingDirectory=@FARMPI_DIR@
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=-/etc/farmpi/farmpi.env
+Environment=PYTHONPATH=@FARMPI_DIR@
 ExecStart=@FARMPI_DIR@/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 Restart=on-failure
 RestartSec=5

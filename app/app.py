@@ -61,6 +61,17 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="FarmPi", version="0.7.0", lifespan=lifespan)
 
+# Register feature APIs immediately on the canonical application. Keeping this
+# next to FastAPI construction makes route composition deterministic for direct
+# imports, tests, and the deployed app.main:app entry point.
+from .ingest_api import router as ingest_router
+from .node_api import router as node_router
+from .monitoring_api import router as monitoring_router
+
+app.include_router(ingest_router)
+app.include_router(node_router)
+app.include_router(monitoring_router)
+
 SYSTEM_PROMPT = """You are FarmPi, a conversational farm-monitoring assistant focused on the user's monitored data and practical New Zealand farming.
 Help the user inspect measurements, understand results, and find useful information. Talk naturally and adapt to the user's wording and requested explanation level. Answer general informational questions, including non-farming topics, without forcing them into a lesson or course.
 FARMPI VERIFIED FACTS are authoritative for this farm: never invent, alter or replace sensor/database facts. DETERMINISTIC CALCULATIONS supplied by FarmPi are authoritative calculations over those facts; do not recalculate them.
@@ -954,13 +965,3 @@ async def ask(request: AskRequest) -> AskResponse:
         semantic_interpretation=semantic_interpretation,
     )
 
-# Register feature routers on the canonical FastAPI application.
-# Keep these imports late: the feature modules depend on shared application
-# models/helpers above, while none of them should own a separate FastAPI app.
-from .ingest_api import router as ingest_router
-from .node_api import router as node_router
-from .monitoring_api import router as monitoring_router
-
-app.include_router(ingest_router)
-app.include_router(node_router)
-app.include_router(monitoring_router)
