@@ -325,8 +325,9 @@ internal fun MonitoringArea(
                     Text("Last successful check: $checkedAt")
                     fun availability(key: String): String = health?.optJSONObject(key)?.let { if (it.optBoolean("available")) "Available" else "Unavailable" } ?: "Not checked"
                     StatusChip("Database · ${availability("database")}")
+                    StatusChip("Monitoring API · ${availability("monitoring")}")
                     StatusChip("AI service · ${availability("llm")}")
-                    if (health?.optJSONObject("database")?.optBoolean("available") == true && health.optJSONObject("llm")?.optBoolean("available") == false) Text("The database is available. AI explanations are unavailable; some natural-language requests may fail.")
+                    if (health?.optJSONObject("database")?.optBoolean("available") == true && health.optJSONObject("llm")?.optBoolean("available") == false) Text("The database is available. AI explanations are unavailable; deterministic dashboard and comparison functions can still work.")
                     Button(onClick = refresh) { Text("Try again") }
                     TextButton(onClick = { details = !details }) { Text(if (details) "Hide technical details" else "Technical details") }
                     if (details) Text(health?.toString(2) ?: "No current status response.", style = MaterialTheme.typography.bodySmall)
