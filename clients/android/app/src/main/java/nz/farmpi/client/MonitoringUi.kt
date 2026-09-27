@@ -72,7 +72,8 @@ private fun LocationSelector(
                         Column {
                             Text(item.name)
                             Text(
-                                if (item.hasReading) ageLabel(item.ageSeconds) else "No stored reading yet",
+                                "${item.activeSensorCount} active node${if (item.activeSensorCount == 1) "" else "s"} · " +
+                                    if (item.hasReading) ageLabel(item.ageSeconds) else "No stored reading yet",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -119,7 +120,7 @@ internal fun MonitoringArea(
             try {
                 overview = fetchMonitoringOverview()
             } catch (e: Exception) {
-                overviewError = if (e.message?.contains("HTTP 404") == true) {
+                overviewError = if (e.message?.contains("HTTP 404") == true || e.message.equals("Not Found", ignoreCase = true)) {
                     "This FarmPi server does not expose the monitoring overview API yet. Update and restart the FarmPi server, then try again."
                 } else {
                     e.message ?: "FarmPi could not load the monitoring overview."
