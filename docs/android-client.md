@@ -20,7 +20,7 @@ The current capstone direction evaluates the Android client as part of a functio
 - backend-supplied chart data rendered as interactive line, area/day-profile, bars, or dots where appropriate;
 - low/latest/high chart summaries and time labels;
 - expandable source/provenance display;
-- explanation-depth and guidance-frequency preferences;
+- working AI response-detail and follow-up-guidance preferences, plus text-size accessibility controls;
 - one fixed FarmPi light visual system with compact/standard/large text-size choices;
 - bounded conversation continuity supplied by the backend;
 - visible connection/dependency status and differentiated request/connection failures;
@@ -36,13 +36,19 @@ The existing `farmpi-learning` preference store is retained to preserve explanat
 
 ## Display and mobile usability
 
-The Settings action keeps secondary controls away from the main Ask interaction. Preferences are stored in device-local `SharedPreferences`.
+The Settings screen now contains only controls that are useful in the current local FarmPi application. AI response detail, follow-up guidance and text size are stored in device-local `SharedPreferences`. Voice is shown as live Android status information rather than as a fake configuration panel. The FarmPi server address is fixed by the local installation and is not displayed or editable as a user preference.
 
 FarmPi now uses one fixed light visual system based on the current stakeholder/mockup direction: white and off-white surfaces, dark readable text, restrained FarmPi green for primary actions and selection, rounded cards, light grey dividers, and semantic status colours. Current/online/in-sync states use green, old/stale/pending states use amber, missing/error/unavailable states use red, and simulated/prototype states use blue. Theme selection has been removed so the application presents one coherent identity.
 
 Text size still multiplies the device accessibility font scale for compact, standard, or large presentation. Explanation depth, guidance and voice behaviour remain independent settings. These presentation choices must not change answer facts, graph values, evidence, or operations.
 
 Current mobile work should favour a clear phone interface, readable graph cards, obvious recovery/error states, and low interaction cost rather than adding cosmetic presentation options.
+
+The retained settings have verified plumbing:
+- `explanation` is sent as `preferences.explanation_level` on every Ask request. The backend accepts `simple / normal / technical`, uses it when rendering reviewed concepts, and places the requested level into the governed LLM system context.
+- `guidance` is sent as `preferences.guidance_level` on Ask and as `guidance_level` for Guide me. The backend uses `more / normal / less` to vary suggested next questions.
+- `display_density` remains Android presentation-only and never enters the FarmPi data/AI request contract.
+- voice input/read-aloud use Android SpeechRecognizer/TextToSpeech. The Settings screen reports current voice status but does not pretend to offer voice/rate controls that are not implemented.
 
 ## Graph presentation
 
