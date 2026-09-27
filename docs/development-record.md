@@ -418,3 +418,25 @@ Jeremy decided that sensor-mode administration now belongs in the Android Node D
 ### Evidence boundary
 
 This change makes node administration more usable, but it does not prove that a physical sensor is present or working. SIMULATED remains synthetic evidence. LIVE remains unavailable until firmware advertises a real driver, and T01 still requires the six required physical measurements through the complete sensor-to-Android path.
+
+## 27 September 2026 — Android Settings audit and simplification
+
+### Context
+
+After the fixed FarmPi theme was introduced, the Settings dialog still looked and behaved like an older generic configuration panel. It exposed the local server address, talked about future server editing even though FarmPi is intentionally local-only, and showed placeholder voice controls that did not exist. Jeremy asked for the screen to be simplified and for the remaining AI settings to be checked rather than kept by assumption.
+
+### Audit
+
+- **AI response detail** is functional. Android persists `simple / normal / technical`, sends it as `preferences.explanation_level` on Ask, and the backend uses it both for reviewed educational rendering and in the governed LLM system context.
+- **Follow-up guidance** is functional. Android persists `more / normal / less`, sends it on Ask and Guide me, and the backend uses it to vary the number of suggested follow-up questions.
+- **Text size** is functional and Android-only. It changes Compose font scaling and does not enter the data/AI request contract.
+- **Voice** is functional for speech input and read-aloud, but voice selection and speech-rate configuration are not implemented. The Settings page therefore reports current Android voice status instead of presenting placeholder controls.
+- **Server address configuration** is not part of the user model. FarmPi uses its fixed local endpoint and certificate trust; the address is no longer shown or offered as a future editable setting.
+
+### Decision
+
+Rebuild Settings around four clean themed sections: AI response detail, follow-up guidance, text size and read-only voice status. Remove server-address display/editing language and dead placeholder controls. Keep the underlying local endpoint fixed in application configuration and leave connection diagnostics to System Status/Connection help.
+
+### Evidence boundary
+
+This audit confirms the request/settings plumbing in source and tests; it does not replace device-level UI acceptance. The cleaned screen still needs visual checking on a real phone/tablet and with compact/standard/large text sizes.
