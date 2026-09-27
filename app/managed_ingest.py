@@ -46,10 +46,11 @@ def store_managed(request, received_at, observed_at, clock_valid, offset, out_of
                 raise ValueError("Telemetry contains a measurement that is switched off.")
             if applied_mode != desired_mode:
                 raise ValueError("Telemetry mode does not match the latest desired configuration.")
+            if applied_mode == "LIVE" and key not in json.loads(node.get("live_capabilities_json") or "[]"):
+                raise ValueError("Telemetry claims a LIVE measurement without an advertised physical driver.")
             measurement_modes[key] = applied_mode
 
         contains_simulated = any(mode == "SIMULATED" for mode in measurement_modes.values())
-        contains_live = any(mode == "LIVE" for mode in measurement_modes.values())
         # The transport boolean remains as a conservative row-level compatibility
         # flag. Per-measurement authority comes from measurement_modes_json.
         if request.simulated != contains_simulated:

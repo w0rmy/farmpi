@@ -10,7 +10,7 @@ SCHEMA_VERSION = 2
 SENSOR_MODES = ("OFF", "SIMULATED", "LIVE")
 
 
-def configuration(node_uid: str, modes: dict[str, str], capabilities: list[str]) -> dict:
+def configuration(node_uid: str, modes: dict[str, str], capabilities: list[str], live_capabilities: list[str] | None = None) -> dict:
     """Return one complete desired state for every firmware-supported measurement."""
     if len(capabilities) != len(set(capabilities)) or set(capabilities) - set(BY_KEY):
         raise ValueError("Unknown or duplicate capability.")
@@ -19,6 +19,11 @@ def configuration(node_uid: str, modes: dict[str, str], capabilities: list[str])
     unknown_modes = {value for value in modes.values() if value not in SENSOR_MODES}
     if unknown_modes:
         raise ValueError("Sensor mode must be OFF, SIMULATED, or LIVE.")
+    live_capabilities = live_capabilities or []
+    if set(live_capabilities) - set(capabilities) or len(live_capabilities) != len(set(live_capabilities)):
+        raise ValueError("Unknown or duplicate LIVE capability.")
+    if any(mode == "LIVE" and key not in live_capabilities for key, mode in modes.items()):
+        raise ValueError("Live acquisition is not available for this measurement.")
     normalized = {key: modes.get(key, "OFF") for key in sorted(capabilities)}
     return {"modes": normalized, "node_uid": node_uid, "schema_version": SCHEMA_VERSION}
 
@@ -39,12 +44,12 @@ def sync_state(desired: str | None, applied: str | None, failed: str | None) -> 
     return "UPDATE PENDING"
 
 
-def validate_config(config: dict, node_uid: str, capabilities: list[str], expected: str) -> dict:
+def validate_config(config: dict, node_uid: str, capabilities: list[str], expected: str, live_capabilities: list[str] | None = None) -> dict:
     if config.get("schema_version") != SCHEMA_VERSION or config.get("node_uid") != node_uid:
         raise ValueError("Unsupported schema or wrong node identity.")
     if not isinstance(config.get("modes"), dict):
         raise ValueError("Configuration must contain measurement modes.")
-    checked = configuration(node_uid, config["modes"], capabilities)
+    checked = configuration(node_uid, config["modes"], capabilities, live_capabilities)
     if checked != config or fingerprint(checked) != expected:
         raise ValueError("Configuration fingerprint or structure mismatch.")
     return checked

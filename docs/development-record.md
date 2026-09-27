@@ -366,3 +366,11 @@ The resulting design is simpler than preserving two competing operational models
 
 This work does not complete T01 or T02. Node-local simulated telemetry demonstrates the managed end-to-end software path only. T01 still requires the six FR01 measurements from real physical sensors. Persistent sequence allocation is present, but communication-loss buffering/recovery remains separate T02 work.
 
+
+## 27 September 2026 — reconcile duplicate transition implementations
+
+Two independent implementations of the same requested transition were opened as PR #10 and PR #11. Jeremy merged #10; #11 then conflicted. The duplicate work and delayed completion reporting caused avoidable confusion. The merge was preserved as the baseline, and remaining changes were rebuilt on top rather than applying the second implementation wholesale.
+
+Jeremy's console-only source-mode boundary is restored: Android shows modes but does not submit changes to them. The replacement retains #10's per-measurement provenance, location history, reset command and mode-aware reporting, adding #11's missing console helper, explicit demo loader, all-13 simulation and LIVE-driver declaration/checks. It does not merge either PR or run a database reset.
+
+The [transition/reconciliation record](database-transition-2026-09-27.md) identifies both branch tips, every overlapping file and the commits touching each. The baseline suite had two failures, one a legacy simulated-provenance fallback regression and one an obsolete missing-sensor text assertion; both are corrected in the replacement. Hardware acceptance is still outstanding.

@@ -26,3 +26,7 @@ Keep current ingest bearer authentication for legacy simulation. Hardware UID is
 Jeremy corrected the proposal to hard-code six physical values: each node must be configurable across the existing 13-measurement catalogue. Jeremy also challenged an increasing human-facing revision counter, leading to latest-state configuration fingerprint synchronisation with a separate schema version. Preserve subsequent material corrections in the development record.
 
 Test two discoveries/registrations, all-disabled initial state, per-node isolation, hash stability/mismatch, latest-state application and stale acknowledgement handling, rejected configuration retaining working state, sparse telemetry, disabled/unsupported measurements, provenance, retry/time semantics and history location preservation. Hardware tests must separately cover two real S3s, reboots and unavailable FarmPi. T01 remains pending until all six FR01 physical measurements and FR02 identity/provenance are demonstrated. Exact probe electronics and final board pin assignments require the actual board and probe identification.
+
+## 27 September reconciliation update
+
+The implementation now retains PR #10’s schema-v2 configuration and per-measurement provenance while adding console-only mode control, all-13 simulation and separate LIVE-driver advertisement. Android does not change modes. Physical T01 acceptance remains unchanged. See the [transition record](database-transition-2026-09-27.md).

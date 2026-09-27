@@ -18,10 +18,9 @@ service_group=$(id -gn "${service_user}")
 env_dir=/etc/farmpi
 env_file=${env_dir}/farmpi.env
 schema_file=${project_dir}/config/database/schema.sql
-seed_file=${project_dir}/config/database/seed.sql
 mariadb_bind_file=/etc/mysql/mariadb.conf.d/60-farmpi.cnf
 
-for required_file in "${schema_file}" "${seed_file}"; do
+for required_file in "${schema_file}"; do
   if [[ ! -f ${required_file} ]]; then
     echo "Required database file not found: ${required_file}" >&2
     exit 1
@@ -93,8 +92,7 @@ EOF_SQL
 echo "Applying the FarmPi schema..."
 mariadb --protocol=socket farmpi < "${schema_file}"
 
-echo "Applying the operational baseline seed..."
-mariadb --protocol=socket farmpi < "${seed_file}"
+echo "Operational schema ready; demo data requires scripts/load-demo-data."
 
 if systemctl list-unit-files farmpi.service --no-legend 2>/dev/null | grep -q '^farmpi.service'; then
   echo "Restarting FarmPi so it loads the database environment..."

@@ -7,17 +7,15 @@ configuration in NVS, and acknowledges what it applied.
 
 ## Sensor modes
 
-Each standard measurement has exactly one mode:
+Each catalogue measurement has exactly one mode:
 
 - `OFF` — no value is produced.
 - `SIMULATED` — the ESP32 generates a bounded test value at the sensor-driver
   boundary and sends it through the normal authenticated telemetry path.
-- `LIVE` — the firmware asks the physical driver for a value. A measurement in
-  LIVE mode reports nothing until that driver and probe are implemented.
+- `LIVE` — requires an implemented physical driver advertised in `LIVE_MEASUREMENTS`; unsupported LIVE configuration is rejected.
 
-The standard profile currently exposes soil moisture, soil temperature, air
-temperature, relative humidity, ambient light and barometric pressure. This does
-**not** claim that six physical probes are fitted. T01 remains incomplete until
+The managed profile exposes all 13 catalogue keys for simulation and advertises no LIVE drivers. This does
+**not** claim that physical probes are fitted. T01 remains incomplete until
 all six measurements have been demonstrated from real hardware.
 
 A managed sample may contain only the measurements that produced values. The
@@ -39,3 +37,5 @@ See [setup, contract and hardware evidence checklist](../../docs/s3-node-bringup
 
 The older `../esp32-sensor` sketch remains an explicit 16-location test/demo
 generator. It is no longer the normal operational database baseline.
+
+Source-mode changes are console-only through `scripts/configure-node-modes`; Android presents them read-only. See the [upgrade procedure](../../docs/s3-node-bringup.md) when replacing the six-key profile.

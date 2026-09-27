@@ -45,7 +45,7 @@ Acceptance should include at minimum:
 2. a node may configure only measurements advertised by its firmware capability set;
 3. OFF produces no reading and a supplied OFF/unsupported measurement is rejected;
 4. SIMULATED produces bounded node-local test telemetry through the same authenticated path as later LIVE telemetry;
-5. LIVE produces no value until a real driver succeeds; selecting LIVE must not fabricate a reading;
+5. LIVE configuration and telemetry require an advertised physical driver; unsupported LIVE must be rejected, and an advertised driver that fails to read must not fabricate a value;
 6. a nonempty sparse telemetry payload is accepted only when each supplied measurement matches the acknowledged configured mode;
 7. omitted measurements remain absent/SQL `NULL` and are never converted into fabricated zeroes or placeholders;
 8. per-measurement provenance survives ingest/storage and distinguishes SIMULATED from LIVE values;
@@ -190,3 +190,11 @@ Before publishing a material change:
 4. compare commands, environment names, endpoints, and defaults with code/configuration;
 5. run automated checks and record any limitation honestly;
 6. apply the [current capstone outcome gate](capstone-governance.md).
+
+## Reconciliation validation (27 September 2026)
+
+- Untouched main: 147 Python tests, two failures reproduced (legacy simulated-provenance fallback and obsolete missing-sensor wording assertion).
+- Replacement: 155 Python tests pass, including metadata-only mode preservation, missing LIVE capability rejection, mixed-sample provenance, current-mode reporting and console-helper behavior.
+- Python compilation and console-helper help invocation pass. Bash syntax checks pass individually for setup, schema update, demo loader and the unchanged reset helper. Git whitespace validation passes.
+- Android and ESP32 builds were not run: an Android SDK and Arduino CLI were not available in this workspace. MariaDB DDL/demo-loader execution and two-board hardware validation remain outstanding. The SQLite integration adapter does not validate MariaDB syntax.
+- No merge, deployment, database reset or hardware flash was performed. Review as a draft until those environment-specific checks are complete.

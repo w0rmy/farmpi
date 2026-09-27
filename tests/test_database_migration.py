@@ -23,11 +23,11 @@ class DatabaseMigrationTests(unittest.TestCase):
         self.assertIn("--yes-really-reset", helper)
         self.assertIn("farmpi-pre-operational-reset-", helper)
 
-    def test_normal_update_path_applies_schema_and_noop_seed(self) -> None:
+    def test_normal_update_path_applies_schema_only(self) -> None:
         helper = (PROJECT_ROOT / "scripts/apply-database-schema").read_text(encoding="utf-8")
         update = (PROJECT_ROOT / "update").read_text(encoding="utf-8")
-        self.assertIn('seed_file=${project_dir}/config/database/seed.sql', helper)
-        self.assertIn('mariadb --protocol=socket farmpi < "${seed_file}"', helper)
+        self.assertNotIn("seed_file", helper)
+        self.assertIn('mariadb --protocol=socket farmpi < "${schema_file}"', helper)
         self.assertIn("scripts/apply-database-schema", update)
 
     def test_schema_has_time_sequence_and_measurement_provenance_contract(self) -> None:
@@ -39,6 +39,18 @@ class DatabaseMigrationTests(unittest.TestCase):
         ):
             self.assertIn(column, schema)
         self.assertIn("uq_readings_sensor_sample_seq", schema)
+
+    def test_demo_loading_is_explicit_and_live_capability_migration_additive(self):
+        demo = (PROJECT_ROOT / "config/database/demo-seed.sql").read_text(encoding="utf-8")
+        self.assertIn("Paddock A", demo)
+        loader = (PROJECT_ROOT / "scripts/load-demo-data").read_text(encoding="utf-8")
+        self.assertIn("config/database/demo-seed.sql", loader)
+        self.assertIn("SELECT s.id, s.paddock_id,", demo)
+        for path in ("scripts/setup-database", "scripts/apply-database-schema", "update"):
+            self.assertNotIn('farmpi < "${seed_file}"', (PROJECT_ROOT / path).read_text(encoding="utf-8"))
+        schema = (PROJECT_ROOT / "config/database/schema.sql").read_text(encoding="utf-8")
+        self.assertIn("ADD COLUMN IF NOT EXISTS live_capabilities_json", schema)
+        self.assertIn("ADD COLUMN IF NOT EXISTS measurement_modes_json", schema)
 
 
 if __name__ == "__main__":

@@ -91,7 +91,7 @@ class FarmDataTests(unittest.TestCase):
         route = route_question("What is the soil pH in Paddock A?")
         grounding = get_grounding_data(route.intent, route.paddock_name, route.measurement)
         self.assertIn("does not currently report soil pH", grounding.facts[0])
-        self.assertIn("add-on sensor", grounding.facts[0])
+        self.assertIn("configured and reporting sensor", grounding.facts[0])
 
     @patch("app.farm_data.fetch_all")
     def test_paddock_summary_lists_only_available_measurements(self, fetch_all) -> None:

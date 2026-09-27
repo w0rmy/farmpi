@@ -87,7 +87,7 @@ A node with installed add-ons may include any supported optional fields in the s
 
 Success returns HTTP 201 with the stored reading ID, resolved location, the measurements actually supplied/stored, row-level simulated status, per-measurement `measurement_modes`, observed/received/recorded times, clock status, deduplication status, time-sync requirement, and authoritative server Unix time.
 
-For a managed ESP32-S3, provenance comes from the acknowledged configuration. Each supported measurement is `OFF`, `SIMULATED`, or `LIVE`. OFF values are rejected. SIMULATED values are generated on the node and traverse the same authenticated ingest path as LIVE values. LIVE values are accepted only when the corresponding driver actually produces a reading. A node remains valid with every measurement OFF.
+For a managed ESP32-S3, provenance comes from the acknowledged configuration. Each supported measurement is `OFF`, `SIMULATED`, or `LIVE`. OFF values are rejected. SIMULATED values are generated on the node and traverse the same authenticated ingest path as LIVE values. LIVE values require an advertised physical driver as well as an acknowledged LIVE configuration. The server checks the firmware declaration; it cannot independently prove a probe is connected. A node remains valid with every measurement OFF.
 
 ## Clock and retry contract
 
@@ -193,6 +193,8 @@ See [S3 node bring-up](s3-node-bringup.md) for registration, SHA-256 canonical c
 
 The current canonical configuration is schema version 2 and contains exactly `modes`, `node_uid`, and `schema_version`. `modes` contains one OFF/SIMULATED/LIVE value for every capability advertised by that firmware. FarmPi fills omitted administrator choices with OFF before fingerprinting, so the device always receives one complete latest state rather than a patch.
 
-The standard ESP32-S3 profile currently advertises the six FR01 measurement keys. That means the firmware understands their configuration and simulation boundary; it does not prove a physical probe or LIVE driver exists. A LIVE measurement with no fitted driver simply produces no telemetry and is shown as not reporting.
+The managed ESP32-S3 profile advertises all 13 catalogue keys as configurable/simulatable capabilities and an empty `live_capabilities` list. Configuration, acknowledgement and ingest reject LIVE for measurements outside that list. Older firmware omitting this field is treated as having no advertised LIVE drivers.
 
 The logical ID uses `FP-xxx` and remains stable when the user changes the friendly node name or assigned location.
+
+Android omits `modes` on metadata-only updates, preserving the stored configuration exactly. The console helper submits all supported modes with the expected fingerprint. When a mode map is supplied, omitted keys become OFF. Demo data lives in `config/database/demo-seed.sql` and is loaded only by `scripts/load-demo-data`; the operational seed remains empty.
