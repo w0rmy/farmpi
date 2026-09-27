@@ -46,3 +46,5 @@ Documentation uses these terms consistently:
 ## Documentation maintenance rule
 
 Do not add a second current-state document for a subject already owned by one of the files above. Extend the authoritative document and update its diagrams or links. Historical measurements and superseded design directions belong under `docs/history` or must be explicitly labelled historical if retained at their original path.
+
+- [Database transition and PR reconciliation, 27 September](database-transition-2026-09-27.md)

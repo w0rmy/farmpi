@@ -103,6 +103,12 @@ def get_environment_snapshot() -> list[PaddockEnvironment]:
             for key, mode in modes.items():
                 if mode == "SIMULATED" or key not in measurement_modes:
                     measurement_modes[key] = mode
+        # Legacy/demo rows have only the conservative row-level flag. Do not
+        # label those readings physical merely because per-measurement metadata
+        # did not exist yet. Explicit modes from managed rows remain authoritative.
+        for item in MEASUREMENTS:
+            if row.get(item.key) is not None:
+                measurement_modes.setdefault(item.key, "SIMULATED" if row["contains_simulated"] else "LIVE")
         snapshot.append(PaddockEnvironment(
             id=int(row["id"]),
             name=str(row["name"]),

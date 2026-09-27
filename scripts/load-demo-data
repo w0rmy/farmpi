@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Explicitly load the legacy 16-location synthetic dataset for UI/demo testing.
+set -Eeuo pipefail
+
+if [[ ${EUID} -ne 0 ]]; then
+  echo "Run this helper through sudo." >&2
+  exit 1
+fi
+
+project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+seed_file=${project_dir}/config/database/demo-seed.sql
+
+if [[ ! -f ${seed_file} ]]; then
+  echo "Demo seed file not found: ${seed_file}" >&2
+  exit 1
+fi
+
+if ! systemctl is-active --quiet mariadb.service; then
+  echo "MariaDB is not running." >&2
+  exit 1
+fi
+
+echo "Loading the explicit 16-location synthetic FarmPi demo dataset..."
+mariadb --protocol=socket farmpi < "${seed_file}"
+echo "Synthetic demo data loaded. These rows are test/demo evidence only."

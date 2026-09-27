@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Re-apply idempotent FarmPi database schema and prototype data migrations.
+# Re-apply idempotent FarmPi database schema migrations without loading demo data.
 set -Eeuo pipefail
 
 if [[ ${EUID} -ne 0 ]]; then
@@ -9,9 +9,8 @@ fi
 
 project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 schema_file=${project_dir}/config/database/schema.sql
-seed_file=${project_dir}/config/database/seed.sql
 
-for required_file in "${schema_file}" "${seed_file}"; do
+for required_file in "${schema_file}"; do
   if [[ ! -f ${required_file} ]]; then
     echo "FarmPi database update file not found: ${required_file}" >&2
     exit 1
@@ -26,5 +25,4 @@ fi
 echo "Applying FarmPi database schema updates..."
 mariadb --protocol=socket farmpi < "${schema_file}"
 
-echo "Applying repeatable FarmPi prototype data updates..."
-mariadb --protocol=socket farmpi < "${seed_file}"
+echo "Schema updated; existing operational data preserved."

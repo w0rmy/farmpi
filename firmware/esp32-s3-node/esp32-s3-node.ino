@@ -44,6 +44,11 @@ static bool supports(const String& key) {
   return false;
 }
 
+static bool supportsLive(const String& key) {
+  for (size_t i = 0; i < LIVE_COUNT; ++i) if (key == LIVE_MEASUREMENTS[i]) return true;
+  return false;
+}
+
 static bool validMode(const String& mode) {
   return mode == "OFF" || mode == "SIMULATED" || mode == "LIVE";
 }
@@ -59,7 +64,7 @@ static bool validate(const String& text, const String& hash, const String& uid, 
   for (JsonPair pair : modes) {
     const String key = pair.key().c_str();
     const String mode = pair.value().as<String>();
-    if (!supports(key) || !validMode(mode)) return false;
+    if (!supports(key) || !validMode(mode) || (mode == "LIVE" && !supportsLive(key))) return false;
   }
 
   // Reconstruct the exact server canonical form. CONFIGURABLE_MEASUREMENTS is
@@ -140,12 +145,19 @@ static float simulatedValue(const String& key) {
   if (key == "relative_humidity_pct") return 68.0f - 8.0f * sin(phase + nodeOffset);
   if (key == "light_lux") return max(0.0f, 18000.0f + 15000.0f * (float)sin(phase));
   if (key == "barometric_pressure_hpa") return 1014.0f + 2.0f * sin(phase / 3.0 + nodeOffset);
+  if (key == "leaf_wetness_pct") return 30.0f + 10.0f * sin(phase);
+  if (key == "pasture_height_cm") return 12.0f + 2.0f * sin(phase);
+  if (key == "rainfall_mm") return max(0.0f, 1.0f + (float)sin(phase));
+  if (key == "soil_ec_ms_cm") return 1.0f + 0.2f * sin(phase);
+  if (key == "soil_ph") return 6.2f + 0.2f * sin(phase);
+  if (key == "wind_direction_deg") return 180.0f + 90.0f * sin(phase);
+  if (key == "wind_speed_kmh") return 10.0f + 5.0f * sin(phase);
   return 0.0f;
 }
 
 static bool readLiveMeasurement(const String& key, float& value) {
   // Physical drivers are added one measurement at a time. Until a driver is
-  // fitted, LIVE is a valid target state but deliberately reports no value.
+  // fitted and advertised in LIVE_MEASUREMENTS, LIVE cannot be selected.
   (void)key; (void)value;
   return false;
 }
@@ -156,10 +168,12 @@ static void contactFarmPi() {
   request["board_profile"] = BOARD_PROFILE;
   JsonArray capabilities = request["capabilities"].to<JsonArray>();
   for (size_t i = 0; i < CONFIGURABLE_COUNT; ++i) capabilities.add(CONFIGURABLE_MEASUREMENTS[i]);
+  JsonArray live = request["live_capabilities"].to<JsonArray>();
+  for (size_t i = 0; i < LIVE_COUNT; ++i) live.add(LIVE_MEASUREMENTS[i]);
   if (appliedHash.length()) request["applied_fingerprint"] = appliedHash;
   if (!post("/api/nodes/contact", request, response)) return;
 
-  locationEpoch = response["location_epoch"] | 0;
+  locationEpoch = response["location_epoch"].as<uint64_t>();
   if (!response["registered"].as<bool>()) {
     Serial.println("Awaiting registration; all sensors remain off.");
     return;

@@ -22,11 +22,11 @@ The earlier prototype treated a centrally generated 16-location synthetic datase
 
 The current branch therefore establishes a clean operational baseline. The old `firmware/esp32-sensor` remains available as an explicit test/demo generator, but a normal FarmPi database starts with no locations, nodes or readings. The one-time reset helper archives the old database before recreating it; the reset is never triggered merely by applying code.
 
-Simulation has moved to the managed-node sensor boundary. Each standard measurement is now independently `OFF`, `SIMULATED`, or `LIVE`. Simulated values originate on the ESP32-S3 and use the same device authentication, configuration fingerprint, time, sequence, ingest, storage and Android path as later physical readings. LIVE mode produces no value until a real driver is implemented.
+Simulation has moved to the managed-node sensor boundary. Each catalogue measurement is now independently `OFF`, `SIMULATED`, or `LIVE`. Simulated values originate on the ESP32-S3 and use the same device authentication, configuration fingerprint, time, sequence, ingest, storage and Android path as later physical readings. LIVE selection is rejected until firmware advertises the implemented physical driver.
 
 Hardware UID, stable FarmPi node ID and farmer location are separate identities. The logical ID is `FP-xxx`. The farmer can assign names such as `Bob's`, `Back Hill` or `Down by the Trough`, and moving a node does not change its hardware or logical identity.
 
-The standard S3 profile advertises the six FR01 measurement keys so each can be switched OFF/SIMULATED/LIVE independently. This is configuration and test capability, not physical-sensor evidence. T01 still requires six real physical measurements.
+The managed S3 profile advertises all 13 catalogue keys for simulation and no LIVE drivers yet. Modes are changed from the Pi console; Android displays them read-only. This is configuration and test capability, not physical-sensor evidence. T01 still requires six real physical measurements.
 
 ## Software setup
 
@@ -55,7 +55,7 @@ Sync state remains derived: matching desired/applied fingerprints = IN SYNC; a f
 
 The managed S3 firmware now uses `/api/ingest` for both node-local simulation and later physical drivers. Every accepted sample includes the registered node identity, hardware UID, device credential, applied fingerprint, location epoch, valid observation time and persistent sample sequence.
 
-The server does not trust the device to declare provenance independently. It derives the source mode of each supplied measurement from the acknowledged desired/applied configuration. A supplied OFF measurement is rejected. A SIMULATED value is stored as simulated for that measurement. A LIVE value is accepted only when the firmware driver actually returns one.
+The server does not trust the device to declare provenance independently. It derives the source mode of each supplied measurement from the acknowledged desired/applied configuration. A supplied OFF measurement is rejected. A SIMULATED value is stored as simulated for that measurement. A LIVE value also requires the measurement to appear in the firmware-advertised `live_capabilities` list.
 
 `readings.measurement_modes_json` preserves that per-measurement provenance. The existing row-level `simulated` field remains as a conservative compatibility flag when any measurement in the sample is simulated.
 
@@ -70,12 +70,12 @@ Record source revision, toolchain versions, binary SHA-256, hardware UIDs, assig
 1. Archive the old synthetic database, create the clean operational baseline and confirm it contains no preloaded locations, nodes or readings.
 2. Flash both boards with the schema-v2 managed firmware. Verify they appear as two pending devices with distinct hardware UIDs.
 3. Create two farmer-named locations, register both nodes, and verify every standard measurement begins OFF.
-4. Set selected measurements SIMULATED on each node. Verify the ESP32s produce telemetry through the managed path and Android/database evidence identifies those measurements as simulated.
+4. Use `.venv/bin/python scripts/configure-node-modes FP-001 soil_moisture_pct=SIMULATED` on the Pi console to set selected measurements SIMULATED on each node. Verify the ESP32s produce telemetry through the managed path and Android/database evidence identifies those measurements as simulated.
 5. Change one node without changing the other. Verify desired/applied fingerprints and mode state remain independent.
 6. Move one node to a different farmer-defined location. Verify its `FP-xxx` and hardware UID stay unchanged, its location epoch increases, and historical readings remain attached to the original location.
 7. Reboot with FarmPi unreachable and verify the last-known-good configuration survives. Reconnect and verify normal sync recovery.
 8. Only when a physical probe/driver is ready, change that measurement from SIMULATED to LIVE. Verify the same telemetry path now records non-simulated provenance.
-9. Continue one physical measurement at a time until all six FR01 measurements have real evidence. A configured LIVE mode with no driver is not a passing sensor.
+9. Continue one physical measurement at a time until all six FR01 measurements have real evidence. LIVE configuration without an advertised driver must be rejected.
 
 T01 remains incomplete until all six FR01 measurements are demonstrated physically. The node-local simulator is development evidence, not physical acquisition evidence.
 
@@ -84,3 +84,5 @@ T01 remains incomplete until all six FR01 measurements are demonstrated physical
 * [Espressif WROOM-1 module memory variants](https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf)
 * [Espressif Preferences persistence API](https://docs.espressif.com/projects/arduino-esp32/en/latest/api/preferences.html)
 * [ArduinoJson 7 deserialization API](https://arduinojson.org/v7/api/json/deserializejson/)
+
+When upgrading a node from the six-key profile merged in PR #10, let the new firmware contact the server, then use the console helper to save its modes. This creates the complete 13-key configuration required by the new profile. Clear previously selected LIVE modes to OFF or SIMULATED until a driver is advertised. Until the new complete configuration is saved and acknowledged, the node can report UPDATE PENDING/FAILED; do not treat this as completed hardware validation.

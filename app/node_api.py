@@ -8,7 +8,7 @@ import secrets
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .database import DatabaseUnavailable, fetch_all, transaction
 from .measurements import BY_KEY, MEASUREMENTS
@@ -39,14 +39,22 @@ class Contact(StrictModel):
     firmware_version: str = Field(min_length=1, max_length=64)
     board_profile: str = Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")
     capabilities: list[str] = Field(max_length=13)
+    live_capabilities: list[str] = Field(default_factory=list, max_length=13)
     applied_fingerprint: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
-    @field_validator("capabilities")
+    @field_validator("capabilities", "live_capabilities")
     @classmethod
     def known_capabilities(cls, value):
         if set(value) - set(BY_KEY) or len(value) != len(set(value)):
             raise ValueError("Unknown or duplicate capability.")
         return sorted(value)
+
+
+    @model_validator(mode="after")
+    def live_is_subset(self):
+        if set(self.live_capabilities) - set(self.capabilities):
+            raise ValueError("Live capabilities must also be general capabilities.")
+        return self
 
 
 class DeviceAuth(StrictModel):
@@ -60,12 +68,14 @@ class Approval(StrictModel):
 
 
 class Desired(Approval):
-    modes: dict[str, str]
+    modes: dict[str, str] | None = None
     expected_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
 
     @field_validator("modes")
     @classmethod
     def valid_modes(cls, value):
+        if value is None:
+            return value
         if set(value) - set(BY_KEY):
             raise ValueError("Unknown measurement.")
         if any(mode not in {"OFF", "SIMULATED", "LIVE"} for mode in value.values()):
@@ -127,8 +137,8 @@ def contact(request: Contact):
                 ("pending-" + request.hardware_uid, "Unregistered ESP32-S3", request.hardware_uid, token_hash(request.device_key)))
             row = authenticate(cursor, request)
             cursor.execute("""UPDATE sensor_nodes SET firmware_version=%s,board_profile=%s,
-                capabilities_json=%s,last_seen=UTC_TIMESTAMP(6) WHERE id=%s""",
-                (request.firmware_version, request.board_profile, canonical(request.capabilities), row["id"]))
+                capabilities_json=%s,live_capabilities_json=%s,last_seen=UTC_TIMESTAMP(6) WHERE id=%s""",
+                (request.firmware_version, request.board_profile, canonical(request.capabilities), canonical(request.live_capabilities), row["id"]))
             # Contact is also a retry of a lost acknowledgement, but only for
             # configurations already known to this server.
             known = {row.get("desired_fingerprint"), row.get("applied_fingerprint")}
@@ -169,7 +179,7 @@ def acknowledge(request: Acknowledgement):
             if request.fingerprint not in {row["desired_fingerprint"], row.get("applied_fingerprint")}:
                 raise HTTPException(409, "Desired configuration changed; fetch latest configuration.")
             try:
-                checked = validate_config(request.config or {}, row["node_uid"], decode(row["capabilities_json"], []), request.fingerprint)
+                checked = validate_config(request.config or {}, row["node_uid"], decode(row["capabilities_json"], []), request.fingerprint, decode(row.get("live_capabilities_json"), []))
             except ValueError as exc:
                 raise HTTPException(422, str(exc)) from exc
             cursor.execute("UPDATE sensor_nodes SET applied_fingerprint=%s,applied_config_json=%s,failed_fingerprint=NULL,config_error=NULL WHERE id=%s",
@@ -230,7 +240,11 @@ def set_configuration(node_id: int, request: Desired):
             raise HTTPException(409, "Configuration changed; refresh before saving.")
         check_location(cursor, request.paddock_id)
         try:
-            config = configuration(row["node_uid"], request.modes, decode(row["capabilities_json"], []))
+            # Metadata-only Android saves preserve the stored modes exactly.
+            if request.modes is None:
+                config = decode(row["desired_config_json"], {})
+            else:
+                config = configuration(row["node_uid"], request.modes, decode(row["capabilities_json"], []), decode(row.get("live_capabilities_json"), []))
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         # Telemetry includes location
@@ -251,6 +265,7 @@ def list_nodes():
         desired = decode(row.get("desired_config_json"), {})
         modes = desired.get("modes", {})
         capabilities = decode(row.get("capabilities_json"), [])
+        live_capabilities = decode(row.get("live_capabilities_json"), [])
         # Reporting state must match the *current mode*. A recent simulated
         # sample must not make a newly selected LIVE mode look operational.
         now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -277,7 +292,7 @@ def list_nodes():
                 and 0 <= (now - timestamp).total_seconds() <= 600
             )
             sensors.append({"key": m.key, "label": m.label, "unit": m.unit, "supported": m.key in capabilities,
-                "mode": mode, "enabled": mode != "OFF",
+                "live_supported": m.key in live_capabilities, "mode": mode, "enabled": mode != "OFF",
                 "state": "OFF" if mode == "OFF" else ("REPORTING" if reporting else f"{mode} / NOT REPORTING"),
                 "last_observed_at": timestamp, "last_observed_mode": latest_mode})
         result.append({**status_for(row), "id": row["id"], "name": row["name"], "hardware_uid": row["hardware_uid"],

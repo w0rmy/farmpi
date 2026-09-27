@@ -17,7 +17,7 @@ FarmPi currently combines:
 - semantic interpretation and bounded conversation context for natural-language requests;
 - curated source metadata and provenance rules for external/general information.
 
-Synthetic telemetry is test evidence, not an agronomic model, forecast, or production-farm recommendation. Managed nodes can now generate bounded simulated values at the sensor-driver boundary, so test values follow the same authenticated telemetry path as later LIVE values. The managed contract remains sparse: a node sends only measurements that actually produce a value. LIVE currently reports nothing until its physical driver exists. Final T01 evidence still requires six real physical measurements; simulation never satisfies that acceptance requirement.
+Synthetic telemetry is test evidence, not an agronomic model, forecast, or production-farm recommendation. Managed nodes can now generate bounded simulated values at the sensor-driver boundary, so test values follow the same authenticated telemetry path as later LIVE values. The managed contract remains sparse: a node sends only measurements that actually produce a value. The managed S3 profile can simulate all 13 catalogue measurements and advertises no LIVE drivers yet; LIVE selection requires an advertised physical driver. Final T01 evidence still requires six real physical measurements; simulation never satisfies that acceptance requirement.
 
 ## Start here
 
@@ -76,7 +76,7 @@ sudo bash ./scripts/setup-database
 
 A new installation starts with an empty operational dataset: no preloaded locations, nodes, or readings. The older 16-location simulator is opt-in test tooling. An existing synthetic prototype can be archived and deliberately reset with `scripts/reset-operational-database`; that destructive transition is never run automatically.
 
-`./update` refuses a dirty checkout, performs a fast-forward pull, installs Python dependencies, compiles and runs the unit tests, installs both systemd units, reapplies the additive database schema/seed when configured, validates and reloads Caddy, and restarts the services.
+`./update` refuses a dirty checkout, performs a fast-forward pull, installs Python dependencies, compiles and runs the unit tests, installs both systemd units, reapplies the additive database schema when configured, validates and reloads Caddy, and restarts the services.
 
 After setup:
 
@@ -116,3 +116,5 @@ The language model never receives SQL access or authority to invent those facts.
 FarmPi is a prototype/concept demonstrator rather than a production farm-control product. LoRa/LoRaWAN, MQTT, OTA, cloud services, remote control, production security hardening, and agronomic certification are outside the current implementation unless a defined requirement makes them necessary.
 
 Current work should prioritise a coherent functional application: completing the physical sensing path, reshaping the Android client around monitoring/Ask/graphs/Nodes rather than the superseded course UI, reliable routing and recovery, data visualisation, AI/data integration, error handling, testing, deployment, and clear evidence of architectural decisions.
+
+Sensor modes are changed from the Pi console with `.venv/bin/python scripts/configure-node-modes FP-001 soil_moisture_pct=SIMULATED`. Android displays modes read-only. The optional legacy dataset requires `sudo bash scripts/load-demo-data`. See the [reconciliation and transition record](docs/database-transition-2026-09-27.md).

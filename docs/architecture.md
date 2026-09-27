@@ -131,3 +131,7 @@ update                  repeatable Pi update/validation entry point
 ```
 
 See the maintained Mermaid sources in [diagrams](diagrams/README.md).
+
+### Reconciled source-mode administration
+
+Android edits node names and location assignment and shows sensor modes read-only. The Pi console helper changes modes. Firmware advertises configurable capabilities separately from LIVE-driver capabilities; all 13 keys are simulatable, with no LIVE drivers in this revision. The merged per-measurement provenance and location-history model remains in place. See the [transition record](database-transition-2026-09-27.md).

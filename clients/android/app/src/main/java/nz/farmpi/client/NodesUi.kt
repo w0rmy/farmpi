@@ -177,13 +177,6 @@ private fun NodeDetail(
     var location by remember { mutableStateOf(if (node.isNull("paddock_id")) 0 else node.getInt("paddock_id")) }
     var newLocation by remember { mutableStateOf("") }
     val sensors = node.getJSONArray("sensors")
-    var modes by remember {
-        mutableStateOf(
-            (0 until sensors.length())
-                .map { sensors.getJSONObject(it) }
-                .associate { it.getString("key") to it.optString("mode", if (it.optBoolean("enabled")) "LIVE" else "OFF") }
-        )
-    }
     val registered = node.getBoolean("registered")
     var technical by remember { mutableStateOf(false) }
 
@@ -237,27 +230,17 @@ private fun NodeDetail(
             if (registered) {
                 Text("Sensor modes", fontWeight = FontWeight.SemiBold)
                 Text(
-                    "OFF sends nothing. SIMULATED exercises the real telemetry path with test values. LIVE uses the physical sensor driver when fitted.",
+                    "OFF sends nothing. SIMULATED exercises the real telemetry path with test values. LIVE requires a supported physical sensor. Modes are managed from the FarmPi console.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 for (j in 0 until sensors.length()) {
                     val item = sensors.getJSONObject(j)
-                    val id = item.getString("key")
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(item.getString("label"))
                         if (!item.getBoolean("supported")) {
                             Text("Not supported by this firmware", style = MaterialTheme.typography.bodySmall)
                         } else {
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                listOf("OFF", "SIMULATED", "LIVE").forEach { mode ->
-                                    FilterChip(
-                                        selected = modes[id] == mode,
-                                        onClick = { modes = modes + (id to mode) },
-                                        label = { Text(mode.lowercase().replaceFirstChar { it.uppercase() }) },
-                                        enabled = !busy
-                                    )
-                                }
-                            }
+                            Text("Mode: ${item.optString("mode", "OFF")}", style = MaterialTheme.typography.bodyMedium)
                             Text(item.optString("state"), style = MaterialTheme.typography.bodySmall)
                         }
                     }
@@ -291,10 +274,7 @@ private fun NodeDetail(
                         .put("name", name.trim())
                         .put("paddock_id", if (location == 0) JSONObject.NULL else location)
                     if (registered) {
-                        val modeObject = JSONObject()
-                        modes.toSortedMap().forEach { (key, value) -> modeObject.put(key, value) }
-                        body.put("modes", modeObject)
-                            .put("expected_fingerprint", node.getString("desired_fingerprint"))
+                        body.put("expected_fingerprint", node.getString("desired_fingerprint"))
                     }
                     save(body, !registered)
                 }

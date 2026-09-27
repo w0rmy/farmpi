@@ -4,7 +4,7 @@ flowchart TD
   C --> R{Registered?}
   R -->|no| P[Pending node in FarmPi]
   P --> A[Android Nodes admin approves + assigns identity/location]
-  A --> E[Initial desired config: enabled = empty]
+  A --> E[Initial desired config: all modes OFF]
   R -->|yes| H{Applied fingerprint matches desired?}
   E --> H
   H -->|yes| S[IN SYNC]
@@ -17,5 +17,7 @@ flowchart TD
   V -->|invalid / persistence failure| L[Keep last known-good config]
   L --> Q[Report failure for attempted fingerprint]
   Q --> D[UPDATE FAILED for current desired state]
-  S --> T[Read/transmit only enabled measurements actually observed]
+  S --> T[Generate SIMULATED or acquire advertised LIVE measurements]
   T --> I[Authenticated sparse ingest with source/location/time/provenance]
+  CLI[Pi console configure-node-modes] --> H
+  S --> UI[Android displays modes read-only]
