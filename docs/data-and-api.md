@@ -37,14 +37,18 @@ The simulator does not fabricate N, P, or K values. EC is a raw chemistry-relate
 
 ## Storage model
 
-- `paddocks` holds active status and the mutable display name.
-- `sensor_nodes` holds stable node UID, hardware UID, registration state, device credential hash, capabilities, desired/applied configuration, sync diagnostics and current location.
-- `readings` holds sparse measurements, the location ID captured on ingest, provenance, clock metadata, sequence, and protocol version.
+- `paddocks` is retained as the internal table name for monitoring locations. It holds a stable numeric ID, active status and a farmer-editable display name.
+- `sensor_nodes` holds the stable FarmPi node ID, immutable hardware UID, optional friendly node name, registration state, device credential hash, capabilities, desired/applied configuration, sync diagnostics and current location assignment.
+- `readings` holds sparse measurements, the location ID captured on ingest, row-level compatibility provenance, per-measurement `measurement_modes_json`, clock metadata, sequence and protocol version.
 - `paddock_admin_audit` records controlled display-name changes.
 
-Relationships use numeric IDs. Renaming a paddock does not rewrite readings or move a sensor. The repeatable seed identifies virtual nodes by stable UIDs `test-moisture-a` through `test-moisture-p`, preserving an existing renamed paddock.
+Hardware identity, FarmPi node identity and farmer location name are separate. A node can move between locations without changing its hardware UID or logical ID. A location may later contain more than one node. Historical readings retain the location ID captured when they were accepted.
 
-`config/database/schema.sql` is additive for older alpha databases. Measurement columns remain nullable at the database layer so historical alpha rows and mixed sensor capabilities can coexist; the ingest application contract accepts any nonempty sparse set and validates every supplied measurement. Explicit nulls, unknown fields, strings, booleans and non-finite measurement values are rejected.
+The operational seed is intentionally empty. It no longer creates the old 16 synthetic paddocks or `test-moisture-a` through `test-moisture-p`. That simulator remains a deliberate test/demo tool under `firmware/esp32-sensor`, not normal operational state.
+
+`scripts/reset-operational-database` is the explicit transition helper. It refuses to run without `--yes-really-reset`, archives the existing database with `mysqldump`, then recreates a clean database from the current schema. Running that helper is a separate deployment decision; applying this branch does not itself erase the live Pi database.
+
+Measurement columns remain nullable so mixed sensor capabilities and sparse samples are valid. Explicit nulls, unknown fields, strings, booleans and non-finite measurement values are rejected.
 
 ## Telemetry ingest
 
@@ -81,7 +85,9 @@ A node with installed add-ons may include any supported optional fields in the s
 }
 ```
 
-Success returns HTTP 201 with the stored reading ID, resolved paddock, the measurements actually supplied/stored, simulated status, observed/received/recorded times, clock status, deduplication status, time-sync requirement, and authoritative server Unix time.
+Success returns HTTP 201 with the stored reading ID, resolved location, the measurements actually supplied/stored, row-level simulated status, per-measurement `measurement_modes`, observed/received/recorded times, clock status, deduplication status, time-sync requirement, and authoritative server Unix time.
+
+For a managed ESP32-S3, provenance comes from the acknowledged configuration. Each supported measurement is `OFF`, `SIMULATED`, or `LIVE`. OFF values are rejected. SIMULATED values are generated on the node and traverse the same authenticated ingest path as LIVE values. LIVE values are accepted only when the corresponding driver actually produces a reading. A node remains valid with every measurement OFF.
 
 ## Clock and retry contract
 
@@ -137,10 +143,11 @@ Managed physical-node endpoints:
 | `/api/nodes/contact` | POST | Device discovery/heartbeat with hardware UID, device credential, firmware/profile, capabilities and optional applied fingerprint. |
 | `/api/nodes/configuration` | POST | Authenticated device fetch of the latest complete desired configuration. |
 | `/api/nodes/ack` | POST | Device acknowledgement or failure report for an attempted configuration fingerprint. |
+| `/api/nodes/locations` | POST | Administrator creation of a farmer-named monitoring location. |
 | `/api/nodes/{id}/approve` | POST | Administrator approval/registration of a discovered node and assignment of initial identity/location. |
-| `/api/nodes/{id}/configuration` | PUT | Administrator update of node name, location and enabled measurement set with optimistic fingerprint checking. |
+| `/api/nodes/{id}/configuration` | PUT | Administrator update of friendly node name, location and per-measurement OFF/SIMULATED/LIVE modes with optimistic fingerprint checking. |
 
-Administrator endpoints require `Authorization: Bearer <FARMPI_ADMIN_TOKEN>`. Device contact/configuration/acknowledgement use the per-device credential generated and persisted by the ESP32-S3; hardware UID is identification, not authentication. Registration begins with an empty enabled set.
+Administrator endpoints require `Authorization: Bearer <FARMPI_ADMIN_TOKEN>`. Device contact/configuration/acknowledgement use the per-device credential generated and persisted by the ESP32-S3; hardware UID is identification, not authentication. Registration begins with every firmware-supported measurement in `OFF` mode.
 
 Legacy endpoints retained from the earlier flexible-course direction:
 
@@ -174,12 +181,18 @@ The measurement catalogue is the application source of truth for what can be mea
 
 When a user asks for a graph or analytic that does not map directly to a supported key, the application should inspect aliases and nearby capabilities before returning a limitation. The model's own ability to draw or not draw a graph is irrelevant: FarmPi graph capability is determined by the application catalogue, stored data, analytics functions, and Android renderer.
 
-## Paddock identity and rename
+## Location identity and rename
 
-Paddock references resolve in this order: current display name, audited former name, canonical letter, then active configured numeric/word-number order. Close matches can produce a cautious suggestion; ambiguous or out-of-range references return specific recovery guidance.
+The database keeps the historical internal term `paddocks`, but the user-facing concept is a monitoring location. The farmer supplies the display name. Names can be ordinary property language such as `Bob's`, `Back Hill` or `Down by the Trough`.
 
-`Rename Paddock A to North Flat` creates a validated five-minute proposal. Only `confirm` or `yes` with the matching opaque token applies the update. The model does not authorise or execute the mutation. The application updates only `paddocks.name` and writes `paddock_admin_audit`; historical rows remain linked by numeric ID.
+Location references resolve by current display name first, with audited former names and older alpha letter/number aliases retained for compatibility. Renaming a location changes only its display name and audit record. It does not rewrite historical readings or change a node's hardware/FarmPi identity.
 
 ## Managed node configuration
 
-See [S3 node bring-up](s3-node-bringup.md) for registration, SHA-256 canonical configuration, administrator access, NVS persistence and the two-board acceptance checklist. All 13 catalogue choices are shown; unsupported firmware capabilities cannot be enabled.
+See [S3 node bring-up](s3-node-bringup.md) for registration, SHA-256 canonical configuration, administrator access, NVS persistence and the two-board acceptance checklist.
+
+The current canonical configuration is schema version 2 and contains exactly `modes`, `node_uid`, and `schema_version`. `modes` contains one OFF/SIMULATED/LIVE value for every capability advertised by that firmware. FarmPi fills omitted administrator choices with OFF before fingerprinting, so the device always receives one complete latest state rather than a patch.
+
+The standard ESP32-S3 profile currently advertises the six FR01 measurement keys. That means the firmware understands their configuration and simulation boundary; it does not prove a physical probe or LIVE driver exists. A LIVE measurement with no fitted driver simply produces no telemetry and is shown as not reporting.
+
+The logical ID uses `FP-xxx` and remains stable when the user changes the friendly node name or assigned location.
