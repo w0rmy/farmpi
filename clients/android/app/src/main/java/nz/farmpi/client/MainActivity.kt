@@ -25,12 +25,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
@@ -90,56 +87,6 @@ private fun ttsChunks(text: String, maxChars: Int = TTS_CHUNK_LIMIT): List<Strin
     return chunks
 }
 
-private val NeutralColours = darkColorScheme(
-    primary = Color(0xFF9ACBA6),
-    onPrimary = Color(0xFF12351E),
-    secondary = Color(0xFFB7C3B9),
-    onSecondary = Color(0xFF26312A),
-    background = Color(0xFF171A18),
-    onBackground = Color(0xFFE3E7E1),
-    surface = Color(0xFF202522),
-    onSurface = Color(0xFFE3E7E1),
-    surfaceVariant = Color(0xFF343A35),
-    onSurfaceVariant = Color(0xFFC4CBC4),
-)
-
-@Composable
-private fun FarmPiTheme(theme: String, displayDensity: String, content: @Composable () -> Unit) {
-    val colours = when (theme) {
-        "nz" -> lightColorScheme(
-            primary = Color(0xFF003F7F), onPrimary = Color.White, secondary = Color(0xFFC8102E), onSecondary = Color.White,
-            background = Color(0xFFF8F9FC), onBackground = Color(0xFF172033), surface = Color.White, onSurface = Color(0xFF172033),
-            surfaceVariant = Color(0xFFE5ECF6), onSurfaceVariant = Color(0xFF263A5A),
-        )
-        "natural" -> lightColorScheme(
-            primary = Color(0xFF174D38), onPrimary = Color.White, secondary = Color(0xFF836747), onSecondary = Color.White, tertiary = Color(0xFF417C98),
-            background = Color(0xFFF7FAF4), onBackground = Color(0xFF1A271C), surface = Color.White, onSurface = Color(0xFF1A271C),
-            surfaceVariant = Color(0xFFE2ECDD), onSurfaceVariant = Color(0xFF314735),
-        )
-        "high-contrast" -> darkColorScheme(
-            primary = Color.White, onPrimary = Color.Black, secondary = Color(0xFF00E5FF), onSecondary = Color.Black,
-            background = Color.Black, onBackground = Color.White, surface = Color(0xFF121212), onSurface = Color.White,
-            surfaceVariant = Color(0xFF2B2B2B), onSurfaceVariant = Color.White,
-        )
-        "high-visibility" -> darkColorScheme(
-            primary = Color(0xFFFFFF00), onPrimary = Color.Black, secondary = Color(0xFFFFFF00), onSecondary = Color.Black,
-            background = Color.Black, onBackground = Color(0xFFFFFF00), surface = Color(0xFF111111), onSurface = Color(0xFFFFFF00),
-            surfaceVariant = Color(0xFF252500), onSurfaceVariant = Color(0xFFFFFF00),
-        )
-        "muted" -> lightColorScheme(
-            primary = Color(0xFF5C6170), onPrimary = Color.White, secondary = Color(0xFF7B7085), onSecondary = Color.White,
-            background = Color(0xFFF3F1F0), onBackground = Color(0xFF29282D), surface = Color(0xFFF9F7F6), onSurface = Color(0xFF29282D),
-            surfaceVariant = Color(0xFFE5E1E0), onSurfaceVariant = Color(0xFF5A5559),
-        )
-        else -> NeutralColours
-    }
-    val density = LocalDensity.current
-    val fontScale = when (displayDensity) { "compact" -> 0.90f; "large" -> 1.25f; else -> 1.0f }
-    CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale * fontScale)) {
-        MaterialTheme(colorScheme = colours, shapes = Shapes(medium = RoundedCornerShape(20.dp), large = RoundedCornerShape(24.dp)), content = content)
-    }
-}
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -161,7 +108,6 @@ private fun FarmPiApp() {
     var suggestions by remember { mutableStateOf(listOf<String>()) }
     var explanation by remember { mutableStateOf("normal") }
     var guidance by remember { mutableStateOf("normal") }
-    var theme by remember { mutableStateOf("natural") }
     var displayDensity by remember { mutableStateOf("standard") }
     var showSettings by remember { mutableStateOf(false) }
     var destination by remember { mutableStateOf("Dashboard") }
@@ -185,14 +131,13 @@ private fun FarmPiApp() {
     var lastQueuedText by remember { mutableStateOf("") }
     var utteranceCounter by remember { mutableLongStateOf(0L) }
     val recognizerHolder = remember { arrayOfNulls<SpeechRecognizer>(1) }
-    // Keep the existing store so installed users retain display and explanation settings.
-    // Historical learning_* keys are left untouched and are no longer read.
+    // Keep the existing store so installed users retain text-size, explanation and guidance settings.
+    // Historical learning_* and theme keys are left untouched and are no longer read.
     val preferences = remember { context.getSharedPreferences("farmpi-learning", 0) }
 
     LaunchedEffect(Unit) {
         explanation = preferences.getString("explanation", "normal") ?: "normal"
         guidance = preferences.getString("guidance", "normal") ?: "normal"
-        theme = preferences.getString("theme", "natural") ?: "natural"
         displayDensity = preferences.getString("display_density", "standard") ?: "standard"
     }
 
@@ -453,17 +398,36 @@ private fun FarmPiApp() {
     LaunchedEffect(Unit) { checkStatus() }
 
     BackHandler(enabled = destination != "Dashboard") { destination = when (destination) { "Nodes", "History", "System Status" -> "More"; else -> "Dashboard" } }
-    FarmPiTheme(theme, displayDensity) {
+    FarmPiTheme(displayDensity) {
     Scaffold(topBar = {
         TopAppBar(
             title = { Column { Text("FarmPi", fontWeight = FontWeight.Bold); Text("Local farm monitoring · Prototype", style = MaterialTheme.typography.labelSmall) } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary, titleContentColor = MaterialTheme.colorScheme.onPrimary, actionIconContentColor = MaterialTheme.colorScheme.onPrimary),
-            actions = { if (isSpeaking) TextButton(onClick = { stopSpeaking() }) { Text("Stop speaking", color = MaterialTheme.colorScheme.onPrimary) }; TextButton(onClick = { showSettings = true }) { Text("Settings", color = MaterialTheme.colorScheme.onPrimary) } },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                titleContentColor = MaterialTheme.colorScheme.onSurface,
+                actionIconContentColor = MaterialTheme.colorScheme.primary,
+            ),
+            actions = {
+                if (isSpeaking) TextButton(onClick = { stopSpeaking() }) { Text("Stop speaking", color = MaterialTheme.colorScheme.primary) }
+                TextButton(onClick = { showSettings = true }) { Text("Settings", color = MaterialTheme.colorScheme.primary) }
+            },
         )
     }, bottomBar = {
-        NavigationBar {
+        NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
             listOf("Dashboard" to "⌂", "Compare" to "⇄", "Ask FarmPi" to "?", "Alerts" to "!", "More" to "•••").forEach { (name, symbol) ->
-                NavigationBarItem(selected = destination == name, onClick = { destination = name }, icon = { Text(symbol) }, label = { Text(name, maxLines = 1, style = MaterialTheme.typography.labelSmall) })
+                NavigationBarItem(
+                    selected = destination == name,
+                    onClick = { destination = name },
+                    icon = { Text(symbol) },
+                    label = { Text(name, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                )
             }
         }
     }) { padding ->
@@ -561,10 +525,9 @@ private fun FarmPiApp() {
     }
     }
     if (showSettings) SettingsDialog(
-        explanation, guidance, theme, displayDensity,
+        explanation, guidance, displayDensity,
         setExplanation = { explanation = it; preferences.edit().putString("explanation", it).apply() },
         setGuidance = { guidance = it; preferences.edit().putString("guidance", it).apply() },
-        setTheme = { theme = it; preferences.edit().putString("theme", it).apply() },
         setDisplayDensity = { displayDensity = it; preferences.edit().putString("display_density", it).apply() },
         close = { showSettings = false },
     )
@@ -573,8 +536,8 @@ private fun FarmPiApp() {
 
 @Composable
 private fun SettingsDialog(
-    explanation: String, guidance: String, theme: String, displayDensity: String,
-    setExplanation: (String) -> Unit, setGuidance: (String) -> Unit, setTheme: (String) -> Unit,
+    explanation: String, guidance: String, displayDensity: String,
+    setExplanation: (String) -> Unit, setGuidance: (String) -> Unit,
     setDisplayDensity: (String) -> Unit, close: () -> Unit,
 ) = AlertDialog(
     onDismissRequest = close,
@@ -590,10 +553,8 @@ private fun SettingsDialog(
         SettingChips(listOf("simple", "normal", "technical"), explanation, setExplanation)
         Text("Guidance prompts", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
         SettingChips(listOf("more", "normal", "less"), guidance, setGuidance)
-        Text("Presentation theme", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
-        listOf("neutral" to "Neutral", "nz" to "NZ red, white and blue", "natural" to "Green / natural", "high-contrast" to "Dark high contrast", "high-visibility" to "Yellow / black", "muted" to "Muted / low stimulation").forEach { (key, label) ->
-            FilterChip(selected = theme == key, onClick = { setTheme(key) }, label = { Text(label) }, modifier = Modifier.padding(end = 6.dp, bottom = 4.dp))
-        }
+        Text("FarmPi appearance", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
+        Text("FarmPi uses one consistent light interface with green accents and status colours. Theme selection is no longer required.", style = MaterialTheme.typography.bodySmall)
         Text("Text size", modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
         SettingChips(listOf("compact", "standard", "large"), displayDensity, setDisplayDensity)
     } },
