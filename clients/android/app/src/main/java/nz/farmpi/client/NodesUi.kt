@@ -211,33 +211,27 @@ private fun NodeDetailCard(node: JSONObject, response: JSONObject, busy: Boolean
             if (registered) {
                 HorizontalDivider()
                 Text("Measurement modes", style = MaterialTheme.typography.titleSmall)
-                Text("OFF sends nothing. SIMULATED uses the node's local simulator. LIVE is available only when a tested physical driver exists.", style = MaterialTheme.typography.bodySmall)
-
+                Text(
+                    "Source modes are configured from the FarmPi console during the prototype. This screen shows the current state only.",
+                    style = MaterialTheme.typography.bodySmall
+                )
                 for (j in 0 until sensors.length()) {
                     val item = sensors.getJSONObject(j)
-                    val id = item.getString("key")
-                    val supported = item.getBoolean("supported")
-                    val liveSupported = item.optBoolean("live_supported", false)
-                    val selectedMode = modes[id] ?: "OFF"
-
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(item.getString("label"))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf("OFF", "SIMULATED", "LIVE").forEach { mode ->
-                                FilterChip(
-                                    selected = selectedMode == mode,
-                                    onClick = { modes = modes + (id to mode) },
-                                    label = { Text(mode.lowercase().replaceFirstChar { it.uppercase() }) },
-                                    enabled = !busy && supported && (mode != "LIVE" || liveSupported)
-                                )
-                            }
+                    if (!item.getBoolean("supported")) continue
+                    val mode = item.optString("mode", "OFF")
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f)) {
+                            Text(item.getString("label"))
+                            Text(item.getString("state"), style = MaterialTheme.typography.bodySmall)
                         }
-                        Text(
-                            if (!supported) "Not supported by this firmware" else item.getString("state"),
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                        StatusChip(mode.lowercase().replaceFirstChar { it.uppercase() })
                     }
                 }
+                Text(
+                    "OFF / SIMULATED / LIVE changes: use scripts/configure-node-modes on FarmPi.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
 
             TextButton(onClick = { technical = !technical }) {
