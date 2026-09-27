@@ -8,7 +8,7 @@
 - Dashboard / Compare / Ask FarmPi / Alerts / More navigation, with Location Detail, History, Nodes and System Status destinations.
 - Dashboard/location requests, comparison controls and history controls call the existing authoritative Ask API and render answers, graphs and evidence in their own native screens. These requests are independent of the Ask conversation.
 - Ask retains bounded backend conversation context and now shows up to eight previous exchanges with inspectable sources/charts. Current source category and reading timestamps are visible. Old evidence is cleared when new requests start. Speech normalization, Heard/Interpreted, TTS and a globally accessible Stop speaking control remain.
-- Nodes main screen contains compact cards and access controls. Selecting a card opens Node Detail. Registration, location/sensor edits, session-only admin credentials and optimistic configuration fingerprints retain their original payloads. Hardware/configuration diagnostics are behind Technical details. No online status is invented from timestamps.
+- Nodes main screen contains compact cards and access controls. Selecting a card opens Node Detail. Registration, farmer locations and OFF/SIMULATED/LIVE sensor modes use the existing administrator API and optimistic configuration fingerprint. LIVE is selectable only when the node advertises a supported physical driver. Hardware/configuration diagnostics are behind Technical details. No online status is invented from timestamps.
 - System Status uses the existing database and AI availability fields rather than equating a running application with healthy dependencies.
 - Historical graph positions now reflect actual UTC time intervals instead of equal spacing. Dots are the default to avoid implying continuous coverage. Non-finite samples do not affect chart statistics or get joined by lines. Optional line/area modes explicitly disclose their continuity limitation.
 - Existing course retirement remains intact; historical documentation and preferences were not erased.
@@ -44,7 +44,7 @@ The initially missing `org.json` test dependency was downloaded successfully. Su
 
 ## Device acceptance before release
 
-Install the supplied debug APK on a test device with FarmPi certificate trust. Check existing preferences on upgrade; all primary and secondary destinations; current/old/missing/unavailable and simulated responses; comparisons and irregular history; typed/spoken follow-ups, corrections and Stop speaking; request failures versus disconnection; node registration followed by enabling supported sensors, location edits and configuration conflict recovery. Check narrow phones, tablets and all text sizes under the fixed FarmPi theme. No live node configuration was changed during this task.
+Install the supplied debug APK on a test device with FarmPi certificate trust. Check existing preferences on upgrade; all primary and secondary destinations; current/old/missing/unavailable and simulated responses; comparisons and irregular history; typed/spoken follow-ups, corrections and Stop speaking; request failures versus disconnection; node registration followed by OFF/SIMULATED mode changes, LIVE-driver gating, location edits, pending-to-in-sync acknowledgement and configuration conflict recovery. Check narrow phones, tablets and all text sizes under the fixed FarmPi theme. Device acceptance must deliberately use a test node/configuration; automated UI/unit validation does not itself prove that a physical node applied the requested mode.
 
 ## Final packaged checkpoint
 
