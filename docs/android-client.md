@@ -21,7 +21,7 @@ The current capstone direction evaluates the Android client as part of a functio
 - low/latest/high chart summaries and time labels;
 - expandable source/provenance display;
 - explanation-depth and guidance-frequency preferences;
-- six presentation themes and compact/standard/large text-size choices;
+- one fixed FarmPi light visual system with compact/standard/large text-size choices;
 - bounded conversation continuity supplied by the backend;
 - visible connection/dependency status and differentiated request/connection failures;
 - a Nodes administration screen for pending discovery, explicit registration, farmer-defined location assignment, stable node identity, desired/applied configuration state, read-only per-sensor OFF/SIMULATED/LIVE modes and runtime reporting state. Mode changes are console-only; Android saves friendly names and locations without submitting a mode map.
@@ -32,24 +32,17 @@ The Android client now opens Dashboard with primary destinations **Dashboard / C
 
 Learn, module navigation, Try/Check/Continue, progress, Return to Module and course quick actions have been removed, together with their Android models and API parsing. All questions omit `course_module_id`; contextual explanations, Guide me and ordinary conversation continuity remain.
 
-The existing `farmpi-learning` preference store is retained to preserve explanation, guidance, theme and text-size settings. Historical `learning_*` keys are left untouched but never read or written by the client. Course documentation and earlier development records remain historical evidence. Backend course contracts remain available pending a separate consumer audit.
+The existing `farmpi-learning` preference store is retained to preserve explanation, guidance and text-size settings. Historical `learning_*` and saved `theme` keys are left untouched but are no longer read or written by the client. Course documentation and earlier development records remain historical evidence. Backend course contracts remain available pending a separate consumer audit.
 
 ## Display and mobile usability
 
 The Settings action keeps secondary controls away from the main Ask interaction. Preferences are stored in device-local `SharedPreferences`.
 
-Themes are lightweight Material colour schemes applied consistently across the app:
+FarmPi now uses one fixed light visual system based on the current stakeholder/mockup direction: white and off-white surfaces, dark readable text, restrained FarmPi green for primary actions and selection, rounded cards, light grey dividers, and semantic status colours. Current/online/in-sync states use green, old/stale/pending states use amber, missing/error/unavailable states use red, and simulated/prototype states use blue. Theme selection has been removed so the application presents one coherent identity.
 
-- neutral (retained for existing users);
-- New Zealand red, white, and blue;
-- green/natural (new-install default);
-- dark high contrast;
-- yellow/black high visibility;
-- muted/low stimulation.
+Text size still multiplies the device accessibility font scale for compact, standard, or large presentation. Explanation depth, guidance and voice behaviour remain independent settings. These presentation choices must not change answer facts, graph values, evidence, or operations.
 
-Text size multiplies the device accessibility font scale for compact, standard, or large presentation. Under the current project direction these are treated as **mobile usability and presentation features**, not as evidence for a flexible-learning elective. They must not change answer facts, graph values, evidence, or operations.
-
-Current mobile work should favour a clear phone interface, readable graph cards, obvious recovery/error states, and low interaction cost rather than adding presentation options for their own sake.
+Current mobile work should favour a clear phone interface, readable graph cards, obvious recovery/error states, and low interaction cost rather than adding cosmetic presentation options.
 
 ## Graph presentation
 
@@ -151,7 +144,7 @@ On macOS/Linux use `./gradlew assembleDebug`.
 - soil-moisture and light/day-profile graphs work without inventing a paddock when none was requested;
 - line/area/bars/dots switches change presentation only, not values;
 - unsupported graph requests return a useful capability/alternative message rather than a generic `I cannot create graphs` response;
-- all six themes remain readable across primary screens, cards, charts, navigation, and settings;
+- the fixed FarmPi theme remains visually consistent across primary screens, cards, charts, navigation, settings and semantic status chips;
 - compact/standard/large text does not clip controls or evidence;
 - settings survive process restart;
 - sources/evidence remain inspectable and are not calculated by the phone;
