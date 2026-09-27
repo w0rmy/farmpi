@@ -1,5 +1,4 @@
-CREATE TABLE IF NOT EXISTS paddocks (
-    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+-- Farmer-defined monitoring locations. The internal numeric id is stable;\n-- the display name is deliberately editable and is not a node identity.\nCREATE TABLE IF NOT EXISTS paddocks (\n    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -148,6 +147,7 @@ ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS registration_state VARCHAR(16)
 ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS firmware_version VARCHAR(64) NULL;
 ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS board_profile VARCHAR(64) NULL;
 ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS capabilities_json TEXT NULL;
+ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS live_capabilities_json TEXT NULL AFTER capabilities_json;
 ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS desired_config_json TEXT NULL;
 ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS applied_config_json TEXT NULL;
 ALTER TABLE sensor_nodes ADD COLUMN IF NOT EXISTS desired_fingerprint CHAR(64) NULL;
