@@ -133,7 +133,7 @@ private fun MeasurementTile(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
-            measurement.reportingLocations?.let {
+            measurement.contributingLocations?.let {
                 Text(
                     "Farm average · $it location${if (it == 1) "" else "s"}",
                     style = MaterialTheme.typography.bodySmall,
