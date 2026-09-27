@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS readings (
     pasture_height_cm DECIMAL(5,1) NULL,
     leaf_wetness_pct DECIMAL(5,1) NULL,
     simulated BOOLEAN NOT NULL DEFAULT FALSE,
+    measurement_modes_json TEXT NULL,
     -- All DATETIME values use the FarmPi application UTC convention.
     -- recorded_at remains as an alpha compatibility/audit alias for received_at.
     observed_at DATETIME(6) NOT NULL,
@@ -75,6 +76,7 @@ CREATE TABLE IF NOT EXISTS readings (
 -- Additive migration path for existing alpha installations. Nullable columns
 -- preserve older rows; new API payloads are complete and range-validated.
 ALTER TABLE readings ADD COLUMN IF NOT EXISTS simulated BOOLEAN NOT NULL DEFAULT FALSE AFTER soil_moisture_pct;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS measurement_modes_json TEXT NULL AFTER simulated;
 ALTER TABLE readings ADD COLUMN IF NOT EXISTS soil_temperature_c DECIMAL(5,2) NULL AFTER soil_moisture_pct;
 ALTER TABLE readings ADD COLUMN IF NOT EXISTS air_temperature_c DECIMAL(5,2) NULL AFTER soil_temperature_c;
 ALTER TABLE readings ADD COLUMN IF NOT EXISTS relative_humidity_pct DECIMAL(5,2) NULL AFTER air_temperature_c;
