@@ -14,6 +14,7 @@ erDiagram
     int id
     int paddock_id
     string node_uid
+    string name
     string hardware_uid
     string registration_state
     string firmware_version
@@ -36,6 +37,7 @@ erDiagram
     datetime received_at
     bigint sample_seq
     bool simulated
+    text measurement_modes_json
     smallint protocol_version
   }
 
