@@ -16,7 +16,7 @@ from .sensor_ingest import StoredReading, validate_reading_values
 def store_managed(request, received_at, observed_at, clock_valid, offset, out_of_tolerance):
     values = validate_reading_values({m.key: getattr(request, m.key) for m in MEASUREMENTS if getattr(request, m.key) is not None})
     if request.sample_seq is None or not clock_valid or observed_at is None:
-        raise ValueError("Physical samples require a valid observation time and persistent sequence.")
+        raise ValueError("Managed samples require a valid observation time and persistent sequence.")
     if observed_at > received_at + timedelta(seconds=30):
         raise ValueError("Observation time is in the future; synchronise the clock.")
     with transaction() as cursor:
