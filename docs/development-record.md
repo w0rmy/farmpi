@@ -395,3 +395,26 @@ The Android client had accumulated six selectable colour themes from the earlier
 ### Evidence boundary
 
 This is a presentation and usability refactor. It does not prove that the reference-image dashboard data cards or tablet layout have been implemented, and it does not change any FarmPi readings, calculations, provenance or acceptance state. Device-level visual acceptance is still required across phone/tablet sizes and the retained text-size choices.
+
+
+## 27 September 2026 — Android sensor-mode administration
+
+### Context
+
+The managed-node redesign originally kept OFF/SIMULATED/LIVE changes on the FarmPi console while Android displayed sensor modes read-only. That was useful while the node contract was still settling, but it made normal node administration unnecessarily split between the phone and the Raspberry Pi console.
+
+Jeremy decided that sensor-mode administration now belongs in the Android Node Detail screen as well.
+
+### Decision
+
+- Add OFF, SIMULATED and LIVE controls for every firmware-supported measurement on Node Detail.
+- Keep unsupported measurements read-only.
+- Allow LIVE only when the node advertises that measurement in its LIVE capability set. Android must not make a physical capability claim that firmware does not support.
+- Send the complete supported mode map together with the current desired-configuration fingerprint when saving.
+- Preserve optimistic concurrency: if the desired configuration changed after the screen was loaded, the save must fail and require a refresh instead of silently overwriting the newer state.
+- Keep the existing console helper as an alternative administration path rather than removing it.
+- After save, retain the existing desired/applied sync model: UPDATE PENDING until the ESP32 fetches and acknowledges the new configuration, then IN SYNC.
+
+### Evidence boundary
+
+This change makes node administration more usable, but it does not prove that a physical sensor is present or working. SIMULATED remains synthetic evidence. LIVE remains unavailable until firmware advertises a real driver, and T01 still requires the six required physical measurements through the complete sensor-to-Android path.
