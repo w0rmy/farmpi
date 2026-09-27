@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+"""Configure managed-node measurement modes through the local FarmPi API.
+
+Prototype administration intentionally keeps OFF/SIMULATED/LIVE switching on
+the FarmPi console rather than the farmer-facing Android UI.
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import sys
+import time
+import urllib.error
+import urllib.request
+
+BASE_URL = os.getenv("FARMPI_LOCAL_API", "http://127.0.0.1:8000").rstrip("/")
+ENV_FILE = Path(os.getenv("FARMPI_ENV_FILE", "/etc/farmpi/farmpi.env"))
+VALID_MODES = {"OFF", "SIMULATED", "LIVE"}
+
+
+def die(message: str) -> "NoReturn":
+    print(message, file=sys.stderr)
+    raise SystemExit(2)
+
+
+def read_admin_token() -> str:
+    try:
+        lines = ENV_FILE.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        die(f"Unable to read {ENV_FILE}: {exc}")
+    for line in lines:
+        if line.startswith("FARMPI_ADMIN_TOKEN="):
+            token = line.split("=", 1)[1].strip()
+            if token:
+                return token
+    die(f"FARMPI_ADMIN_TOKEN is not configured in {ENV_FILE}")
+
+
+def api(path: str, token: str, method: str = "GET", body: dict | None = None) -> dict:
+    data = None if body is None else json.dumps(body).encode("utf-8")
+    request = urllib.request.Request(
+        BASE_URL + path,
+        data=data,
+        method=method,
+        headers={
+            "Authorization": "Bearer " + token,
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")
+        die(f"FarmPi returned HTTP {exc.code}: {detail}")
+    except OSError as exc:
+        die(f"Unable to reach FarmPi at {BASE_URL}: {exc}")
+
+
+def usage() -> None:
+    print(
+        "Usage:\n"
+        "  scripts/configure-node-modes FP-001 soil_moisture_pct=SIMULATED [air_temperature_c=OFF ...]\n\n"
+        "Modes: OFF, SIMULATED, LIVE\n"
+        "LIVE is accepted only when firmware advertises a tested physical driver.",
+        file=sys.stderr,
+    )
+
+
+def main() -> None:
+    if len(sys.argv) < 3 or sys.argv[1] in {"-h", "--help"}:
+        usage()
+        raise SystemExit(0 if len(sys.argv) >= 2 else 2)
+
+    node_uid = sys.argv[1]
+    changes: dict[str, str] = {}
+    for assignment in sys.argv[2:]:
+        if "=" not in assignment:
+            die(f"Invalid assignment: {assignment}")
+        key, mode = assignment.split("=", 1)
+        key, mode = key.strip(), mode.strip().upper()
+        if not key or mode not in VALID_MODES:
+            die(f"Invalid assignment: {assignment}")
+        changes[key] = mode
+
+    token = read_admin_token()
+    snapshot = api("/api/nodes", token)
+    node = next((item for item in snapshot.get("nodes", []) if item.get("node_uid") == node_uid), None)
+    if node is None:
+        die(f"Registered node {node_uid!r} was not found.")
+
+    supported = {item["key"]: item for item in node.get("sensors", []) if item.get("supported")}
+    unknown = set(changes) - set(supported)
+    if unknown:
+        die("Unsupported measurement(s): " + ", ".join(sorted(unknown)))
+
+    modes = {key: item.get("mode", "OFF") for key, item in supported.items()}
+    for key, mode in changes.items():
+        if mode == "LIVE" and not supported[key].get("live_supported", False):
+            die(f"{key} cannot be LIVE because this firmware has no advertised physical driver.")
+        modes[key] = mode
+
+    body = {
+        "name": node["name"],
+        "paddock_id": node.get("paddock_id"),
+        "modes": modes,
+        "expected_fingerprint": node["desired_fingerprint"],
+    }
+    result = api(f"/api/nodes/{node['id']}/configuration", token, "PUT", body)
+    wanted = result["fingerprint"]
+    print(f"{node_uid}: desired configuration {wanted[:8]} saved.")
+    print("Waiting briefly for the node to pull and acknowledge it...")
+
+    for _ in range(10):
+        time.sleep(2)
+        latest = api("/api/nodes", token)
+        refreshed = next((item for item in latest.get("nodes", []) if item.get("node_uid") == node_uid), None)
+        if refreshed and refreshed.get("desired_fingerprint") == wanted:
+            state = refreshed.get("sync_state")
+            print(f"{node_uid}: {state}")
+            if state in {"IN SYNC", "UPDATE FAILED"}:
+                return
+    print(f"{node_uid}: update remains pending; the node may be offline.")
+
+
+if __name__ == "__main__":
+    main()
