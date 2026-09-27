@@ -82,7 +82,7 @@ internal fun MeasurementGrid(
     sparkline: List<ChartPoint> = emptyList(),
 ) {
     if (measurements.isEmpty()) {
-        InfoMessageCard("No current measurements", "FarmPi has no current database readings to show yet.")
+        InfoMessageCard("No stored measurements", "FarmPi has no database readings to show yet.")
         return
     }
     measurements.chunked(2).forEach { rowItems ->
@@ -198,7 +198,7 @@ internal fun LocationOverviewCard(
             }
             if (location.measurements.isEmpty()) {
                 Text(
-                    "No current measurements are available.",
+                    "No stored measurements are available.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
