@@ -953,3 +953,14 @@ async def ask(request: AskRequest) -> AskResponse:
         provenance=provenance,
         semantic_interpretation=semantic_interpretation,
     )
+
+# Register feature routers on the canonical FastAPI application.
+# Keep these imports late: the feature modules depend on shared application
+# models/helpers above, while none of them should own a separate FastAPI app.
+from .ingest_api import router as ingest_router
+from .node_api import router as node_router
+from .monitoring_api import router as monitoring_router
+
+app.include_router(ingest_router)
+app.include_router(node_router)
+app.include_router(monitoring_router)
