@@ -102,6 +102,14 @@ When device time is missing, invalid, or more than 30 seconds from FarmPi, the r
 
 `sample_seq` is unique per sensor when present. Retrying the same sensor/sequence returns the original reading rather than inserting a duplicate. The acknowledgement semantics are transport-neutral so a future LoRa, LoRaWAN, or Wi-Fi HaLow transport can carry the same time and sequence contract without changing database/application authority.
 
+## Structured monitoring overview
+
+The Android dashboard no longer needs to ask the conversational endpoint to construct its main screen. `GET /api/monitoring/overview` returns structured application-owned monitoring state directly from the same validated database and analytics layer used elsewhere.
+
+The endpoint deliberately separates **data availability** from connectivity. A location with a stored reading is reported as having data and includes its reading age; the endpoint does not label a node online merely because an older row exists. It returns configured locations even when they have no reading yet. Farm-level measurement cards use deterministic averages across locations that currently have that measurement, with simulated provenance retained if any contributing value is simulated.
+
+The optional featured chart is the existing deterministic 24-hour soil-moisture trend payload. If no verified history exists, the field is null rather than synthesised.
+
 ## Current values across mixed capabilities
 
 A current paddock snapshot uses each active node’s latest observation at its current assigned location, ordered by observation time. It does not require six measurements. Only values present in that sample are included; a different sparse sample does not silently carry an older measurement forward. This means:
@@ -130,6 +138,7 @@ Evidence items preserve paddock, sensor UID where available, timestamp, value, a
 | `/` | GET | Diagnostic browser client. |
 | `/health` | GET | Application-process liveness. |
 | `/api/status` | GET | Application, MariaDB, and configured LLM status. |
+| `/api/monitoring/overview` | GET | Deterministic Android dashboard snapshot: configured locations, latest stored measurements, provenance/age metadata, farm summary values and a verified 24-hour soil-moisture chart when history is available. No LLM is involved. |
 | `/api/guidance` | GET | Reviewed onboarding text and suggestions; accepts `guidance_level`. |
 | `/api/speech/normalize` | POST | Deterministic spoken-domain correction. |
 | `/api/ask` | POST | Main conversational/data-query contract for Android/browser clients. |
