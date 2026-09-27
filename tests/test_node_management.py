@@ -52,7 +52,7 @@ class NodeFlowTests(unittest.TestCase):
         INSERT INTO paddocks VALUES(1,'Paddock A',1),(2,'Paddock B',1);
         CREATE TABLE sensor_nodes(id INTEGER PRIMARY KEY AUTOINCREMENT,node_uid TEXT UNIQUE,name TEXT,
           hardware_uid TEXT UNIQUE,device_key_hash TEXT,registration_state TEXT,active INTEGER,
-          paddock_id INTEGER,firmware_version TEXT,board_profile TEXT,capabilities_json TEXT,
+          paddock_id INTEGER,firmware_version TEXT,board_profile TEXT,capabilities_json TEXT,live_capabilities_json TEXT,
           desired_config_json TEXT,applied_config_json TEXT,desired_fingerprint TEXT,applied_fingerprint TEXT,
           failed_fingerprint TEXT,config_error TEXT,last_seen TEXT,location_epoch INTEGER DEFAULT 0);
         """)
@@ -87,11 +87,12 @@ class NodeFlowTests(unittest.TestCase):
     def auth(self, number):
         return {"hardware_uid": f"{number:012x}", "device_key": f"{number:064x}"}
 
-    def contact(self, number, applied=None):
-        return self.client.post("/api/nodes/contact", json={**self.auth(number), "firmware_version": "test", "board_profile": "s3-test", "capabilities": ["soil_moisture_pct"], "applied_fingerprint": applied})
+    def contact(self, number, applied=None, live=False):
+        return self.client.post("/api/nodes/contact", json={**self.auth(number), "firmware_version": "test", "board_profile": "s3-test",
+            "capabilities": ["soil_moisture_pct"], "live_capabilities": ["soil_moisture_pct"] if live else [], "applied_fingerprint": applied})
 
-    def register(self, number):
-        self.assertEqual(self.contact(number).status_code, 200)
+    def register(self, number, live=False):
+        self.assertEqual(self.contact(number, live=live).status_code, 200)
         node_id = self.db.execute("SELECT id FROM sensor_nodes WHERE hardware_uid=?", (self.auth(number)["hardware_uid"],)).fetchone()[0]
         response = self.client.post(f"/api/nodes/{node_id}/approve", headers=self.admin, json={"name": f"Node {number}", "paddock_id": number})
         self.assertEqual(response.status_code, 200, response.text)
@@ -106,26 +107,27 @@ class NodeFlowTests(unittest.TestCase):
     def ack(self, number, config):
         return self.client.post("/api/nodes/ack", json={**self.auth(number), "config": config["config"], "fingerprint": config["fingerprint"]})
 
-    def enable(self, number, node_id):
+    def set_mode(self, number, node_id, mode):
         old = self.pull(number)
-        response = self.client.put(f"/api/nodes/{node_id}/configuration", headers=self.admin, json={"name": "Physical", "paddock_id": number, "enabled": ["soil_moisture_pct"], "expected_fingerprint": old["fingerprint"]})
+        response = self.client.put(f"/api/nodes/{node_id}/configuration", headers=self.admin, json={"name": "Field node", "paddock_id": number,
+            "modes": {"soil_moisture_pct": mode}, "expected_fingerprint": old["fingerprint"]})
         self.assertEqual(response.status_code, 200, response.text)
         config = self.pull(number)
         self.assertEqual(self.ack(number, config).status_code, 200)
         return config
 
-    def sample(self, number, config, **extra):
+    def sample(self, number, config, simulated=False, **extra):
         return {**self.auth(number), "sensor": config["config"]["node_uid"], "applied_fingerprint": config["fingerprint"], "location_epoch": 0,
-            "simulated": False, "soil_moisture_pct": 21.5, "clock_valid": True, "device_time_unix": int(datetime.now(timezone.utc).timestamp()) - 1,
+            "simulated": simulated, "soil_moisture_pct": 21.5, "clock_valid": True, "device_time_unix": int(datetime.now(timezone.utc).timestamp()) - 1,
             "sample_seq": 1, **extra}
 
     def test_two_nodes_start_empty_and_sync_independently(self):
         first, second = self.register(1), self.register(2)
         one, two = self.pull(1), self.pull(2)
-        self.assertEqual(one["config"]["enabled"], [])
-        self.assertEqual(two["config"]["enabled"], [])
+        self.assertEqual(one["config"]["modes"], {"soil_moisture_pct": "OFF"})
+        self.assertEqual(two["config"]["modes"], {"soil_moisture_pct": "OFF"})
         self.ack(1, one); self.ack(2, two)
-        enabled = self.enable(1, first)
+        enabled = self.set_mode(1, first, "SIMULATED")
         self.assertNotEqual(enabled["fingerprint"], one["fingerprint"])
         self.assertEqual(self.pull(2), two)
         self.assertEqual(self.contact(2, two["fingerprint"]).json()["sync_state"], "IN SYNC")
@@ -139,7 +141,7 @@ class NodeFlowTests(unittest.TestCase):
         self.assertEqual(self.client.post("/api/nodes/1/approve", json={"name": "X"}).status_code, 401)
 
     def test_sparse_physical_reading_retry_and_cross_node_rejection(self):
-        one = self.enable(1, self.register(1)); self.register(2)
+        one = self.set_mode(1, self.register(1, live=True), "LIVE"); self.register(2)
         payload = self.sample(1, one)
         accepted = self.client.post("/api/ingest", json=payload)
         self.assertEqual(accepted.status_code, 201, accepted.text)
@@ -155,7 +157,7 @@ class NodeFlowTests(unittest.TestCase):
     def test_disabled_rejected_failure_preserves_applied_and_reboot_contact_recovers(self):
         node_id = self.register(1); empty = self.pull(1); self.ack(1, empty)
         self.assertEqual(self.client.post("/api/ingest", json=self.sample(1, empty)).status_code, 422)
-        desired = self.enable(1, node_id)
+        desired = self.set_mode(1, node_id, "SIMULATED")
         response = self.client.post("/api/nodes/ack", json={**self.auth(1), "fingerprint": "a" * 64, "error": "unsupported"})
         self.assertEqual(response.json()["sync_state"], "IN SYNC")
         # Reboot/missing state cannot falsely keep the previous IN SYNC state.
@@ -164,7 +166,7 @@ class NodeFlowTests(unittest.TestCase):
 
     def test_old_ack_does_not_overwrite_new_desired_and_approval_does_not_reset(self):
         node_id = self.register(1); old = self.pull(1); self.ack(1, old)
-        latest = self.enable(1, node_id)
+        latest = self.set_mode(1, node_id, "SIMULATED")
         self.assertEqual(self.ack(1, old).status_code, 409)
         self.client.post(f"/api/nodes/{node_id}/approve", headers=self.admin, json={"name": "Again"})
         self.assertEqual(self.pull(1), latest)
@@ -172,7 +174,7 @@ class NodeFlowTests(unittest.TestCase):
     def test_failed_update_retains_working_configuration(self):
         node_id = self.register(1)
         old = self.pull(1); self.ack(1, old)
-        response = self.client.put(f"/api/nodes/{node_id}/configuration", headers=self.admin, json={"name": "Node", "paddock_id": 1, "enabled": ["soil_moisture_pct"], "expected_fingerprint": old["fingerprint"]})
+        response = self.client.put(f"/api/nodes/{node_id}/configuration", headers=self.admin, json={"name": "Node", "paddock_id": 1, "modes": {"soil_moisture_pct": "SIMULATED"}, "expected_fingerprint": old["fingerprint"]})
         self.assertEqual(response.status_code, 200)
         desired = self.pull(1)
         failed = self.client.post("/api/nodes/ack", json={**self.auth(1), "fingerprint": desired["fingerprint"], "error": "NVS persistence failed"})
@@ -186,10 +188,10 @@ class NodeFlowTests(unittest.TestCase):
         self.assertEqual(self.contact(1, desired["fingerprint"]).json()["sync_state"], "IN SYNC")
 
     def test_relocation_preserves_history_and_rejects_old_assignment(self):
-        node_id = self.register(1); config = self.enable(1, node_id)
+        node_id = self.register(1); config = self.set_mode(1, node_id, "SIMULATED")
         payload = self.sample(1, config)
         self.assertEqual(self.client.post("/api/ingest", json=payload).status_code, 201)
-        response = self.client.put(f"/api/nodes/{node_id}/configuration", headers=self.admin, json={"name": "Moved", "paddock_id": 2, "enabled": ["soil_moisture_pct"], "expected_fingerprint": config["fingerprint"]})
+        response = self.client.put(f"/api/nodes/{node_id}/configuration", headers=self.admin, json={"name": "Moved", "paddock_id": 2, "modes": {"soil_moisture_pct": "SIMULATED"}, "expected_fingerprint": config["fingerprint"]})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.db.execute("SELECT paddock_id FROM readings").fetchone()[0], 1)
         self.assertEqual(self.contact(1, config["fingerprint"]).json()["location_epoch"], 1)
@@ -207,7 +209,7 @@ class NodeFlowTests(unittest.TestCase):
 
     def test_current_query_accepts_single_measurement_and_retains_source(self):
         from app.farm_data import get_environment_snapshot
-        node_id = self.register(1); config = self.enable(1, node_id)
+        node_id = self.register(1); config = self.set_mode(1, node_id, "SIMULATED")
         self.assertEqual(self.client.post("/api/ingest", json=self.sample(1, config)).status_code, 201)
         def query(sql, params=None):
             cursor = Cursor(self.db)
@@ -220,13 +222,13 @@ class NodeFlowTests(unittest.TestCase):
             snapshot = get_environment_snapshot()
         self.assertEqual(snapshot[0].values, {"soil_moisture_pct": 21.5})
         self.assertEqual(snapshot[0].sources[0]["sensor"], config["config"]["node_uid"])
-        self.assertFalse(snapshot[0].contains_simulated)
+        self.assertTrue(snapshot[0].contains_simulated)
 
     def test_unsupported_and_stale_admin_updates_do_not_mutate(self):
         node_id = self.register(1); old = self.pull(1)
-        body = {"name": "Node", "paddock_id": 1, "enabled": ["rainfall_mm"], "expected_fingerprint": old["fingerprint"]}
+        body = {"name": "Node", "paddock_id": 1, "modes": {"rainfall_mm": "SIMULATED"}, "expected_fingerprint": old["fingerprint"]}
         self.assertEqual(self.client.put(f"/api/nodes/{node_id}/configuration", headers=self.admin, json=body).status_code, 422)
-        body.update(enabled=[], expected_fingerprint="f" * 64)
+        body.update(modes={}, expected_fingerprint="f" * 64)
         self.assertEqual(self.client.put(f"/api/nodes/{node_id}/configuration", headers=self.admin, json=body).status_code, 409)
         self.assertEqual(self.pull(1), old)
 
@@ -234,12 +236,14 @@ class NodeFlowTests(unittest.TestCase):
 class ConfigurationTests(unittest.TestCase):
     def test_canonical_full_hash_and_validation(self):
         capabilities = ["soil_moisture_pct", "air_temperature_c"]
-        config = configuration("node-001", capabilities, capabilities)
+        config = configuration("FP-001", {"soil_moisture_pct": "SIMULATED", "air_temperature_c": "OFF"}, capabilities, [])
         self.assertEqual(len(fingerprint(config)), 64)
-        self.assertEqual(fingerprint(config), fingerprint(configuration("node-001", list(reversed(capabilities)), capabilities)))
-        for bad in [config | {"schema_version": 2}, config | {"node_uid": "node-002"}, config | {"enabled": ["rainfall_mm"]}]:
+        self.assertEqual(fingerprint(config), fingerprint(configuration("FP-001", {"air_temperature_c": "OFF", "soil_moisture_pct": "SIMULATED"}, list(reversed(capabilities)), [])))
+        for bad in [config | {"schema_version": 1}, config | {"node_uid": "FP-002"}, config | {"modes": {"rainfall_mm": "SIMULATED"}}]:
             with self.assertRaises(ValueError):
-                validate_config(bad, "node-001", capabilities, fingerprint(config))
+                validate_config(bad, "FP-001", capabilities, [], fingerprint(config))
+        with self.assertRaises(ValueError):
+            configuration("FP-001", {"soil_moisture_pct": "LIVE"}, capabilities, [])
         self.assertEqual(sync_state("a", "b", "a"), "UPDATE FAILED")
         self.assertEqual(sync_state("c", "b", "a"), "UPDATE PENDING")
 
