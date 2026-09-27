@@ -91,7 +91,7 @@ For a managed ESP32-S3, provenance comes from the acknowledged configuration. Ea
 
 ## Clock and retry contract
 
-FarmPi is the UTC authority.
+FarmPi is the UTC authority. Managed ESP32-S3 nodes receive authoritative `server_time` in every successful `POST /api/nodes/contact` response and use it to establish/correct their application clock when needed. `farmpi.local` is not an NTP service, and managed-node telemetry does not require Internet time.
 
 - `received_at` is FarmPi receipt time for transport diagnostics; observation age remains separate.
 - `observed_at` is device observation time when the node clock is valid.
