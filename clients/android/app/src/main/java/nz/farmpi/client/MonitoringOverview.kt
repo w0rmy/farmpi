@@ -11,7 +11,7 @@ internal data class OverviewMeasurement(
     val displayValue: String,
     val sourceMode: String?,
     val ageSeconds: Int?,
-    val reportingLocations: Int?,
+    val contributingLocations: Int?,
 )
 
 internal data class OverviewLocation(
@@ -43,7 +43,7 @@ private fun JSONArray.measurements(): List<OverviewMeasurement> =
                 displayValue = item.getString("display_value"),
                 sourceMode = item.optString("source_mode").takeIf { it.isNotBlank() && !it.equals("null", true) },
                 ageSeconds = if (item.isNull("age_seconds")) null else item.optInt("age_seconds"),
-                reportingLocations = if (item.isNull("reporting_locations")) null else item.optInt("reporting_locations"),
+                contributingLocations = if (item.isNull("contributing_locations")) null else item.optInt("contributing_locations"),
             )
         }
     }
