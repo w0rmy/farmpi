@@ -48,7 +48,7 @@ class MonitoringOverviewTests(unittest.TestCase):
         result = build_monitoring_overview(self.now)
 
         self.assertEqual(result["location_count"], 2)
-        self.assertEqual(result["reporting_location_count"], 2)
+        self.assertEqual(result["locations_with_readings_count"], 2)
         self.assertEqual(result["locations"][0]["name"], "Bob's")
         self.assertEqual(result["locations"][0]["measurements"][0]["age_seconds"], 120)
         moisture = next(item for item in result["farm_measurements"] if item["key"] == "soil_moisture_pct")
@@ -66,8 +66,8 @@ class MonitoringOverviewTests(unittest.TestCase):
 
         result = build_monitoring_overview(self.now)
 
-        self.assertEqual(result["reporting_location_count"], 0)
-        self.assertFalse(result["locations"][0]["reporting"])
+        self.assertEqual(result["locations_with_readings_count"], 0)
+        self.assertFalse(result["locations"][0]["has_reading"])
         self.assertEqual(result["locations"][0]["measurements"], [])
         self.assertEqual(result["farm_measurements"], [])
         self.assertIsNone(result["featured_chart"])
