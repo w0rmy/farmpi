@@ -492,3 +492,29 @@ This preserves the local-only architecture: FarmPi remains the system time autho
 ### Verification boundary
 
 Source/tests now protect the contact `server_time` contract, the removal of the false NTP call, the retained 15-second/60-second cadences and the invalid-clock telemetry guard. The final live check still requires flashing both ESP32-S3 boards and confirming serial `FarmPi time synchronised` / `Telemetry accepted` output followed by new SIMULATED rows for both nodes in MariaDB. This remains simulation-path evidence, not T01 physical-sensor evidence.
+
+
+## 27 September 2026 — farmer-name routing, monitoring API visibility and compare selectors
+
+### Observation
+
+Live Android use exposed three connected usability/integration problems after the graphical dashboard work.
+
+1. Asking `What stats are available on Fred's paddock?` could time out even though the rest of FarmPi was reachable. The fast router recognised the summary wording but did not reliably extract an arbitrary farmer-defined name in that sentence form, so the request could fall into semantic LLM interpretation unnecessarily. Android then had only a 30-second read timeout and reported the timeout as though FarmLAN/certificate trust had failed.
+2. The installed client reported that the monitoring overview was unavailable. The repository already contained the deterministic `/api/monitoring/overview` implementation, but the runtime/deployment state needed to be made explicit and testable rather than inferred from source alone.
+3. Compare required typing location names. That conflicts with the managed-location model and created another opportunity for spelling, apostrophe and LLM interpretation errors. It also did not make the selected pair an explicit application contract.
+
+### Decision
+
+- Extend deterministic summary-target extraction so normal farmer names such as `Bob's paddock` and `Fred's paddock` route directly to `paddock_summary`.
+- Normalise smart apostrophes from speech/transcription before canonical location resolution.
+- Preserve deterministic authority: a recognised summary request has zero LLM generation time.
+- Give `/api/ask` a separate 130-second Android read window while ordinary local API calls remain at 30 seconds. A socket/read timeout is now reported as a response timeout rather than a network/certificate failure.
+- Advertise monitoring API capability in `/api/status` and regression-test that the composed deployed FastAPI application actually mounts `/api/monitoring/overview` and `/api/monitoring/compare`.
+- Populate Compare and History location controls from the configured locations returned by the overview API instead of requiring free text.
+- Add `GET /api/monitoring/compare`, taking two stable location IDs, measurement key and bounded time window. Only those two selected locations are queried and compared. The LLM is not involved.
+- Keep farmer-facing names in the UI while using stable numeric IDs for the comparison request.
+
+### Evidence boundary
+
+These changes improve routing, API/UI integration and deterministic comparison. They do not establish that the deployed Pi has been updated, that Android has been rebuilt/installed, or that current readings exist. Live acceptance still requires updating/restarting FarmPi, installing the new Android build, verifying the Monitoring API status, checking Dashboard cards against MariaDB data, selecting Bob's paddock and Fred's paddock from the drop-downs, and confirming the resulting comparison contains only those two locations.
