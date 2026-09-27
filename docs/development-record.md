@@ -518,3 +518,24 @@ Live Android use exposed three connected usability/integration problems after th
 ### Evidence boundary
 
 These changes improve routing, API/UI integration and deterministic comparison. They do not establish that the deployed Pi has been updated, that Android has been rebuilt/installed, or that current readings exist. Live acceptance still requires updating/restarting FarmPi, installing the new Android build, verifying the Monitoring API status, checking Dashboard cards against MariaDB data, selecting Bob's paddock and Fred's paddock from the drop-downs, and confirming the resulting comparison contains only those two locations.
+
+
+## 27 September 2026 — FastAPI 0.141 route-tree validation correction
+
+### Observation
+
+Deployment validation after the monitoring/compare changes repeatedly reported that `/api/monitoring/overview`, `/api/monitoring/compare`, `/api/nodes` and `/api/ingest` were absent, even though the canonical application included all three feature routers and the Pi was importing the expected checkout.
+
+The failure came from the validation method rather than from missing application routes. The regression test and updater preflight treated `app.routes` as a flat list of every final path operation. With the installed FastAPI 0.141.1 routing model, included `APIRouter` objects can remain part of a live/nested route tree, so direct flat-list inspection is not a valid composition check.
+
+### Decision
+
+- Keep feature registration through FastAPI's documented `include_router()` API.
+- Stop using `app.routes` as a flat endpoint inventory.
+- Validate composed route presence through the application's generated OpenAPI paths instead.
+- Retain the PR #20 import-origin check, bytecode cleanup and explicit checkout `PYTHONPATH`; those controls still prove that validation and deployment use the intended FarmPi source tree.
+- Preserve the monitoring regression requirement itself: both `/api/monitoring/overview` and `/api/monitoring/compare` must still appear in the composed application contract.
+
+### Evidence boundary
+
+This corrects the validation mechanism; it does not by itself prove live Dashboard data, Compare results or physical sensing. After merge, the Pi update must pass the composition preflight and complete the full backend suite, followed by live API/Android acceptance.
