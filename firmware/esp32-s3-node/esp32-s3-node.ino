@@ -177,7 +177,7 @@ static bool syncClockFromFarmPi(JsonDocument& response) {
 
   const time_t localNow = time(nullptr);
   const int64_t offset = (int64_t)serverTime - (int64_t)localNow;
-  if (localNow >= 1700000000 && llabs(offset) <= 5) return true;
+  if (localNow >= 1700000000 && offset >= -5 && offset <= 5) return true;
 
   struct timeval tv;
   tv.tv_sec = (time_t)serverTime;
