@@ -63,7 +63,7 @@ Record source revision, toolchain versions, binary SHA-256, hardware UIDs, assig
 4. Disconnect the first node, change its desired state repeatedly, reconnect, and verify it pulls only the latest complete state.
 5. Reboot with FarmPi unreachable; record restoration of the same valid saved configuration. Reconnect and verify acknowledgement recovery.
 6. Exercise invalid schema, unsupported measurement, corrupted fingerprint and failed persistence in a controlled test build. Verify the working document remains intact. Interrupt power during persistence and inspect both slots after reboot.
-7. Verify location reassignment leaves old history in its original location. Verify disabled/unsupported/cross-node/simulated physical submissions are rejected and exact retry is idempotent using the test fixture; do not label fixture data as physical probe evidence.
+7. Verify location reassignment leaves old history in its original location. Verify OFF/unsupported/cross-node/wrong-mode submissions are rejected, SIMULATED submissions are retained as simulated provenance, and exact retry is idempotent using the test fixture; do not label simulated fixture data as physical probe evidence.
 
 Only after this path passes should the actual probe/module be identified, wiring standardised in board_profile.h, its driver/calibration added and one real soil-moisture channel tested. T01 remains incomplete until all six FR01 measurements are demonstrated physically.
 
