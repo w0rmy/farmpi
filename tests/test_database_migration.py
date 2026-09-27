@@ -18,8 +18,8 @@ class DatabaseMigrationTests(unittest.TestCase):
 
     def test_reset_archives_before_recreating_database(self) -> None:
         helper = (PROJECT_ROOT / "scripts/reset-operational-database").read_text(encoding="utf-8")
-        self.assertIn("mysqldump", helper)
-        self.assertLess(helper.index("mysqldump"), helper.index("DROP DATABASE"))
+        self.assertIn("mariadb-dump", helper)
+        self.assertLess(helper.index("mariadb-dump"), helper.index("DROP DATABASE"))
         self.assertIn("--yes-really-reset", helper)
         self.assertIn("farmpi-pre-operational-reset-", helper)
 
