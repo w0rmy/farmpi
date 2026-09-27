@@ -35,6 +35,56 @@ private fun InfoCard(title: String, detail: String, content: @Composable ColumnS
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LocationSelector(
+    label: String,
+    locations: List<OverviewLocation>,
+    selected: String,
+    onSelect: (String) -> Unit,
+    allowFarmWide: Boolean = false,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val displayValue = selected.ifBlank { if (allowFarmWide) "Across the farm" else "Select location" }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+    ) {
+        OutlinedTextField(
+            value = displayValue,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.fillMaxWidth().menuAnchor(),
+            singleLine = true,
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            if (allowFarmWide) {
+                DropdownMenuItem(
+                    text = { Text("Across the farm") },
+                    onClick = { onSelect(""); expanded = false },
+                )
+            }
+            locations.forEach { item ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(item.name)
+                            Text(
+                                if (item.hasReading) ageLabel(item.ageSeconds) else "No stored reading yet",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
+                    onClick = { onSelect(item.name); expanded = false },
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun MonitoringArea(
@@ -69,7 +119,11 @@ internal fun MonitoringArea(
             try {
                 overview = fetchMonitoringOverview()
             } catch (e: Exception) {
-                overviewError = e.message ?: "FarmPi could not load the monitoring overview."
+                overviewError = if (e.message?.contains("HTTP 404") == true) {
+                    "This FarmPi server does not expose the monitoring overview API yet. Update and restart the FarmPi server, then try again."
+                } else {
+                    e.message ?: "FarmPi could not load the monitoring overview."
+                }
             } finally {
                 overviewLoading = false
             }
@@ -84,7 +138,12 @@ internal fun MonitoringArea(
     var details by remember { mutableStateOf(false) }
     LaunchedEffect(location) { locationA = location }
     LaunchedEffect(destination) {
-        if (destination == "Dashboard" || destination == "Location Detail") refreshOverview()
+        if (destination in setOf("Dashboard", "Location Detail", "Compare", "History")) refreshOverview()
+    }
+    LaunchedEffect(overview, location) {
+        if (locationA.isBlank() && location.isNotBlank()) {
+            overview?.locations?.firstOrNull { it.name.equals(location, ignoreCase = true) }?.let { locationA = it.name }
+        }
     }
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(destination, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
