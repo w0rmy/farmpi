@@ -27,7 +27,7 @@ class Cursor:
 
     def execute(self, sql, params=()):
         sql = sql.replace("%s", "?").replace(" FOR UPDATE", "").replace("UTC_TIMESTAMP(6)", "CURRENT_TIMESTAMP")
-        sql = sql.replace("ON DUPLICATE KEY UPDATE hardware_uid=hardware_uid", "ON CONFLICT(hardware_uid) DO NOTHING")
+        sql = sql.replace("ON DUPLICATE KEY UPDATE hardware_uid=hardware_uid", "ON CONFLICT(hardware_uid) DO NOTHING")\n        sql = sql.replace("ON DUPLICATE KEY UPDATE active=1", "ON CONFLICT(name) DO UPDATE SET active=1")
         params = tuple(value.isoformat(" ") if isinstance(value, datetime) else value for value in params)
         self.cursor.execute(sql, params)
         self.lastrowid = self.cursor.lastrowid
@@ -48,7 +48,7 @@ class NodeFlowTests(unittest.TestCase):
         self.db = sqlite3.connect(":memory:", check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript("""
-        CREATE TABLE paddocks(id INTEGER PRIMARY KEY,name TEXT,active INTEGER);
+        CREATE TABLE paddocks(id INTEGER PRIMARY KEY,name TEXT UNIQUE,active INTEGER);
         INSERT INTO paddocks VALUES(1,'Paddock A',1),(2,'Paddock B',1);
         CREATE TABLE sensor_nodes(id INTEGER PRIMARY KEY AUTOINCREMENT,node_uid TEXT UNIQUE,name TEXT,
           hardware_uid TEXT UNIQUE,device_key_hash TEXT,registration_state TEXT,active INTEGER,
@@ -149,7 +149,7 @@ class NodeFlowTests(unittest.TestCase):
         self.assertFalse(accepted.json()["simulated"])
         retry = self.client.post("/api/ingest", json=payload)
         self.assertTrue(retry.json()["deduplicated"], retry.text)
-        for change, status in [({"sensor": "node-002"}, 403), ({"simulated": True}, 422), ({"soil_moisture_pct": 22}, 422), ({"air_temperature_c": 18}, 422), ({"location_epoch": 1}, 422)]:
+        for change, status in [({"sensor": "FP-002"}, 403), ({"simulated": True}, 422), ({"soil_moisture_pct": 22}, 422), ({"air_temperature_c": 18}, 422), ({"location_epoch": 1}, 422)]:
             with self.subTest(change=change):
                 self.assertEqual(self.client.post("/api/ingest", json=payload | change).status_code, status)
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM readings").fetchone()[0], 1)
@@ -180,7 +180,7 @@ class NodeFlowTests(unittest.TestCase):
         failed = self.client.post("/api/nodes/ack", json={**self.auth(1), "fingerprint": desired["fingerprint"], "error": "NVS persistence failed"})
         self.assertEqual(failed.json()["sync_state"], "UPDATE FAILED")
         self.assertEqual(failed.json()["applied_fingerprint"], old["fingerprint"])
-        bad = desired | {"config": desired["config"] | {"schema_version": 2}}
+        bad = desired | {"config": desired["config"] | {"schema_version": 1}}
         self.assertEqual(self.ack(1, bad).status_code, 422)
         saved = self.db.execute("SELECT applied_config_json FROM sensor_nodes WHERE id=?", (node_id,)).fetchone()[0]
         self.assertEqual(json.loads(saved), old["config"])
@@ -210,7 +210,7 @@ class NodeFlowTests(unittest.TestCase):
     def test_current_query_accepts_single_measurement_and_retains_source(self):
         from app.farm_data import get_environment_snapshot
         node_id = self.register(1); config = self.set_mode(1, node_id, "SIMULATED")
-        self.assertEqual(self.client.post("/api/ingest", json=self.sample(1, config)).status_code, 201)
+        self.assertEqual(self.client.post("/api/ingest", json=self.sample(1, config, simulated=True)).status_code, 201)
         def query(sql, params=None):
             cursor = Cursor(self.db)
             cursor.execute(sql.replace("JSON_ARRAYAGG", "JSON_GROUP_ARRAY"), params or ())
@@ -223,6 +223,16 @@ class NodeFlowTests(unittest.TestCase):
         self.assertEqual(snapshot[0].values, {"soil_moisture_pct": 21.5})
         self.assertEqual(snapshot[0].sources[0]["sensor"], config["config"]["node_uid"])
         self.assertTrue(snapshot[0].contains_simulated)
+
+    def test_registration_can_create_farmer_named_location(self):
+        self.assertEqual(self.contact(1).status_code, 200)
+        node_id = self.db.execute("SELECT id FROM sensor_nodes WHERE hardware_uid=?", (self.auth(1)["hardware_uid"],)).fetchone()[0]
+        response = self.client.post(f"/api/nodes/{node_id}/approve", headers=self.admin,
+            json={"name": "Gate sensor", "location_name": "Down by the Trough"})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["node_uid"], "FP-001")
+        location = self.db.execute("SELECT name FROM paddocks WHERE name='Down by the Trough'").fetchone()
+        self.assertIsNotNone(location)
 
     def test_unsupported_and_stale_admin_updates_do_not_mutate(self):
         node_id = self.register(1); old = self.pull(1)
