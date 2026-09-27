@@ -18,10 +18,9 @@ service_group=$(id -gn "${service_user}")
 env_dir=/etc/farmpi
 env_file=${env_dir}/farmpi.env
 schema_file=${project_dir}/config/database/schema.sql
-seed_file=${project_dir}/config/database/seed.sql
 mariadb_bind_file=/etc/mysql/mariadb.conf.d/60-farmpi.cnf
 
-for required_file in "${schema_file}" "${seed_file}"; do
+for required_file in "${schema_file}"; do
   if [[ ! -f ${required_file} ]]; then
     echo "Required database file not found: ${required_file}" >&2
     exit 1
@@ -93,15 +92,15 @@ EOF_SQL
 echo "Applying the FarmPi schema..."
 mariadb --protocol=socket farmpi < "${schema_file}"
 
-echo "Loading repeatable 16-node prototype data..."
-mariadb --protocol=socket farmpi < "${seed_file}"
 
 if systemctl list-unit-files farmpi.service --no-legend 2>/dev/null | grep -q '^farmpi.service'; then
   echo "Restarting FarmPi so it loads the database environment..."
   systemctl restart farmpi.service
 fi
 
-echo "FarmPi MariaDB setup complete."
+echo "FarmPi MariaDB setup complete with an empty operational dataset."
+echo "Synthetic demo data is no longer loaded automatically."
+echo "Use scripts/load-demo-data explicitly when a 16-location simulation dataset is required."
 echo "Configuration: ${env_file}"
 echo "Database: farmpi"
 echo "Application user: farmpi@127.0.0.1"
