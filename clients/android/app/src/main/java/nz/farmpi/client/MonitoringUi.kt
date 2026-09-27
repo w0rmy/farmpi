@@ -13,8 +13,14 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun StatusChip(text: String) {
-    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.secondaryContainer) {
-        Text(text, Modifier.padding(horizontal = 10.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium)
+    val palette = farmPiStatusPalette(text)
+    Surface(shape = MaterialTheme.shapes.small, color = palette.background, contentColor = palette.foreground) {
+        Text(
+            text,
+            Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -119,7 +125,7 @@ internal fun MonitoringArea(
             }
             "More" -> {
                 listOf("History", "Nodes", "System Status").forEach { name -> InfoCard(name, when(name) { "Nodes" -> "Manage physical nodes and pending registration"; "History" -> "Explore recorded measurements and graphs"; else -> "Check server and service availability" }) { OutlinedButton(onClick = { navigate(name) }) { Text("Open $name") } } }
-                InfoCard("Settings", "Appearance, text size, explanation and guidance preferences") { OutlinedButton(onClick = openSettings) { Text("Open settings") } }
+                InfoCard("Settings", "Text size, explanation, guidance and voice preferences") { OutlinedButton(onClick = openSettings) { Text("Open settings") } }
             }
             "System Status" -> {
                 InfoCard("Is FarmPi working?", connection) {
