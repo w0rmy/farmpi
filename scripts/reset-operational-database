@@ -9,7 +9,7 @@ fi
 
 if [[ "${1:-}" != "--yes" ]]; then
   echo "This will back up then DROP and recreate the FarmPi database." >&2
-  echo "Re-run as: sudo scripts/reset-operational-database --yes" >&2
+  echo "Re-run as: sudo bash scripts/reset-operational-database --yes" >&2
   exit 2
 fi
 
