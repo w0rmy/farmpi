@@ -147,7 +147,7 @@ static void contactFarmPi() {
   if (appliedHash.length()) request["applied_fingerprint"] = appliedHash;
 
   if (!post("/api/nodes/contact", request, response)) return;
-  locationEpoch = response["location_epoch"] | 0ULL;
+  locationEpoch = response["location_epoch"].as<uint64_t>();
   if (!response["registered"].as<bool>()) {
     Serial.println("Awaiting registration; all measurements OFF.");
     return;
