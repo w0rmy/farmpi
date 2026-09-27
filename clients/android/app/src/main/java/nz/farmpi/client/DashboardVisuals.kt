@@ -59,7 +59,7 @@ internal fun FarmOverviewHeader(
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                     Text(
-                        "${overview.reportingLocationCount} of ${overview.locationCount} configured locations have current database readings",
+                        "${overview.locationsWithReadingsCount} of ${overview.locationCount} configured locations have stored readings",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
@@ -194,7 +194,7 @@ internal fun LocationOverviewCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                StatusChip(if (location.reporting) "Reporting" else "Missing")
+                StatusChip(if (location.hasReading) "Data available" else "Missing")
             }
             if (location.measurements.isEmpty()) {
                 Text(
@@ -238,7 +238,7 @@ internal fun LocationOverviewCard(
 internal fun LocationMeasurementSection(location: OverviewLocation) {
     Text(location.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        StatusChip(if (location.reporting) "Reporting" else "Missing")
+        StatusChip(if (location.hasReading) "Data available" else "Missing")
         if (location.containsSimulated) StatusChip("Simulated")
     }
     Text(
