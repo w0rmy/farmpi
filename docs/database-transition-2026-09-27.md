@@ -80,10 +80,10 @@ Opening a node shows its own detail page, where the administrator can:
 
 - set a friendly node name;
 - choose an existing location or enter a farmer-defined location name;
-- set each supported measurement to OFF, SIMULATED or LIVE;
+- inspect each supported measurement's current OFF, SIMULATED or LIVE state;
 - inspect technical identity, firmware and configuration fingerprints.
 
-LIVE is disabled unless firmware explicitly advertises a tested live driver.
+During the prototype, source-mode changes are deliberately made from the FarmPi console rather than the farmer-facing Android UI. Use `.venv/bin/python scripts/configure-node-modes`. LIVE is rejected unless firmware explicitly advertises a tested live driver.
 
 ## Evidence significance
 
