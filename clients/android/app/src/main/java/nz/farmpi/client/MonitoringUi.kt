@@ -57,6 +57,25 @@ internal fun MonitoringArea(
             finally { loading = false }
         }
     }
+    var overview by remember { mutableStateOf<MonitoringOverview?>(null) }
+    var overviewLoading by remember { mutableStateOf(false) }
+    var overviewError by remember { mutableStateOf<String?>(null) }
+
+    fun refreshOverview() {
+        if (overviewLoading) return
+        overviewLoading = true
+        overviewError = null
+        scope.launch {
+            try {
+                overview = fetchMonitoringOverview()
+            } catch (e: Exception) {
+                overviewError = e.message ?: "FarmPi could not load the monitoring overview."
+            } finally {
+                overviewLoading = false
+            }
+        }
+    }
+
     var locationA by remember { mutableStateOf(location) }
     var locationB by remember { mutableStateOf("") }
     var measurement by remember { mutableStateOf("Soil moisture") }
@@ -64,34 +83,81 @@ internal fun MonitoringArea(
     var filter by remember { mutableStateOf("Active") }
     var details by remember { mutableStateOf(false) }
     LaunchedEffect(location) { locationA = location }
+    LaunchedEffect(destination) {
+        if (destination == "Dashboard" || destination == "Location Detail") refreshOverview()
+    }
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(destination, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         when (destination) {
             "Dashboard" -> {
-                InfoCard("Your farm at a glance", "See current conditions, explore a location, or ask FarmPi a question.") {
-                    StatusChip(connection)
-                    Text("Connection checked: $checkedAt", style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = refresh) { Text("Refresh connection") }
-                    Button(onClick = { query("Show current conditions across all paddocks") }) { Text("View current farm conditions") }
+                if (overviewLoading && overview == null) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                    Text("Loading FarmPi monitoring data…")
                 }
-                InfoCard("Locations", "Enter a configured location name to explore its readings. FarmPi checks the name against its own records.") {
-                    OutlinedTextField(locationA, { locationA = it }, label = { Text("Location") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    Button(onClick = { selectLocation(locationA.trim()) }, enabled = locationA.isNotBlank()) { Text("Open location") }
-                    StatusChip("Coming later")
-                    Text("Automatic location cards, reporting counts and refresh times need a structured monitoring API. Current readings are available through Ask FarmPi.")
+                overviewError?.let {
+                    InfoMessageCard("Monitoring overview unavailable", it)
+                    OutlinedButton(onClick = { refreshOverview() }) { Text("Try again") }
                 }
-                InfoCard("Explore your farm", "Answers and calculations come from FarmPi's existing data services.") {
-                    Button(onClick = { navigate("Compare") }) { Text("Compare locations") }
-                    OutlinedButton(onClick = { navigate("History") }) { Text("History / Graphs") }
+                overview?.let { current ->
+                    FarmOverviewHeader(
+                        overview = current,
+                        connection = connection,
+                        checkedAt = checkedAt,
+                        refresh = { refresh(); refreshOverview() },
+                    )
+
+                    Text("Latest measurements", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    val moistureSparkline = current.featuredChart?.series?.firstOrNull()?.second.orEmpty()
+                    MeasurementGrid(current.farmMeasurements, moistureSparkline)
+
+                    current.featuredChart?.let { chart ->
+                        Text("Recent trend", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        EnhancedChartCard(
+                            chart.title,
+                            chart.unit,
+                            chart.period,
+                            chart.provenance,
+                            chart.type,
+                            chart.series.map { (name, points) -> GraphSeries(name, points.map { GraphPoint(it.label, it.value) }) },
+                        )
+                    }
+
+                    Text("Locations", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    if (current.locations.isEmpty()) {
+                        InfoMessageCard("No locations configured", "Create and assign a farmer-named location from Nodes before monitoring data can appear here.")
+                    } else {
+                        current.locations.forEach { item ->
+                            LocationOverviewCard(item) { selectLocation(item.name) }
+                        }
+                    }
+
+                    InfoCard("Explore your farm", "Use the deterministic comparison/history tools or discuss the verified data with Ask FarmPi.") {
+                        Button(onClick = { navigate("Compare") }) { Text("Compare locations") }
+                        OutlinedButton(onClick = { navigate("History") }) { Text("History / Graphs") }
+                        OutlinedButton(onClick = { ask("Summarise current conditions across the farm") }) { Text("Ask FarmPi") }
+                    }
                 }
             }
-            "Location Detail" -> InfoCard(location, "Retrieve the latest available observations with their source and freshness. This page does not assume the location is reporting.") {
-                StatusChip("Prototype")
-                Button(onClick = { query("Show current readings for $location") }) { Text("View measurements") }
-                OutlinedButton(onClick = { navigate("History") }) { Text("View history") }
-                OutlinedButton(onClick = { navigate("Compare") }) { Text("Compare") }
-                OutlinedButton(onClick = { ask("Summarise current conditions for $location") }) { Text("Ask about this location") }
-                Text("Individual measurement cards: Coming later. Verified readings and evidence appear below.")
+            "Location Detail" -> {
+                if (overviewLoading && overview == null) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                    Text("Loading location measurements…")
+                }
+                val selected = overview?.locations?.firstOrNull { it.name.equals(location, ignoreCase = true) }
+                if (selected != null) {
+                    LocationMeasurementSection(selected)
+                    InfoCard("Explore ${selected.name}", "Use the same verified readings in history, comparison and Ask FarmPi.") {
+                        Button(onClick = { navigate("History") }) { Text("View history") }
+                        OutlinedButton(onClick = { navigate("Compare") }) { Text("Compare") }
+                        OutlinedButton(onClick = { ask("Summarise current conditions for ${selected.name}") }) { Text("Ask about this location") }
+                    }
+                } else if (!overviewLoading && overviewError == null) {
+                    InfoMessageCard("Location unavailable", "FarmPi does not have a configured location matching “$location” in the current overview.")
+                }
+                overviewError?.let {
+                    InfoMessageCard("Location data unavailable", it)
+                    OutlinedButton(onClick = { refreshOverview() }) { Text("Try again") }
+                }
             }
             "Compare", "History" -> {
                 InfoCard(if (destination == "Compare") "Compare two locations" else "Explore a measurement", "Results below use the server's calculation, chart and evidence. Missing or unsupported data is reported by FarmPi.") {

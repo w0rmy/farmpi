@@ -86,7 +86,7 @@ internal fun farmPiStatusPalette(text: String): FarmPiStatusPalette {
             FarmPiStatusPalette(FarmPiRed, FarmPiRedSoft)
         "old" in value || "stale" in value || "pending" in value || "attention" in value ->
             FarmPiStatusPalette(Color(0xFF8A6500), FarmPiAmberSoft)
-        "current" in value || "online" in value || "in sync" in value || "reporting" in value || "connected" in value ->
+        "current" in value || "online" in value || "in sync" in value || "reporting" in value || "connected" in value || value == "live" ->
             FarmPiStatusPalette(FarmPiGreenStrong, FarmPiGreenSoft)
         "simulated" in value || "prototype" in value || "coming later" in value ->
             FarmPiStatusPalette(Color(0xFF2C5F93), FarmPiBlueSoft)

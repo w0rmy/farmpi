@@ -440,3 +440,26 @@ Rebuild Settings around four clean themed sections: AI response detail, follow-u
 ### Evidence boundary
 
 This audit confirms the request/settings plumbing in source and tests; it does not replace device-level UI acceptance. The cleaned screen still needs visual checking on a real phone/tablet and with compact/standard/large text sizes.
+
+
+## 27 September 2026 — graphical monitoring dashboard and structured overview
+
+### Context
+
+The Android client had the correct FarmPi colour theme and working graph renderer, but the Dashboard still behaved mostly like a collection of text panels. Current-state display depended on conversational queries, location entry was manual, and the visual reference supplied for FarmPi suggested a clearer monitoring interface built from measurement cards, icons, location summaries and graphs.
+
+Jeremy asked for FarmPi to become visually informative rather than simply themed.
+
+### Decision
+
+- Add a deterministic `GET /api/monitoring/overview` endpoint for application-owned dashboard state. It returns configured farmer locations, latest stored measurements, units, source mode, reading age, deterministic farm summary values and a verified 24-hour soil-moisture chart when history is available.
+- Keep the LLM out of Dashboard construction. Current values, farm averages, provenance and chart data come from the existing database/analytics layer.
+- Keep connectivity separate from stored data. The endpoint reports whether a location has a stored reading and its age; it does not infer that a node is online from an old row.
+- Add reusable Android measurement visuals using Material vector icons. Icons identify the measurement only; they must not be presented as unsupported weather conclusions.
+- Replace the Dashboard's old prose/current-conditions button with farm-summary measurement cards, a compact soil-moisture sparkline, the existing full interactive trend graph and farmer-named location cards.
+- Replace the Location Detail placeholder/current-query flow with direct measurement cards from the structured overview.
+- Preserve Compare, History and Ask FarmPi as separate interactions. The new overview is a presentation/API contract, not a new analytics authority.
+
+### Evidence boundary
+
+The visual dashboard demonstrates structured API/client integration and deterministic presentation, but it does not establish sensor accuracy, physical T01 acceptance, alert completion or node connectivity. A stored reading can be old; the UI displays its age rather than silently converting it into an online/current claim. Device-level layout acceptance remains necessary after the Android build.

@@ -6,7 +6,7 @@ Audit: 27 September 2026. Local source in F:\FarmPi. Existing source changes: no
 |---|---|---|
 | Design system | Multiple selectable themes | One fixed FarmPi light theme: white/off-white surfaces, green accents, rounded cards and semantic status chips; retain text-size accessibility choices |
 | Navigation | Ask / Nodes | Dashboard, Compare, Ask FarmPi, Alerts, More; secondary History, Nodes, Settings, System Status |
-| Dashboard / Location | No native snapshot endpoint or screen | Honest monitoring entry points using existing authoritative Ask queries; location query context; mark unavailable structured overview |
+| Dashboard / Location | Earlier version depended on conversational queries for current-state display | Structured `/api/monitoring/overview`, measurement icons/cards, location cards, age/provenance display, compact soil-moisture sparkline and verified 24-hour featured chart |
 | Compare / History | Verified charts within Ask | Dedicated query controls using existing Ask contract; retain chart/provenance; seven-day backend limit, longer periods labelled Coming later |
 | Ask FarmPi | Single response, speech, TTS, evidence | Chat presentation, visible source context, retain corrections and speech controls; clear old evidence when a new request starts |
 | Alerts | No alert API | Target filters and threshold panel with explicit Coming later; no fake alerts |

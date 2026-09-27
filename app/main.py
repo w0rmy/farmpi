@@ -6,6 +6,7 @@ from .app import app
 from .conversation_context import install_conversation_context
 from .ingest_api import router as ingest_router
 from .node_api import router as node_router
+from .monitoring_api import router as monitoring_router
 from .database import DatabaseUnavailable
 from fastapi.responses import JSONResponse
 from .llm_compat import install_llm_compat
@@ -25,6 +26,7 @@ install_llm_compat(app)
 # alpha grows. Uvicorn loads this composed application.
 app.include_router(ingest_router)
 app.include_router(node_router)
+app.include_router(monitoring_router)
 
 
 @app.exception_handler(DatabaseUnavailable)
