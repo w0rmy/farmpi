@@ -18,6 +18,11 @@ fi
 
 echo "Fetching the latest ${branch} branch..."
 git pull --ff-only origin "${branch}"
+echo "FarmPi revision: $(git rev-parse --short HEAD)"
+
+# Always import FarmPi from the checkout this updater just pulled. This also
+# prevents an old installed/cached copy from silently satisfying imports.
+export PYTHONPATH="${project_dir}${PYTHONPATH:+:${PYTHONPATH}}"
 
 echo "Preparing the Python environment..."
 if [[ ! -x .venv/bin/python ]]; then
@@ -27,7 +32,52 @@ fi
 .venv/bin/python -m pip install -r app/requirements.txt
 
 echo "Validating FarmPi Python code..."
+find app tests -type d -name __pycache__ -prune -exec rm -rf {} +
 .venv/bin/python -m compileall -q app tests
+
+echo "Checking FarmPi import origin and composed API routes..."
+FARMPI_PROJECT_DIR="${project_dir}" .venv/bin/python - <<'PY'
+import importlib
+import os
+from pathlib import Path
+
+root = Path(os.environ["FARMPI_PROJECT_DIR"]).resolve()
+app_module = importlib.import_module("app.app")
+main_module = importlib.import_module("app.main")
+
+expected = {
+    "app.app": root / "app" / "app.py",
+    "app.main": root / "app" / "main.py",
+}
+actual = {
+    "app.app": Path(app_module.__file__).resolve(),
+    "app.main": Path(main_module.__file__).resolve(),
+}
+for name, expected_path in expected.items():
+    if actual[name] != expected_path:
+        raise SystemExit(
+            f"FarmPi import-origin error: {name} loaded from {actual[name]}, "
+            f"expected {expected_path}"
+        )
+
+required = {
+    "/api/monitoring/overview",
+    "/api/monitoring/compare",
+    "/api/nodes",
+    "/api/ingest",
+}
+paths = {getattr(route, "path", None) for route in main_module.app.routes}
+missing = sorted(path for path in required if path not in paths)
+if missing:
+    raise SystemExit(
+        "FarmPi composition error before tests: missing routes "
+        + ", ".join(missing)
+    )
+
+print(f"FarmPi import origin: {actual['app.main']}")
+print("FarmPi API composition preflight: OK")
+PY
+
 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 
 echo "Installing the FarmPi services..."
