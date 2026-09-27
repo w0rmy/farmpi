@@ -92,7 +92,7 @@ internal fun MonitoringArea(
             "Dashboard" -> {
                 if (overviewLoading && overview == null) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
-                    Text("Loading current FarmPi monitoring data…")
+                    Text("Loading FarmPi monitoring data…")
                 }
                 overviewError?.let {
                     InfoMessageCard("Monitoring overview unavailable", it)
@@ -106,7 +106,7 @@ internal fun MonitoringArea(
                         refresh = { refresh(); refreshOverview() },
                     )
 
-                    Text("Current conditions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text("Latest measurements", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     val moistureSparkline = current.featuredChart?.series?.firstOrNull()?.second.orEmpty()
                     MeasurementGrid(current.farmMeasurements, moistureSparkline)
 
