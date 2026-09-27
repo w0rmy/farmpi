@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from .app import app
 from .conversation_context import install_conversation_context
-from .ingest_api import router as ingest_router
-from .node_api import router as node_router
-from .monitoring_api import router as monitoring_router
 from .database import DatabaseUnavailable
 from fastapi.responses import JSONResponse
 from .llm_compat import install_llm_compat
@@ -22,11 +19,9 @@ install_conversation_context(app)
 # while supporting stricter chat templates such as Qwen3.5 in LM Studio.
 install_llm_compat(app)
 
-# Keep feature-specific API routes outside the main UI/LLM module while the
-# alpha grows. Uvicorn loads this composed application.
-app.include_router(ingest_router)
-app.include_router(node_router)
-app.include_router(monitoring_router)
+# Feature routers are registered on the canonical app in app.app. This module
+# remains the deployed composition root for middleware, compatibility adapters
+# and shared exception handling without creating a second route-registration path.
 
 
 @app.exception_handler(DatabaseUnavailable)
