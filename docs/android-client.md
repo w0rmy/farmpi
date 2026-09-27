@@ -24,7 +24,7 @@ The current capstone direction evaluates the Android client as part of a functio
 - six presentation themes and compact/standard/large text-size choices;
 - bounded conversation continuity supplied by the backend;
 - visible connection/dependency status and differentiated request/connection failures;
-- a Nodes administration screen for pending discovery, explicit registration, identity/location display, desired/applied configuration state, per-sensor enablement and runtime reporting state.
+- a Nodes administration screen for pending discovery, explicit registration, farmer-defined location assignment, stable node identity, desired/applied configuration state, per-sensor OFF/SIMULATED/LIVE modes and runtime reporting state.
 
 ## Navigation after course retirement
 
@@ -105,7 +105,7 @@ Current primary endpoints:
 - `POST /api/ask` is the main conversation/data-query contract;
 - `POST /api/ingest` is used by sensor/simulator clients, not the Android UI.
 
-Managed-node administration used by the Nodes screen includes the node contact/registration/configuration APIs described in [S3 node bring-up](s3-node-bringup.md). Administrative changes require the separate FarmPi administrator token; it is not the ESP32 ingest token and is held only for the current Nodes screen session.
+Managed-node administration used by the Nodes screen includes the node contact/registration/configuration APIs and farmer-location creation described in [S3 node bring-up](s3-node-bringup.md). The main Nodes screen remains a compact list; tapping a card opens that node's detail/settings page. Administrative changes require the separate FarmPi administrator token; it is not the ESP32 ingest token and is held only for the current Nodes screen session.
 
 Legacy endpoints retained from the earlier course direction:
 
