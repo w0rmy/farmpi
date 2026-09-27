@@ -61,9 +61,10 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="FarmPi", version="0.7.0", lifespan=lifespan)
 
-# Register feature APIs immediately on the canonical application. Keeping this
-# next to FastAPI construction makes route composition deterministic for direct
-# imports, tests, and the deployed app.main:app entry point.
+# Register feature APIs on the canonical application through FastAPI's public
+# router-composition API. FastAPI may represent included routers as a live
+# nested route tree internally; consumers should validate final paths through
+# OpenAPI/request routing rather than assuming app.routes is flat.
 from .ingest_api import router as ingest_router
 from .node_api import router as node_router
 from .monitoring_api import router as monitoring_router

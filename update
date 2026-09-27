@@ -66,7 +66,10 @@ required = {
     "/api/nodes",
     "/api/ingest",
 }
-paths = {getattr(route, "path", None) for route in main_module.app.routes}
+# FastAPI 0.141 keeps included APIRouters as a live route tree, so
+# app.routes must not be treated as a flat list of final path operations.
+# OpenAPI is the supported composed application view for route presence.
+paths = set(main_module.app.openapi().get("paths", {}))
 missing = sorted(path for path in required if path not in paths)
 if missing:
     raise SystemExit(
