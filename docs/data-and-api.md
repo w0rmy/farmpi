@@ -37,12 +37,12 @@ The simulator does not fabricate N, P, or K values. EC is a raw chemistry-relate
 
 ## Storage model
 
-- `paddocks` holds active status and the mutable display name.
-- `sensor_nodes` holds stable node UID, hardware UID, registration state, device credential hash, capabilities, desired/applied configuration, sync diagnostics and current location.
+- `paddocks` holds stable internal location identity plus the farmer-defined mutable display name. Names such as `Bob's`, `Back Hill` or `Down by the Trough` are valid; they are not node IDs.
+- `sensor_nodes` holds stable logical node UID, immutable hardware UID, optional friendly node name, registration state, device credential hash, configurable capabilities, LIVE-driver capabilities, desired/applied configuration, sync diagnostics and current location.
 - `readings` holds sparse measurements, the location ID captured on ingest, provenance, clock metadata, sequence, and protocol version.
 - `paddock_admin_audit` records controlled display-name changes.
 
-Relationships use numeric IDs. Renaming a paddock does not rewrite readings or move a sensor. The repeatable seed identifies virtual nodes by stable UIDs `test-moisture-a` through `test-moisture-p`, preserving an existing renamed paddock.
+Relationships use numeric IDs. Renaming a location does not rewrite readings or change node identity. Moving a node changes only its current location assignment; already stored readings retain the location captured at ingest. The old 16-location repeatable seed remains an explicit demo fixture and is no longer loaded by normal setup/update.
 
 `config/database/schema.sql` is additive for older alpha databases. Measurement columns remain nullable at the database layer so historical alpha rows and mixed sensor capabilities can coexist; the ingest application contract accepts any nonempty sparse set and validates every supplied measurement. Explicit nulls, unknown fields, strings, booleans and non-finite measurement values are rejected.
 
@@ -134,13 +134,13 @@ Managed physical-node endpoints:
 | Endpoint | Method | Purpose |
 |---|---|---|
 | `/api/nodes` | GET | Administrator view of discovered/registered physical nodes, locations, sync state and per-sensor runtime state. |
-| `/api/nodes/contact` | POST | Device discovery/heartbeat with hardware UID, device credential, firmware/profile, capabilities and optional applied fingerprint. |
+| `/api/nodes/contact` | POST | Device discovery/heartbeat with hardware UID, device credential, firmware/profile, configurable capabilities, LIVE-driver capabilities and optional applied fingerprint. |
 | `/api/nodes/configuration` | POST | Authenticated device fetch of the latest complete desired configuration. |
 | `/api/nodes/ack` | POST | Device acknowledgement or failure report for an attempted configuration fingerprint. |
 | `/api/nodes/{id}/approve` | POST | Administrator approval/registration of a discovered node and assignment of initial identity/location. |
-| `/api/nodes/{id}/configuration` | PUT | Administrator update of node name, location and enabled measurement set with optimistic fingerprint checking. |
+| `/api/nodes/{id}/configuration` | PUT | Administrator update of friendly node name, location and per-measurement OFF/SIMULATED/LIVE modes with optimistic fingerprint checking. |
 
-Administrator endpoints require `Authorization: Bearer <FARMPI_ADMIN_TOKEN>`. Device contact/configuration/acknowledgement use the per-device credential generated and persisted by the ESP32-S3; hardware UID is identification, not authentication. Registration begins with an empty enabled set.
+Administrator endpoints require `Authorization: Bearer <FARMPI_ADMIN_TOKEN>`. Device contact/configuration/acknowledgement use the per-device credential generated and persisted by the ESP32-S3; hardware UID is identification, not authentication. Registration begins with every advertised measurement in `OFF` mode. A new farmer-defined location can be created by supplying `location_name` instead of an existing `paddock_id`.
 
 Legacy endpoints retained from the earlier flexible-course direction:
 
@@ -182,4 +182,4 @@ Paddock references resolve in this order: current display name, audited former n
 
 ## Managed node configuration
 
-See [S3 node bring-up](s3-node-bringup.md) for registration, SHA-256 canonical configuration, administrator access, NVS persistence and the two-board acceptance checklist. All 13 catalogue choices are shown; unsupported firmware capabilities cannot be enabled.
+See [S3 node bring-up](s3-node-bringup.md) for registration, SHA-256 canonical configuration, administrator access, NVS persistence and the two-board acceptance checklist. Configuration schema v2 uses one mode per supported measurement: `OFF`, `SIMULATED`, or `LIVE`. SIMULATED is generated on the ESP32 and still traverses the managed-node ingest path. LIVE can be selected only when the firmware advertises an implemented physical driver.
