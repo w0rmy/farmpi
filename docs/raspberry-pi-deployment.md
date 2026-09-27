@@ -45,7 +45,7 @@ sudo bash ./scripts/setup-database
 2. binds MariaDB to `127.0.0.1`;
 3. creates `/etc/farmpi/farmpi.env` with generated database, ingest and administrator credentials;
 4. creates the `farmpi` database and restricted `farmpi@127.0.0.1` user;
-5. applies the schema and repeatable 16-node seed;
+5. applies the schema and empty operational baseline seed;
 6. restarts FarmPi if its service is installed.
 
 The environment file is owned by root and the service user's group with mode `0640`.
@@ -93,7 +93,7 @@ The update command is deliberately conservative:
 3. creates `.venv` when missing and installs `app/requirements.txt`;
 4. compiles `app` and `tests`, then runs all `unittest` tests;
 5. renders and verifies both systemd templates before installation;
-6. reapplies the idempotent schema and repeatable seed when MariaDB is configured;
+6. reapplies the idempotent schema and operational baseline seed when MariaDB is configured; the seed is intentionally non-destructive and does not create synthetic locations or readings;
 7. installs, validates, and reloads Caddy configuration when Caddy is present;
 8. restarts the LLM and application services and checks their status.
 
@@ -175,11 +175,22 @@ sudo mariadb-dump --single-transaction farmpi > farmpi-backup.sql
 
 Store backups outside the repository and protect them as operational data. Restoring a backup is an administrative operation and should be tested on a separate database before replacing an active prototype.
 
+
+### One-time transition from the old synthetic baseline
+
+The 27 September managed-node transition deliberately stops treating the old 16-location synthetic dataset as normal operational state. If that old dataset is still present and no longer needed, use the explicit reset helper:
+
+```bash
+sudo bash ./scripts/reset-operational-database --yes-really-reset
+```
+
+The helper writes a timestamped SQL archive under `/var/backups/farmpi` before dropping/recreating the database. The resulting database contains no locations, nodes, or readings. This is intentionally destructive and must not be folded into `./update` or routine schema application.
+
+After reset, power the managed ESP32-S3 boards so they rediscover FarmPi, create farmer-named locations through the Nodes administration flow, register the nodes, and then choose OFF/SIMULATED/LIVE per measurement.
+
 ## Common failures
 
 **Update stops because the checkout is dirty.** Inspect and commit or deliberately move the changes in the development environment. Do not force-reset a Pi that may contain unique work.
-
-**`404 Unknown or inactive sensor node` for nodes E-P.** Reapply the database schema/seed; the ESP32 firmware is newer than the database registration.
 
 **Database unavailable.** Check MariaDB, `/etc/farmpi/farmpi.env` ownership/permissions, and the `farmpi@127.0.0.1` credentials.
 
@@ -195,4 +206,4 @@ From the Pi, verify an LM Studio connection and confirm the configured model ide
 
 ## Production limitations
 
-This is a local prototype. Before production use, replace shared simulator bearer authentication and any remaining legacy insecure-client paths with a fully managed device-trust design, define certificate/token rotation and device-key recovery, establish monitored backups, test restore procedures, review network exposure, and remove synthetic seed behaviour that is inappropriate for real operations.
+This is a local prototype. Before production use, replace remaining shared legacy-simulator authentication and any insecure-client paths with a fully managed device-trust design, define certificate/token rotation and device-key recovery, establish monitored backups, test restore procedures, and review network exposure. The normal operational baseline is already free of synthetic seed data; simulator use remains explicit test tooling.
