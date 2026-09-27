@@ -517,8 +517,8 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
     """Return precisely the deterministic facts approved by a router route."""
     if intent in {"capability", "help"}:
         return GroundingData(intent, (
-            "Every standard FarmPi node reports soil moisture, soil temperature, air temperature, relative humidity, light, and barometric pressure.",
-            "Optional add-on sensors can also provide pH, EC, rainfall, wind, pasture height, and leaf wetness; FarmPi only presents those measurements where a node actually reports them.",
+            "The standard FarmPi node design supports soil moisture, soil temperature, air temperature, relative humidity, light, and barometric pressure, but each channel may be off, simulated, or live.",
+            "Optional add-on sensors can also provide pH, EC, rainfall, wind, pasture height, and leaf wetness; FarmPi only presents measurements where a node actually reports them.",
             "FarmPi can calculate supported averages, rankings, comparisons, bounded history, trends, evidence, and graphs from the measurements that are available. It does not currently provide forecasts or irrigation recommendations.",
         ), source_category="educational")
     if intent == "irrigation-decision":
@@ -594,7 +594,7 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
         if key not in BY_KEY or CURRENT not in BY_KEY[key].operations:
             return GroundingData("interpretation-boundary", ("FarmPi does not have a reviewed current-reading operation for that measurement.",))
         if key not in item.values:
-            return GroundingData(intent, (f"{item.name} does not currently report {measurement(key).label}. That measurement requires an installed add-on sensor for this paddock.",), _current_evidence(item))
+            return GroundingData(intent, (f"{item.name} does not currently report {measurement(key).label}. That measurement needs a configured and reporting sensor for this location.",), _current_evidence(item))
         screen_facts = (_measurement_fact(item, key), _display_reading_time(item.observed_at), _provenance_fact([item], "soil_moisture_pct"))
         return GroundingData(intent, screen_facts, _current_evidence(item), spoken_facts=(_measurement_fact(item, key), _provenance_fact([item], "soil_moisture_pct")))
     if intent == "measurement-fallback" and measurement_key in BY_KEY:
