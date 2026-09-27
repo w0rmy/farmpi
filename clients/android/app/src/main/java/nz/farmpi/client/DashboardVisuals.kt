@@ -160,11 +160,14 @@ private fun MiniSparkline(points: List<ChartPoint>) {
     val low = clean.minOf { it.value }
     val high = clean.maxOf { it.value }
     val span = (high - low).takeIf { it > 0.0 } ?: 1.0
+    val times = clean.mapNotNull { graphTime(it.label) }
+    val start = times.minOrNull()
+    val end = times.maxOrNull()
     val lineColor = MaterialTheme.colorScheme.primary
     Canvas(Modifier.fillMaxWidth().height(34.dp)) {
         val path = Path()
         clean.forEachIndexed { index, point ->
-            val x = if (clean.size <= 1) 0f else size.width * index / (clean.size - 1).toFloat()
+            val x = size.width * graphPosition(point.label, index, clean.size, start, end)
             val y = size.height - (((point.value - low) / span).toFloat() * size.height)
             if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
