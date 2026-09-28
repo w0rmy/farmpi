@@ -31,6 +31,22 @@ The managed profile exposes all 13 catalogue keys for simulation and advertises 
 **not** claim that physical probes are fitted. T01 remains incomplete until
 all six measurements have been demonstrated from real hardware.
 
+### Synthetic profile
+
+Firmware version `0.3.2-realistic-sim` replaces the earlier one-hour sine-wave generator. The managed node now builds synthetic values from the FarmPi-synchronised clock using a representative Hamilton/Waikato profile:
+
+- light follows calculated sunrise, sunset and solar elevation for the current day of year and the NZ daylight-saving rule;
+- air temperature follows a seasonal daily low/high profile with a normal day/night cycle;
+- soil temperature uses a smaller, delayed daily cycle;
+- humidity generally moves opposite daytime heating and increases with synthetic cloud/rain;
+- soil moisture changes over multi-day periods and responds gradually to deterministic synthetic rain events, then dries slowly;
+- barometric pressure, wind speed and direction change over multi-day synthetic weather-like periods rather than every hour;
+- pH and EC change only very slowly;
+- pasture height follows a slow growth/grazing-style cycle;
+- leaf wetness is high during synthetic rain and overnight and falls through daylight.
+
+Node-specific offsets keep two managed boards from reporting identical values. The profile is for visually and functionally realistic **test telemetry only**. It is not a Hamilton weather record, forecast, soil-water model, pasture model or agronomic recommendation.
+
 A managed sample may contain only the measurements that produced values. The
 server derives per-measurement provenance from the acknowledged configuration;
 the ESP32 does not get to relabel a LIVE value as simulated or vice versa.
