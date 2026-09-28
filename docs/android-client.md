@@ -223,6 +223,6 @@ The graphable History catalogue includes soil moisture, soil temperature, air te
 
 FarmPi continues to store and exchange operational timestamps in UTC. The Android client does not expose a separate FarmPi timezone setting.
 
-For timestamped graphs, the client parses the backend timestamp as an absolute instant and formats the X-axis labels using the phone's current system timezone (`ZoneId.systemDefault()`). This means NZST/NZDT and other daylight-saving transitions follow the device operating-system timezone rules automatically.
+For timestamped graphs, the client parses the backend timestamp as an absolute instant and formats the X-axis tick labels using the phone's current system timezone (`ZoneId.systemDefault()`). This means NZST/NZDT and other daylight-saving transitions follow the device operating-system timezone rules automatically.
 
-The graph X-axis is labelled **Local time**. Changing timezone presentation does not alter graph ordering, spacing, calculations, stored timestamps or API values; those continue to use the UTC instant.
+The graph X-axis caption is simply **Time**. The actual tick labels show the converted local date, time and timezone abbreviation, for example `28 Sep / 18:35 NZDT`. Changing timezone presentation does not alter graph ordering, spacing, calculations, stored timestamps or API values; those continue to use the UTC instant.
