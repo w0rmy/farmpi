@@ -227,7 +227,7 @@ def _current_evidence(item: PaddockEnvironment) -> tuple[dict[str, object], ...]
 def latest_paddock_summary(paddock_name: str | None) -> GroundingData:
     """List only measurements currently available for one paddock."""
     if not paddock_name:
-        return GroundingData("paddock_summary", ("Please name a paddock, for example Paddock B or Paddock 2.",))
+        return GroundingData("paddock_summary", ("Please name one of the configured monitoring locations shown in FarmPi.",))
     try:
         snapshot = get_environment_snapshot()
     except NoFarmData:
