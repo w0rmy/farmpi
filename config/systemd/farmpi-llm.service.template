@@ -1,5 +1,5 @@
 [Unit]
-Description=FarmPi Qwen3 1.7B local LLM server
+Description=FarmPi Qwen3 0.6B local LLM server
 After=network-online.target
 Wants=network-online.target
 

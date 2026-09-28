@@ -26,7 +26,7 @@ These optimisations reduce waiting while preserving the authority boundary: the 
 
 ## Development/reference model
 
-Later evaluation used Qwen3.5-9B Q4_K_M hosted by LM Studio on a Windows development PC with an RTX 3070. With reasoning disabled, observed generation was approximately 24 tokens/s. This reference setup helped distinguish architecture and prompt quality from small-model limitations. It is not required by the checked-in Raspberry Pi deployment, which currently configures Qwen3 1.7B through `llama-server`.
+Later evaluation used Qwen3.5-9B Q4_K_M hosted by LM Studio on a Windows development PC with an RTX 3070. With reasoning disabled, observed generation was approximately 24 tokens/s. This reference setup helped distinguish architecture and prompt quality from small-model limitations. It is not required by the Raspberry Pi deployment. The historical measurements below include Qwen3 1.7B and Qwen3 0.6B runs; the current checked-in Pi service configuration is documented in the deployment guide rather than inferred from this history file.
 
 `app/llm_compat.py` combines FarmPi's system prompt fragments for stricter chat templates and can apply the configured model identifier. This permits the same grounding and routing design to be evaluated against either topology.
 

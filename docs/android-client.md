@@ -189,3 +189,21 @@ Guide me now receives farmer-configured location names from the backend and buil
 Ask responses keep the answer, source category, optional chart and follow-up questions in the normal reading flow. Raw observation timestamps, sensor identifiers and provenance remain available, but are collapsed behind Supporting details so diagnostic evidence does not push the next interaction off-screen. Simulated results retain a concise visible Simulated status chip.
 
 This is a presentation change only: the client still receives the complete evidence/provenance payload and does not alter FarmPi facts.
+
+
+## Graph presentation acceptance — 28 September 2026
+
+The full chart component is now treated as presentation/evidence UI rather than a decorative sparkline. It uses the fixed FarmPi visual palette instead of relying on Material defaults, with a neutral green-grey plot surface, FarmPi green/blue/amber/grey series colours, explicit grid/axis lines and a white FarmPi card surface.
+
+Full charts now display:
+
+- a labelled Y axis using the chart title and unit;
+- five numeric Y-scale labels tied to the plotted range;
+- a labelled X axis using Location for comparisons, Time (UTC) for timestamped history, or Observation for non-time categorical data;
+- up to three representative X-axis labels so a screenshot shows the beginning, middle and end of the displayed range;
+- Low / Latest / High values above the plot;
+- Line as the default time-series view and Bars as the default comparison view.
+
+The visual mode controls still change presentation only; they do not alter the underlying verified values.
+
+For presentation screenshots, verify that axis titles, scale values, X labels and the chart title remain legible at standard text size on the actual target phone/tablet. A screenshot should be understandable without having to infer what either axis represents.
