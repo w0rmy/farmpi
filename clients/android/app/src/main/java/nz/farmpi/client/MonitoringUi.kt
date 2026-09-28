@@ -351,15 +351,26 @@ internal fun MonitoringArea(
             }
         }
         result?.let { response ->
+            var supportingDetails by remember(response) { mutableStateOf(false) }
             InfoCard("FarmPi result", requested) {
                 Text(response.answer, style = MaterialTheme.typography.bodyLarge)
                 StatusChip(sourceLabel(response.sourceCategory))
-                Text("Response received: $receivedAt · Reading times are shown in the evidence.", style = MaterialTheme.typography.bodySmall)
+                if (response.evidence.any { raw -> runCatching { JSONObject(raw).optBoolean("simulated") }.getOrDefault(false) }) {
+                    StatusChip("Simulated")
+                }
+                Text("Response received: $receivedAt", style = MaterialTheme.typography.bodySmall)
                 response.chart?.let { chart -> EnhancedChartCard(chart.title, chart.unit, chart.period, chart.provenance, chart.type, chart.series.map { (name, points) -> GraphSeries(name, points.map { GraphPoint(it.label, it.value) }) }) }
-                EvidenceSummary(response.evidence)
-                if (response.provenance.isNotEmpty()) {
-                    Text("Sources", style = MaterialTheme.typography.titleSmall)
-                    response.provenance.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                if (response.evidence.isNotEmpty() || response.provenance.isNotEmpty()) {
+                    TextButton(onClick = { supportingDetails = !supportingDetails }) {
+                        Text(if (supportingDetails) "Hide supporting details" else "Supporting details")
+                    }
+                    if (supportingDetails) {
+                        EvidenceSummary(response.evidence)
+                        if (response.provenance.isNotEmpty()) {
+                            Text("Sources", style = MaterialTheme.typography.titleSmall)
+                            response.provenance.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                        }
+                    }
                 }
                 OutlinedButton(onClick = { ask(requested) }) { Text("Discuss in Ask FarmPi") }
             }
