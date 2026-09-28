@@ -12,11 +12,11 @@ class GraphDataTest {
     }
     @Test fun graphLabelsUseDeviceLocalZoneIncludingNzDst() {
         assertEquals(
-            "28 Sep\n18:35",
+            "28 Sep\n18:35 NZDT",
             graphTimeLabel("2026-09-28T05:35:00Z", ZoneId.of("Pacific/Auckland")),
         )
         assertEquals(
-            "28 Sep\n05:35",
+            "28 Sep\n05:35 UTC",
             graphTimeLabel("2026-09-28T05:35:00Z", ZoneId.of("UTC")),
         )
     }
