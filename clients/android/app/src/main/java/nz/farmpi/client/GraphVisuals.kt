@@ -57,9 +57,10 @@ internal fun EnhancedChartCard(
     val latest = series.firstOrNull()?.points?.lastOrNull { it.value.isFinite() }?.value
     val range = graphRange(selectedMode, series)
     val xLabels = graphXAxisLabels(series)
+    val hasTimeAxis = series.flatMap { it.points }.any { graphTime(it.label) != null }
     val xAxisTitle = when {
         isComparison -> "Location"
-        series.flatMap { it.points }.any { graphTime(it.label) != null } -> "Time"
+        hasTimeAxis -> "Time"
         else -> "Observation"
     }
     val yAxisTitle = if (unit.isBlank()) title else "$title ($unit)"
@@ -143,23 +144,60 @@ internal fun EnhancedChartCard(
                     }
 
                     if (xLabels.isNotEmpty()) {
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(8.dp))
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(start = 72.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 72.dp)
+                                .heightIn(min = if (hasTimeAxis) 54.dp else 28.dp),
                         ) {
                             xLabels.forEachIndexed { index, label ->
-                                Text(
-                                    label,
-                                    modifier = Modifier.weight(1f),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = FarmPiTextMuted,
-                                    textAlign = when (index) {
-                                        0 -> TextAlign.Start
-                                        xLabels.lastIndex -> TextAlign.End
-                                        else -> TextAlign.Center
-                                    },
-                                )
+                                val alignment = when (index) {
+                                    0 -> TextAlign.Start
+                                    xLabels.lastIndex -> TextAlign.End
+                                    else -> TextAlign.Center
+                                }
+                                if (hasTimeAxis) {
+                                    val parts = label.lines()
+                                    val dateLabel = parts.firstOrNull().orEmpty()
+                                    val timeLabel = parts.drop(1).joinToString(" ")
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            when (index) {
+                                                0 -> "Start"
+                                                xLabels.lastIndex -> "End"
+                                                else -> "Middle"
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = FarmPiTextMuted,
+                                            textAlign = alignment,
+                                        )
+                                        Text(
+                                            dateLabel,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = FarmPiTextMuted,
+                                            textAlign = alignment,
+                                        )
+                                        Text(
+                                            timeLabel,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = FarmPiText,
+                                            textAlign = alignment,
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        label,
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = FarmPiText,
+                                        textAlign = alignment,
+                                    )
+                                }
                             }
                         }
                     }

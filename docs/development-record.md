@@ -702,3 +702,22 @@ Installed Android acceptance after the local-time conversion showed that the gra
 ### Evidence boundary
 
 The source/test change defines the intended rendering. Installed-client acceptance must confirm that Light, Soil Moisture and other historical graphs visibly show the converted tick values on the phone.
+
+
+## 28 September 2026 — graph local-time values still not visible on device
+
+### Observation
+
+After the local-time graph changes were merged and installed, real-device testing still showed only the footer `X axis · Time`. The actual converted timestamps were not visibly present on Light or Soil Moisture graphs. This demonstrated that the formatter/unit test alone was insufficient evidence of usable rendering.
+
+### Decision
+
+- Keep the UTC backend and phone-local formatting design unchanged.
+- Replace the low-emphasis generic timestamp row with a dedicated minimum-height row beneath the plot.
+- Show three representative positions: **Start**, **Middle**, and **End**.
+- Render the date as secondary text and the actual clock/timezone value in stronger `labelMedium` text.
+- Retain `X axis · Time` as the descriptive caption only.
+
+### Evidence boundary
+
+The source change makes the timestamps structurally visible, but acceptance remains a phone rendering check. Light and Soil Moisture graphs must visibly show the three local-time values after rebuild/install before this presentation issue is considered closed.
