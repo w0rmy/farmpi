@@ -357,3 +357,19 @@ Recorded live managed-node result on 28 September 2026:
 Result: **PASS for the managed-node -> FarmPi -> MariaDB timestamp path.**
 
 Client acceptance must separately verify that UTC API timestamps are rendered in device-local time for the farmer.
+
+
+## Visible graph time-tick acceptance
+
+On an installed Android client, open at least one Light graph and one Soil Moisture historical graph.
+
+Acceptance requires:
+
+- a visible **Start / Middle / End** row beneath the plot;
+- each position shows an actual local date and clock value, not only an axis caption;
+- the local timezone abbreviation is visible, e.g. `NZDT`;
+- the X-axis caption reads **Time**;
+- the displayed times agree with the phone timezone;
+- graph values and point spacing are unchanged.
+
+A graph that only says `Time` or `Local time` without visible timestamp values does **not** pass this acceptance check.
