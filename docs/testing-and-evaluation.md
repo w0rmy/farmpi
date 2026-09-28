@@ -332,4 +332,15 @@ Expected result:
 - `clock_out_of_tolerance` is false;
 - no one-hour offset appears across the daylight-saving transition.
 
+Recorded live managed-node result on 28 September 2026:
+
+- FP-003 / Fred's Paddock: recent samples showed `observed_at` to `received_at` delays of about 1.9-2.0 seconds;
+- FP-001 / Bobs Paddock: recent samples showed delays of about 2.6 seconds;
+- `clock_out_of_tolerance` was `0` for all 20 inspected rows;
+- sample sequences were monotonically increasing;
+- both nodes were continuing to submit fresh telemetry;
+- no one-hour offset appeared after the NZ daylight-saving transition.
+
+Result: **PASS for the managed-node -> FarmPi -> MariaDB timestamp path.**
+
 Client acceptance must separately verify that UTC API timestamps are rendered in device-local time for the farmer.
