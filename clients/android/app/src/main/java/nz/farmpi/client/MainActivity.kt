@@ -509,22 +509,21 @@ private fun FarmPiApp() {
                         },
                     )
                 }
-                if (evidence.isNotEmpty()) EvidenceSummary(evidence)
+                if (evidence.any { raw -> runCatching { JSONObject(raw).optBoolean("simulated") }.getOrDefault(false) }) {
+                    StatusChip("Simulated")
+                }
                 if (evidence.isNotEmpty() || provenance.isNotEmpty()) {
                     TextButton(onClick = { showEvidence = !showEvidence }) {
-                        Text(if (showEvidence) "Hide sources / evidence" else "Show sources / evidence")
+                        Text(if (showEvidence) "Hide supporting details" else "Supporting details")
                     }
                     if (showEvidence) {
                         Card(Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(12.dp)) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (provenance.isNotEmpty()) {
                                     Text("Sources / provenance", fontWeight = FontWeight.Bold)
                                     provenance.take(12).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
                                 }
-                                if (evidence.isNotEmpty()) {
-                                    Text("Evidence used", modifier = Modifier.padding(top = 8.dp), fontWeight = FontWeight.Bold)
-                                    evidence.take(12).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
-                                }
+                                EvidenceSummary(evidence)
                             }
                         }
                     }
