@@ -180,3 +180,12 @@ On macOS/Linux use `./gradlew assembleDebug`.
 - portrait, landscape, and at least one small phone display remain usable.
 
 Acceptance must verify that no Learn tab, module link or course quick action is reachable, including on an upgrade with saved course progress. Switch Ask → Nodes → Ask during a request and after a graph response; confirm Ask state survives and Nodes refresh/registration/configuration still work. Verify ordinary follow-ups retain conversation context without a module field.
+
+
+## Ask FarmPi acceptance cleanup — 28 September 2026
+
+Guide me now receives farmer-configured location names from the backend and builds examples from those names instead of exposing legacy labels such as Paddock B or Paddock 2. Time examples use farmer-readable periods such as 24 hours rather than raw minute counts.
+
+Ask responses keep the answer, source category, optional chart and follow-up questions in the normal reading flow. Raw observation timestamps, sensor identifiers and provenance remain available, but are collapsed behind Supporting details so diagnostic evidence does not push the next interaction off-screen. Simulated results retain a concise visible Simulated status chip.
+
+This is a presentation change only: the client still receives the complete evidence/provenance payload and does not alter FarmPi facts.
