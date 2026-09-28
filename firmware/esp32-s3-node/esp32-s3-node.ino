@@ -254,14 +254,19 @@ static RainEvent rainEventFor(const SimulationContext& context) {
       event.intervalMm = hourlyRate / 60.0f;
     }
 
-    const bool eventHasOccurred = daysBack > 0 || context.localHours >= startHour;
-    if (eventHasOccurred) {
-      const float hoursSinceEnd = max(
-        0.0f,
-        daysBack * 24.0f + context.localHours - endHour
-      );
-      const float eventTotalMm = hourlyRate * durationHours;
-      event.recentSoilEffect += eventTotalMm * 0.28f * expf(-hoursSinceEnd / 42.0f);
+    if (daysBack == 0 && context.localHours >= startHour && context.localHours <= endHour) {
+      const float accumulatedMm = hourlyRate * (context.localHours - startHour);
+      event.recentSoilEffect += accumulatedMm * 0.28f;
+    } else {
+      const bool eventHasFinished = daysBack > 0 || context.localHours > endHour;
+      if (eventHasFinished) {
+        const float hoursSinceEnd = max(
+          0.0f,
+          daysBack * 24.0f + context.localHours - endHour
+        );
+        const float eventTotalMm = hourlyRate * durationHours;
+        event.recentSoilEffect += eventTotalMm * 0.28f * expf(-hoursSinceEnd / 42.0f);
+      }
     }
   }
   return event;
@@ -319,8 +324,8 @@ static float simulatedValue(const String& key) {
   if (key == "soil_temperature_c") {
     const int month = constrain(context.local.tm_mon, 0, 11);
     const float mean = (MONTHLY_LOW_C[month] + MONTHLY_HIGH_C[month]) / 2.0f;
-    const float daily = 1.4f * sinf(
-      2.0f * M_PI * (context.localHours - 15.5f) / 24.0f
+    const float daily = 1.4f * cosf(
+      2.0f * M_PI * (context.localHours - 16.5f) / 24.0f
     );
     return clampFloat(mean - 1.0f + daily + node * 0.25f, 2.0f, 28.0f);
   }
