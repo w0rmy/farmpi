@@ -539,3 +539,27 @@ The failure came from the validation method rather than from missing application
 ### Evidence boundary
 
 This corrects the validation mechanism; it does not by itself prove live Dashboard data, Compare results or physical sensing. After merge, the Pi update must pass the composition preflight and complete the full backend suite, followed by live API/Android acceptance.
+
+
+## 28 September 2026 — client acceptance cleanup and smaller local model
+
+### Observation
+
+During live Android acceptance Jeremy identified two user-interface remnants from the earlier prototype. Guide me still suggested legacy generic identities such as Paddock B even though managed nodes now use farmer-defined locations, and Ask FarmPi displayed the full reading-evidence list inline before the next-question controls. The evidence was useful diagnostically but made normal interaction unnecessarily long.
+
+Jeremy also challenged the need to retain the 1.7B Pi-local language model. The superseded learning-course UI has been removed, while application code now owns retrieval, calculations, comparisons, graph values, identity and most supported farm-data answers. The remaining model role is narrower: semantic interpretation, concise explanation, contextual conversation and bounded general/source-oriented information.
+
+### Decision
+
+- Build Guide me questions from current configured farmer location names when available; use generic monitored-location questions only when no locations can be read.
+- Remove Paddock B/Paddock 2 from current onboarding and inventory follow-up guidance.
+- Keep answer text, charts and suggested next questions in the primary Ask flow.
+- Keep raw timestamp/sensor/provenance evidence available under Supporting details rather than rendering it inline by default.
+- Keep a concise Simulated badge visible when evidence contains simulated data.
+- Change the checked-in Pi-local model from Qwen3 1.7B Q4_K_M to Qwen3 0.6B Q4_K_M, retaining context 2048, reasoning off, one slot and the same localhost OpenAI-compatible boundary.
+- Do not change deterministic authority or route known calculations through the smaller model.
+- Treat the smaller model as an evaluated implementation choice, not an assumed improvement: record latency and correctness on semantic, explanation, ambiguity and failure-boundary questions.
+
+### Evidence boundary
+
+The smaller model is not yet accepted merely because it starts successfully. Pi deployment must confirm the advertised model, and manual query evaluation must compare responsiveness and interpretation quality. A deterministic query that becomes faster because it bypasses the model is application evidence, not a 0.6B quality result. Historical 1.7B measurements remain valid history and are not rewritten.

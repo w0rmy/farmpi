@@ -120,9 +120,9 @@ This recovery behaviour is particularly important for graphs and optional sensor
 The API reads:
 
 - `FARMPI_LLAMA_URL` (default `http://127.0.0.1:8080`);
-- `FARMPI_LLM_MODEL` (default `Qwen3-1.7B`).
+- `FARMPI_LLM_MODEL` (default `Qwen3-0.6B`).
 
-The Pi systemd template starts Qwen3 1.7B Q4_K_M through `llama-server`, context 2048, reasoning off, one slot, localhost only. During development, the same Pi application can point to a larger reference model such as Qwen3.5-9B hosted by LM Studio on the development PC. The compatibility layer preserves the same application boundary across both topologies. For the current proof-of-concept deployment, the confirmed runtime is the Pi-local `llama-server` on `127.0.0.1:8080`; the development PC is not required in the inference path.
+The Pi systemd template starts Qwen3 0.6B Q4_K_M through `llama-server`, context 2048, reasoning off, one slot, localhost only. During development, the same Pi application can point to a larger reference model such as Qwen3.5-9B hosted by LM Studio on the development PC. The compatibility layer preserves the same application boundary across both topologies. For the current proof-of-concept deployment, the confirmed runtime is the Pi-local `llama-server` on `127.0.0.1:8080`; the development PC is not required in the inference path.
 
 ## Security and trust boundaries
 

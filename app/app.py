@@ -27,7 +27,7 @@ from .farm_data import (
     paddock_summary,
 )
 from .education import CONCEPTS, concept_for_measurement, render_concept
-from .guidance import INITIAL_SUGGESTIONS, WELCOME_TEXT, follow_up_suggestions
+from .guidance import WELCOME_TEXT, follow_up_suggestions, guide_suggestions
 from .knowledge_sources import format_source_context, provenance_for_sources, source_hierarchy_contract
 from .learning import activity_payload, course_payload, module_for_id
 from .paddock_admin import RenameProposal, RenameRejected, confirm_rename, prepare_rename
@@ -46,7 +46,7 @@ LLAMA_BASE_URL = os.getenv("FARMPI_LLAMA_URL", "http://127.0.0.1:8080").rstrip("
 LLAMA_CHAT_URL = f"{LLAMA_BASE_URL}/v1/chat/completions"
 LLAMA_MODELS_URL = f"{LLAMA_BASE_URL}/v1/models"
 LLAMA_TIMEOUT = httpx.Timeout(connect=3.0, read=120.0, write=10.0, pool=3.0)
-LLM_MODEL = os.getenv("FARMPI_LLM_MODEL", "Qwen3-1.7B")
+LLM_MODEL = os.getenv("FARMPI_LLM_MODEL", "Qwen3-0.6B")
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -484,9 +484,16 @@ async def health() -> dict[str, str]:
 
 @app.get("/api/guidance", response_model=GuidanceResponse)
 async def guidance(guidance_level: Literal["more", "normal", "less"] = "normal") -> GuidanceResponse:
-    """Return deterministic onboarding text and example questions."""
+    """Return deterministic onboarding text and questions using configured locations."""
     count = 4 if guidance_level == "more" else 1 if guidance_level == "less" else 3
-    return GuidanceResponse(welcome=WELCOME_TEXT, suggestions=list(INITIAL_SUGGESTIONS[:count]))
+    try:
+        location_names = await asyncio.to_thread(current_paddock_names)
+    except DatabaseUnavailable:
+        location_names = ()
+    return GuidanceResponse(
+        welcome=WELCOME_TEXT,
+        suggestions=list(guide_suggestions(tuple(location_names))[:count]),
+    )
 
 
 @app.post("/api/speech/normalize", response_model=SpeechNormalizationResponse)

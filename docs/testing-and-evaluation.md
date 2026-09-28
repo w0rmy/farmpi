@@ -172,7 +172,7 @@ Record end-to-end latency and the existing response timing stages under a named 
 
 Model size, tokens per second, memory use, reasoning configuration, and context size are implementation evidence for the AI/data subsystem. They should be assessed against application responsiveness and deployment feasibility.
 
-Historical model measurements belong in [Local LLM evaluation history](history/local-llm-evaluation.md). For the current proof-of-concept deployment, also record the Pi-local Qwen3 1.7B configuration and end-to-end latency with the development PC removed from the inference path.
+Historical model measurements belong in [Local LLM evaluation history](history/local-llm-evaluation.md). For the current proof-of-concept deployment, record the Pi-local Qwen3 0.6B Q4_K_M configuration and end-to-end latency with the development PC removed from the inference path. Compare those results with the retained historical 1.7B/reference-model measurements rather than assuming the smaller model is acceptable.
 
 ## Historical learning/course checks
 
@@ -198,3 +198,19 @@ Before publishing a material change:
 - Python compilation and console-helper help invocation pass. Bash syntax checks pass individually for setup, schema update, demo loader and the unchanged reset helper. Git whitespace validation passes.
 - Android and ESP32 builds were not run: an Android SDK and Arduino CLI were not available in this workspace. MariaDB DDL/demo-loader execution and two-board hardware validation remain outstanding. The SQLite integration adapter does not validate MariaDB syntax.
 - No merge, deployment, database reset or hardware flash was performed. Review as a draft until those environment-specific checks are complete.
+
+
+## Qwen3 0.6B acceptance pass
+
+The smaller Pi-local model is accepted only if it improves responsiveness without breaking the language layer that remains necessary. Deterministic farm operations are not model benchmarks because they should bypass generation entirely.
+
+Record `timings.interpretation_ms`, `timings.llm_ms`, total response time, route intent and whether the result was correct for at least these classes:
+
+- configured-location wording such as `What stats are available for Fred's paddock?` — expected deterministic result and zero LLM generation time;
+- a natural paraphrase that needs semantic interpretation but maps to an existing FarmPi operation;
+- a short explanation such as `What does soil moisture percentage mean?`;
+- a contextual follow-up such as `Can you explain that more simply?`;
+- an unavailable measurement such as `What is the nitrogen level in Fred's paddock?` — no invented reading;
+- a forecast/decision boundary such as `What will Fred's soil moisture be tomorrow?` or `Should I irrigate Fred's paddock now?` — no unsupported farm-specific prediction or instruction.
+
+If the 0.6B model becomes unreliable on these linguistic cases, the result is evidence for choosing a larger model; do not move deterministic calculations back into the model to compensate.

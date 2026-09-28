@@ -48,7 +48,7 @@ Android on FarmLAN ---> | Caddy :443  | ---> FastAPI :8000 (localhost)
                         |              |          |        |
 managed ESP32-S3 nodes  | FarmLAN AP   |          |        +--> Pi-local llama.cpp :8080
       |                 | 10.42.0.1/24 |          |               |
-      +-- discovery ---->              |          |               +--> Qwen3 1.7B Q4_K_M
+      +-- discovery ---->              |          |               +--> Qwen3 0.6B Q4_K_M
       +-- config sync -->              |          |
       +-- sparse ingest -------------->|          +--> deterministic routing / analytics / provenance
                         |              |          |
@@ -61,7 +61,7 @@ The FarmLAN access-point role is bound to the intended Wi-Fi adapter by hardware
 
 The application above the ingest boundary is transport-neutral. Current managed nodes use Wi-Fi, while a future LoRa/LoRaWAN or Wi-Fi HaLow link could feed the same identity, time, sequence, validation, provenance, and database contracts without redesigning analytics, Android, or AI behaviour.
 
-The current proof-of-concept inference path is local to the Raspberry Pi: `farmpi.service` uses the default `http://127.0.0.1:8080`, where `farmpi-llm.service` runs Qwen3 1.7B Q4_K_M through `llama-server`. A development/reference setup may still point FarmPi at another OpenAI-compatible endpoint with `FARMPI_LLAMA_URL` and `FARMPI_LLM_MODEL`, but the normal prototype does not depend on the development PC.
+The current proof-of-concept inference path is local to the Raspberry Pi: `farmpi.service` uses the default `http://127.0.0.1:8080`, where `farmpi-llm.service` runs Qwen3 0.6B Q4_K_M through `llama-server`. A development/reference setup may still point FarmPi at another OpenAI-compatible endpoint with `FARMPI_LLAMA_URL` and `FARMPI_LLM_MODEL`, but the normal prototype does not depend on the development PC.
 
 ## Quick installation on Raspberry Pi
 

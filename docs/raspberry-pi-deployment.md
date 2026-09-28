@@ -10,11 +10,11 @@ The checked-in deployment targets a Debian-family Raspberry Pi with:
 - Caddy serving `https://farmpi.local` with its internal CA;
 - one normal management/home-LAN connection and one dedicated FarmPi wireless access-point profile, with the AP profile bound to the intended radio by MAC address rather than depending on a `wlanN` name;
 - `farmpi.service` running Uvicorn on `127.0.0.1:8000`;
-- `farmpi-llm.service` running Qwen3 1.7B through `llama-server` on `127.0.0.1:8080`.
+- `farmpi-llm.service` running Qwen3 0.6B through `llama-server` on `127.0.0.1:8080`.
 
 The application can use a different OpenAI-compatible model server by setting `FARMPI_LLAMA_URL` and `FARMPI_LLM_MODEL`. If the model is hosted on another machine, permit only the required trusted LAN connection and do not expose the endpoint to the public Internet.
 
-The current proof-of-concept deployment has been verified with no `FARMPI_LLAMA_URL` override, so the backend uses its default `http://127.0.0.1:8080`. The active Pi service runs `lmstudio-community/Qwen3-1.7B-GGUF:Q4_K_M` through `llama.cpp` with context 2048, reasoning disabled and one parallel slot. The development PC is therefore not required in the normal inference path.
+The checked-in proof-of-concept deployment uses the default `http://127.0.0.1:8080` when no `FARMPI_LLAMA_URL` override is set. The Pi service is configured for `lmstudio-community/Qwen3-0.6B-GGUF:Q4_K_M` through `llama.cpp` with context 2048, reasoning disabled and one parallel slot. After deployment, verify the advertised model with `/v1/models` and record latency/correctness before treating the smaller model as accepted. The development PC is not required in the normal inference path.
 
 ## Prerequisites
 
@@ -68,7 +68,7 @@ Optional model overrides:
 
 ```text
 FARMPI_LLAMA_URL=http://127.0.0.1:8080
-FARMPI_LLM_MODEL=Qwen3-1.7B
+FARMPI_LLM_MODEL=Qwen3-0.6B
 ```
 
 For the Qwen3.5-9B development/reference setup hosted by LM Studio on the Windows PC, use the PC's current trusted-LAN address and LM Studio's advertised model identifier:
