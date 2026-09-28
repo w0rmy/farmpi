@@ -28,7 +28,7 @@ The current capstone direction evaluates the Android client as part of a functio
 
 ## Navigation after course retirement
 
-The Android client opens Dashboard with primary destinations **Dashboard / Compare / Ask FarmPi / Alerts / More**. More opens History, Nodes, Settings and System Status. Dashboard and Location Detail use the deterministic `/api/monitoring/overview` contract for graphical current-state cards, location cards, age/provenance metadata and the featured 24-hour soil-moisture chart. Compare now loads those configured farmer locations into drop-down selectors and calls `/api/monitoring/compare` with the two stable location IDs, so the selected pair is compared without LLM interpretation. History uses the same configured-location selector but retains the existing deterministic Ask/analytics contract. Alerts and thresholds remain explicitly unavailable prototypes. Nodes shows compact cards; configuration and registration live on a separate Node Detail page. See [the UX v0.1 refactor map](android-ux-v01-refactor-map.md).
+The Android client opens Dashboard with primary destinations **Dashboard / Compare / Ask FarmPi / Alerts / More**. More opens History, Nodes, Settings and System Status. Dashboard and Location Detail use the deterministic `/api/monitoring/overview` contract for current-state cards, location cards, age and provenance metadata. Full graphs are intentionally kept out of the Dashboard: tapping a graphable measurement opens History preselected to that measurement and scope, while tapping a farmer-named location opens Location Detail and each graphable measurement there opens that location's trend. Compare loads configured farmer locations into drop-down selectors and calls `/api/monitoring/compare` with the two stable location IDs, so the selected pair is compared without LLM interpretation. History supports 6-hour, 1-day and 7-day views over the existing deterministic Ask/analytics contract. Alerts and thresholds remain explicitly unavailable prototypes. Nodes shows compact cards; configuration and registration live on a separate Node Detail page. See [the UX v0.1 refactor map](android-ux-v01-refactor-map.md).
 
 Learn, module navigation, Try/Check/Continue, progress, Return to Module and course quick actions have been removed, together with their Android models and API parsing. All questions omit `course_module_id`; contextual explanations, Guide me and ordinary conversation continuity remain.
 
@@ -56,10 +56,11 @@ The monitoring UI now has a reusable visual layer rather than relying on text ca
 
 - Material vector icons map measurement keys to recognisable visual cues such as moisture, temperature, light, pressure and wind;
 - farm-summary measurement cards show formatted values, source mode and reading age;
-- the soil-moisture summary card can include a compact sparkline from the same verified historical series used by the full chart;
-- the Dashboard shows the existing interactive chart renderer for the verified 24-hour soil-moisture trend when history exists;
+- Dashboard measurement cards deliberately show current values without embedded sparklines or a duplicated full soil-moisture graph;
+- tapping a graphable farm-summary measurement opens History directly for that farm-wide measurement;
 - farmer-named location cards show up to three latest measurements and open Location Detail;
-- Location Detail reuses the same measurement-card system rather than generating prose to display current readings.
+- Location Detail reuses the same measurement-card system, and tapping a graphable measurement opens its recent trend for that configured location;
+- History exposes the graphable catalogue measurements and 6-hour, 1-day and 7-day time windows; wind direction remains current-only because ordinary linear historical averaging is not defined for circular direction data.
 
 Icons are measurement labels, not weather claims. For example, a sun icon denotes the light/lux measurement; it does not mean FarmPi has classified the weather as sunny.
 
@@ -68,7 +69,7 @@ Icons are measurement labels, not weather claims. For example, a sun icon denote
 The Android client receives verified chart payloads from the backend and chooses only how to display them.
 
 - time-series data can be viewed as line, area, bars, or dots;
-- time series default to observation dots with timestamp-proportional spacing; lines and Day profile areas remain optional, with an explicit continuity limitation;
+- time series default to a labelled line view with timestamp-proportional spacing; Dots remains available for inspecting individual observations, and Day profile/Area remain presentation alternatives with an explicit continuity limitation;
 - comparison datasets can be viewed as bars or dots;
 - changing display mode must not change any underlying value;
 - farm-wide, named-paddock, and cross-paddock comparisons are separate backend meanings even if they use the same renderer.
@@ -207,3 +208,12 @@ Full charts now display:
 The visual mode controls still change presentation only; they do not alter the underlying verified values.
 
 For presentation screenshots, verify that axis titles, scale values, X labels and the chart title remain legible at standard text size on the actual target phone/tablet. A screenshot should be understandable without having to infer what either axis represents.
+
+
+## Measurement drill-down — 28 September 2026
+
+Dashboard is now a current-state surface rather than a mixed current/history screen. It no longer renders the soil-moisture mini sparkline or the duplicate featured soil-moisture graph.
+
+For graphable measurements, the current-value card itself is the affordance: **View trend** opens History with the correct measurement and farm/location scope already selected and immediately requests the 1-day graph. The same pattern is used inside a farmer-named Location Detail page. Users can then switch between 6 hours, 1 day and 7 days or choose another graphable measurement.
+
+The graphable History catalogue includes soil moisture, soil temperature, air temperature, relative humidity, soil pH, soil EC, light, rainfall, barometric pressure, wind speed, pasture height and leaf wetness. Wind direction remains current-only because degrees wrap at 360 and require circular-statistics treatment rather than an ordinary linear historical average.
