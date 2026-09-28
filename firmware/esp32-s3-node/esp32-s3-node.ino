@@ -186,7 +186,8 @@ static SimulationContext simulationContext() {
   context.now = time(nullptr);
   localtime_r(&context.now, &context.local);
   context.dayOfYear = context.local.tm_yday + 1;
-  context.daySerial = static_cast<int>(context.now / 86400);
+  const int utcOffsetHours = context.local.tm_isdst > 0 ? 13 : 12;
+  context.daySerial = static_cast<int>((context.now + utcOffsetHours * 3600) / 86400);
   context.localHours = context.local.tm_hour + context.local.tm_min / 60.0f + context.local.tm_sec / 3600.0f;
   context.nodeVariation = nodeVariation();
 
@@ -207,7 +208,7 @@ static SimulationContext simulationContext() {
     1.0f
   );
   const float daylightHours = 2.0f * acosf(cosHourAngle) * 180.0f / M_PI / 15.0f;
-  const float utcOffset = context.local.tm_isdst > 0 ? 13.0f : 12.0f;
+  const float utcOffset = static_cast<float>(utcOffsetHours);
   context.solarNoonHours = 12.0f + utcOffset - NZ_SIMULATION_LONGITUDE / 15.0f - equationOfTime / 60.0f;
   context.sunriseHours = context.solarNoonHours - daylightHours / 2.0f;
   context.sunsetHours = context.solarNoonHours + daylightHours / 2.0f;
