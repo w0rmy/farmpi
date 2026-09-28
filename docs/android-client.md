@@ -200,7 +200,7 @@ Full charts now display:
 
 - a labelled Y axis using the chart title and unit;
 - five numeric Y-scale labels tied to the plotted range;
-- a labelled X axis using Location for comparisons, Time (UTC) for timestamped history, or Observation for non-time categorical data;
+- a labelled X axis using Location for comparisons, Local time for timestamped history, or Observation for non-time categorical data;
 - up to three representative X-axis labels so a screenshot shows the beginning, middle and end of the displayed range;
 - Low / Latest / High values above the plot;
 - Line as the default time-series view and Bars as the default comparison view.
@@ -217,3 +217,12 @@ Dashboard is now a current-state surface rather than a mixed current/history scr
 For graphable measurements, the current-value card itself is the affordance: **View trend** opens History with the correct measurement and farm/location scope already selected and immediately requests the 1-day graph. The same pattern is used inside a farmer-named Location Detail page. Users can then switch between 6 hours, 1 day and 7 days or choose another graphable measurement.
 
 The graphable History catalogue includes soil moisture, soil temperature, air temperature, relative humidity, soil pH, soil EC, light, rainfall, barometric pressure, wind speed, pasture height and leaf wetness. Wind direction remains current-only because degrees wrap at 360 and require circular-statistics treatment rather than an ordinary linear historical average.
+
+
+## Graph timezone presentation — 28 September 2026
+
+FarmPi continues to store and exchange operational timestamps in UTC. The Android client does not expose a separate FarmPi timezone setting.
+
+For timestamped graphs, the client parses the backend timestamp as an absolute instant and formats the X-axis labels using the phone's current system timezone (`ZoneId.systemDefault()`). This means NZST/NZDT and other daylight-saving transitions follow the device operating-system timezone rules automatically.
+
+The graph X-axis is labelled **Local time**. Changing timezone presentation does not alter graph ordering, spacing, calculations, stored timestamps or API values; those continue to use the UTC instant.
