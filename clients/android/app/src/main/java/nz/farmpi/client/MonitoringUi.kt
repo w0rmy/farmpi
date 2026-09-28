@@ -35,6 +35,19 @@ private fun InfoCard(title: String, detail: String, content: @Composable ColumnS
     }
 }
 
+private val HISTORY_MEASUREMENTS = listOf(
+    "Soil moisture" to "soil_moisture_pct",
+    "Soil temperature" to "soil_temperature_c",
+    "Air temperature" to "air_temperature_c",
+    "Humidity" to "relative_humidity_pct",
+    "Light" to "light_lux",
+    "Pressure" to "barometric_pressure_hpa",
+)
+
+private fun historyMeasurementName(measurement: OverviewMeasurement): String =
+    HISTORY_MEASUREMENTS.firstOrNull { it.second == measurement.key }?.first
+        ?: measurement.label.replaceFirstChar { it.uppercase() }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LocationSelector(
@@ -137,9 +150,28 @@ internal fun MonitoringArea(
     var period by remember { mutableStateOf("1 day") }
     var filter by remember { mutableStateOf("Active") }
     var details by remember { mutableStateOf(false) }
+    var autoHistoryRequest by remember { mutableStateOf(false) }
+
+    fun openHistory(measurementItem: OverviewMeasurement, targetLocation: String) {
+        locationA = targetLocation
+        measurement = historyMeasurementName(measurementItem)
+        period = "1 day"
+        autoHistoryRequest = true
+        navigate("History")
+    }
     LaunchedEffect(location) { locationA = location }
     LaunchedEffect(destination) {
         if (destination in setOf("Dashboard", "Location Detail", "Compare", "History")) refreshOverview()
+    }
+    LaunchedEffect(destination, autoHistoryRequest, measurement, locationA, period) {
+        if (destination == "History" && autoHistoryRequest) {
+            autoHistoryRequest = false
+            query(
+                "Show a graph of $measurement " +
+                    if (locationA.isBlank()) "across the farm over the last $period"
+                    else "for ${locationA.trim()} over the last $period"
+            )
+        }
     }
     LaunchedEffect(overview, location) {
         if (locationA.isBlank() && location.isNotBlank()) {
@@ -167,20 +199,12 @@ internal fun MonitoringArea(
                     )
 
                     Text("Latest measurements", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                    val moistureSparkline = current.featuredChart?.series?.firstOrNull()?.second.orEmpty()
-                    MeasurementGrid(current.farmMeasurements, moistureSparkline)
-
-                    current.featuredChart?.let { chart ->
-                        Text("Recent trend", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                        EnhancedChartCard(
-                            chart.title,
-                            chart.unit,
-                            chart.period,
-                            chart.provenance,
-                            chart.type,
-                            chart.series.map { (name, points) -> GraphSeries(name, points.map { GraphPoint(it.label, it.value) }) },
-                        )
-                    }
+                    Text(
+                        "Tap a measurement to open its recent history.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    MeasurementGrid(current.farmMeasurements) { item -> openHistory(item, "") }
 
                     Text("Locations", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     if (current.locations.isEmpty()) {
@@ -205,7 +229,12 @@ internal fun MonitoringArea(
                 }
                 val selected = overview?.locations?.firstOrNull { it.name.equals(location, ignoreCase = true) }
                 if (selected != null) {
-                    LocationMeasurementSection(selected)
+                    Text(
+                        "Tap any measurement to open its recent trend for ${selected.name}.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    LocationMeasurementSection(selected) { item -> openHistory(item, selected.name) }
                     InfoCard("Explore ${selected.name}", "Use the same verified readings in history, comparison and Ask FarmPi.") {
                         Button(onClick = { navigate("History") }) { Text("View history") }
                         OutlinedButton(onClick = { navigate("Compare") }) { Text("Compare") }
@@ -221,16 +250,13 @@ internal fun MonitoringArea(
             }
             "Compare", "History" -> {
                 val locations = overview?.locations.orEmpty()
-                val measurementOptions = listOf(
-                    "Soil moisture" to "soil_moisture_pct",
-                    "Soil temperature" to "soil_temperature_c",
-                    "Air temperature" to "air_temperature_c",
-                    "Humidity" to "relative_humidity_pct",
-                    "Light" to "light_lux",
-                    "Pressure" to "barometric_pressure_hpa",
-                )
+                val measurementOptions = HISTORY_MEASUREMENTS
                 val selectedMeasurementKey = measurementOptions.first { it.first == measurement }.second
-                val windowMinutes = if (period == "7 days") 7 * 24 * 60 else 24 * 60
+                val windowMinutes = when (period) {
+                    "6 hours" -> 6 * 60
+                    "7 days" -> 7 * 24 * 60
+                    else -> 24 * 60
+                }
 
                 if (overviewLoading && overview == null) LinearProgressIndicator(Modifier.fillMaxWidth())
                 overviewError?.let {
@@ -273,11 +299,11 @@ internal fun MonitoringArea(
                     }
                     Text("Period", style = MaterialTheme.typography.labelLarge)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("1 day", "7 days").forEach { name ->
+                        listOf("6 hours", "1 day", "7 days").forEach { name ->
                             FilterChip(selected = period == name, onClick = { period = name }, label = { Text(name) })
                         }
                     }
-                    Text("1 month · 3 months · Custom — Coming later. Current history is limited to seven days.", style = MaterialTheme.typography.bodySmall)
+                    Text("Use 6 hours for short-term detail, 1 day for daily patterns, or 7 days for slower changes. Longer history is coming later.", style = MaterialTheme.typography.bodySmall)
 
                     val left = locations.firstOrNull { it.name == locationA }
                     val right = locations.firstOrNull { it.name == locationB }
