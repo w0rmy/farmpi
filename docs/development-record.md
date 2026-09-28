@@ -563,3 +563,28 @@ Jeremy also challenged the need to retain the 1.7B Pi-local language model. The 
 ### Evidence boundary
 
 The smaller model is not yet accepted merely because it starts successfully. Pi deployment must confirm the advertised model, and manual query evaluation must compare responsiveness and interpretation quality. A deterministic query that becomes faster because it bypasses the model is application evidence, not a 0.6B quality result. Historical 1.7B measurements remain valid history and are not rewritten.
+
+
+## 28 September 2026 — graph presentation quality and LLM service identity
+
+### Observation
+
+During Android presentation review, the full graphs were visually under-specified: the plot could appear with an off-theme Material tint, horizontal grid lines had no numeric Y scale, the X/Y axes were not explicitly labelled, and time-series output could therefore look like an unexplained line rather than evidence suitable for a capstone screenshot.
+
+A separate deployment inconsistency was also observed while restarting the smaller model. systemd reported that it was stopping/starting a Qwen3 1.7B service even though the service `ExecStart` was already loading `lmstudio-community/Qwen3-0.6B-GGUF:Q4_K_M`. The stale text came from the unit `Description=`, not from the actual model command.
+
+### Decision
+
+- Give full Android charts an explicit FarmPi white card and muted green-grey plot surface rather than relying on Material defaults.
+- Use the FarmPi green/blue/amber/grey graph palette.
+- Draw explicit X/Y axis lines and both horizontal and vertical grid lines.
+- Show five numeric Y-axis scale labels, a measurement/unit Y-axis title, representative X labels, and a contextual X-axis title.
+- Default historical charts to Line and comparison charts to Bars; retain Area/Bars/Dots as presentation-only alternatives.
+- Keep the existing deterministic graph payload as the data authority.
+- Change the systemd unit description to `FarmPi Qwen3 0.6B local LLM server` while leaving the existing 0.6B `ExecStart` unchanged.
+- Add a deployment regression check requiring the displayed model identity and configured model command to agree.
+- Update the current architecture diagram to show Qwen3 0.6B. Historical 1.7B evidence remains historical evidence.
+
+### Evidence boundary
+
+The graph source changes improve interpretability and screenshot quality but still require an Android build and visual check on the target device. The corrected systemd label takes effect only after the updated unit is installed and systemd is reloaded, which `./update` performs. The service name shown by systemd is not evidence of the loaded model; `/v1/models` remains the runtime verification.
