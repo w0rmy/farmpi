@@ -613,3 +613,40 @@ The soil-moisture graph also revealed a firmware problem rather than merely a ch
 ### Evidence boundary
 
 The new simulation is intentionally realistic-looking test data, not observed Hamilton weather or an agronomic model. It improves integration and visualisation evidence but does not satisfy T01 physical sensing. Existing historical rows retain the old one-hour pattern until they age out of the selected window or are explicitly removed; flashing new firmware does not rewrite prior database history.
+
+
+## 28 September 2026 — FarmPi host time and daylight-saving validation
+
+### Observation
+
+The FarmPi time system was checked immediately after the New Zealand daylight-saving transition to verify that the Raspberry Pi host remained a trustworthy time authority for managed nodes and that the deployment timezone had advanced correctly.
+
+The live Pi reported:
+
+```text
+Mon 28 Sep 18:31:24 NZDT 2026
+Mon 28 Sep 05:31:24 UTC 2026
+
+Local time: Mon 2026-09-28 18:31:24 NZDT
+Universal time: Mon 2026-09-28 05:31:24 UTC
+Time zone: Pacific/Auckland (NZDT, +1300)
+System clock synchronized: yes
+NTP service: active
+RTC in local TZ: no
+```
+
+### Result
+
+The FarmPi host clock/timezone/NTP layer passed the check:
+
+- the deployment timezone is `Pacific/Auckland`;
+- local time is NZDT with the expected `+1300` offset on the test date;
+- UTC remains the storage/time-exchange reference;
+- the system clock is synchronised and NTP is active;
+- there is no local-time RTC dependency.
+
+This is useful deployment evidence because the check occurred across a real daylight-saving boundary rather than only under a fixed offset.
+
+### Evidence boundary
+
+This result proves the Raspberry Pi host time authority is configured correctly. It does **not** by itself prove the complete ESP32 -> FarmPi -> MariaDB timestamp path. End-to-end acceptance still requires checking recent managed-node `observed_at` versus `received_at`, `clock_offset_seconds`, and `clock_out_of_tolerance`, followed by Android verification that UTC API timestamps are displayed in device-local time.
