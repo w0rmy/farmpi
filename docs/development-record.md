@@ -615,6 +615,24 @@ The soil-moisture graph also revealed a firmware problem rather than merely a ch
 The new simulation is intentionally realistic-looking test data, not observed Hamilton weather or an agronomic model. It improves integration and visualisation evidence but does not satisfy T01 physical sensing. Existing historical rows retain the old one-hour pattern until they age out of the selected window or are explicitly removed; flashing new firmware does not rewrite prior database history.
 
 
+## 28 September 2026 — graph timestamps use device-local time
+
+### Observation
+
+Live acceptance showed that FarmPi's time authority and UTC storage path were correct, including the NZ daylight-saving transition, but historical Android graphs still labelled and displayed their X axis in UTC. The same client already showed status/response times in local NZDT, so the graph presentation was inconsistent with the rest of the farmer-facing interface.
+
+### Decision
+
+- Keep FarmPi/database/API timestamps in UTC.
+- Keep graph ordering and X-position calculations based on the absolute UTC instant.
+- Convert timestamp labels only at the Android presentation boundary using the phone's current system timezone via `ZoneId.systemDefault()`.
+- Label timestamped graph axes **Local time** rather than `Time (UTC)`.
+- Do not add a FarmPi timezone preference; the client assumes the farmer wants the same local timezone configured on the phone.
+- Add a JVM regression case proving that `2026-09-28T05:35:00Z` renders as `28 Sep 18:35` under `Pacific/Auckland` during NZDT.
+
+### Evidence boundary
+
+The source and JVM test define the intended conversion. Installed-device acceptance still needs to verify that a recent graph agrees with the phone clock/timezone. Changing timezone presentation must not change graph values or point spacing.
 ## 28 September 2026 — FarmPi host time and daylight-saving validation
 
 ### Observation

@@ -223,7 +223,7 @@ For at least one historical time-series chart and one two-location comparison ch
 - the plot background matches the FarmPi light theme and does not inherit an unrelated Material/purple tint;
 - the chart title identifies the measurement;
 - the Y axis is labelled and includes numeric scale values;
-- the X axis is labelled as Time (UTC), Location, or Observation as appropriate;
+- the X axis is labelled as Local time, Location, or Observation as appropriate;
 - representative X labels are visible and correspond to the actual returned labels;
 - Low / Latest / High values match the plotted dataset;
 - changing Line / Area / Bars / Dots does not change the underlying values;
@@ -262,6 +262,18 @@ On the installed Android client:
 - the opened History screen preserves the selected location/measurement and still uses deterministic graph data rather than the LLM.
 
 
+## Android graph timezone acceptance
+
+FarmPi database/API timestamps remain UTC. The Android graph presentation must use the phone's system timezone without requiring a FarmPi timezone preference.
+
+Automated JVM coverage verifies that `2026-09-28T05:35:00Z` formats as `28 Sep 18:35` for `Pacific/Auckland` during NZDT, while the same instant remains `05:35` in UTC.
+
+On the installed Android client, verify a graph generated from a known recent UTC database row:
+
+- the X-axis title reads **Local time**;
+- the displayed time agrees with the phone clock/timezone;
+- changing the phone timezone and reopening/re-rendering the graph changes only the displayed labels, not the data values or point spacing;
+- no user-configurable FarmPi timezone setting is required.
 ## Time-system acceptance
 
 FarmPi stores operational timestamps in UTC and presents local time only at the client/display boundary. Time validation must therefore check both the host time authority and the end-to-end node/database path.
