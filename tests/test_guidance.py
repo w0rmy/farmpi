@@ -28,11 +28,11 @@ class GuidanceTests(unittest.TestCase):
     def test_named_paddock_follow_up_bridges_data_to_related_information(self) -> None:
         suggestions = follow_up_suggestions(
             "paddock-field",
-            "Paddock B",
+            "Fred's paddock",
             "air_temperature_c",
         )
         self.assertEqual(len(suggestions), 3)
-        self.assertTrue(any("Paddock B" in item for item in suggestions))
+        self.assertTrue(any("Fred's paddock" in item for item in suggestions))
         self.assertTrue(any("Why" in item or "what" in item.casefold() for item in suggestions))
 
     def test_general_information_route_offers_useful_continuation(self) -> None:
