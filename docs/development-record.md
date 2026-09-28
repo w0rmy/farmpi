@@ -683,3 +683,22 @@ This extends the result to a **PASS for the ESP32 -> FarmPi -> MariaDB timestamp
 ### Evidence boundary
 
 The remaining presentation-layer check is Android: verify that UTC API timestamps are converted into the device's local timezone for farmer-facing display. The database itself should remain UTC.
+
+
+## 28 September 2026 — make local graph time values explicit
+
+### Observation
+
+Installed Android acceptance after the local-time conversion showed that the graph footer visibly said `X axis · Local time`, but this did not make the converted time values sufficiently explicit to the user. The axis description alone was not adequate presentation evidence.
+
+### Decision
+
+- Keep the backend/database/API UTC design unchanged.
+- Keep graph positioning based on the UTC instant.
+- Render each representative X-axis timestamp as local date, local clock time and timezone abbreviation, for example `28 Sep / 18:35 NZDT`.
+- Use the shorter axis caption **Time** rather than treating `Local time` as though it were an axis value.
+- Extend the JVM regression test so the NZDT abbreviation is part of the expected formatted tick label.
+
+### Evidence boundary
+
+The source/test change defines the intended rendering. Installed-client acceptance must confirm that Light, Soil Moisture and other historical graphs visibly show the converted tick values on the phone.
