@@ -49,6 +49,12 @@ struct SimulationContext {
   float nodeVariation;
 };
 
+struct RainEvent {
+  bool active;
+  float intervalMm;
+  float recentSoilEffect;
+};
+
 static String hexBytes(const uint8_t* bytes, size_t count) {
   String out; out.reserve(count * 2);
   const char hex[] = "0123456789abcdef";
@@ -229,12 +235,6 @@ static SimulationContext simulationContext() {
   );
   return context;
 }
-
-struct RainEvent {
-  bool active;
-  float intervalMm;
-  float recentSoilEffect;
-};
 
 static RainEvent rainEventFor(const SimulationContext& context) {
   RainEvent event = {false, 0.0f, 0.0f};
