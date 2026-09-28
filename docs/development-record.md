@@ -633,3 +633,53 @@ Live acceptance showed that FarmPi's time authority and UTC storage path were co
 ### Evidence boundary
 
 The source and JVM test define the intended conversion. Installed-device acceptance still needs to verify that a recent graph agrees with the phone clock/timezone. Changing timezone presentation must not change graph values or point spacing.
+## 28 September 2026 — FarmPi host time and daylight-saving validation
+
+### Observation
+
+The FarmPi time system was checked immediately after the New Zealand daylight-saving transition to verify that the Raspberry Pi host remained a trustworthy time authority for managed nodes and that the deployment timezone had advanced correctly.
+
+The live Pi reported:
+
+```text
+Mon 28 Sep 18:31:24 NZDT 2026
+Mon 28 Sep 05:31:24 UTC 2026
+
+Local time: Mon 2026-09-28 18:31:24 NZDT
+Universal time: Mon 2026-09-28 05:31:24 UTC
+Time zone: Pacific/Auckland (NZDT, +1300)
+System clock synchronized: yes
+NTP service: active
+RTC in local TZ: no
+```
+
+### Result
+
+The FarmPi host clock/timezone/NTP layer passed the check:
+
+- the deployment timezone is `Pacific/Auckland`;
+- local time is NZDT with the expected `+1300` offset on the test date;
+- UTC remains the storage/time-exchange reference;
+- the system clock is synchronised and NTP is active;
+- there is no local-time RTC dependency.
+
+This is useful deployment evidence because the check occurred across a real daylight-saving boundary rather than only under a fixed offset.
+
+### Managed-node/database follow-up
+
+Recent MariaDB rows were then inspected for both registered managed nodes.
+
+FP-003 / Fred's Paddock showed observation-to-receive delays around 1.9-2.0 seconds, while FP-001 / Bobs Paddock showed delays around 2.6 seconds. Across the 20-row sample:
+
+- both nodes were actively submitting recent readings;
+- sample sequence numbers increased monotonically per node;
+- `observed_at` and `received_at` remained UTC database values;
+- `clock_offset_seconds` stayed within a few seconds;
+- `clock_out_of_tolerance` was `0` for every inspected row;
+- no one-hour offset appeared across the daylight-saving transition.
+
+This extends the result to a **PASS for the ESP32 -> FarmPi -> MariaDB timestamp path**.
+
+### Evidence boundary
+
+The remaining presentation-layer check is Android: verify that UTC API timestamps are converted into the device's local timezone for farmer-facing display. The database itself should remain UTC.

@@ -274,3 +274,85 @@ On the installed Android client, verify a graph generated from a known recent UT
 - the displayed time agrees with the phone clock/timezone;
 - changing the phone timezone and reopening/re-rendering the graph changes only the displayed labels, not the data values or point spacing;
 - no user-configurable FarmPi timezone setting is required.
+## Time-system acceptance
+
+FarmPi stores operational timestamps in UTC and presents local time only at the client/display boundary. Time validation must therefore check both the host time authority and the end-to-end node/database path.
+
+### FarmPi host clock
+
+Run on the Raspberry Pi:
+
+```bash
+date
+date -u
+timedatectl
+```
+
+Acceptance criteria:
+
+- local time reports the intended deployment timezone `Pacific/Auckland`;
+- the local abbreviation/offset matches the current NZ daylight-saving state;
+- UTC differs from local time by the correct offset for that date;
+- `System clock synchronized: yes`;
+- NTP is active;
+- the Pi is not relying on a local-time RTC setting.
+
+Recorded live result on **28 September 2026 at 18:31 NZDT**:
+
+```text
+Mon 28 Sep 18:31:24 NZDT 2026
+Mon 28 Sep 05:31:24 UTC 2026
+
+Local time: Mon 2026-09-28 18:31:24 NZDT
+Universal time: Mon 2026-09-28 05:31:24 UTC
+RTC time: n/a
+Time zone: Pacific/Auckland (NZDT, +1300)
+System clock synchronized: yes
+NTP service: active
+RTC in local TZ: no
+```
+
+Result: **PASS for the FarmPi host clock/timezone/NTP layer.** The local and UTC times differ by 13 hours, matching NZDT on the test date.
+
+### Managed-node and database timestamp path
+
+The host-clock result does not by itself prove the ESP32 observation clock or database ingest timestamps. For end-to-end verification, inspect recent managed-node readings and compare `observed_at` with `received_at`:
+
+```sql
+SELECT
+    s.node_uid,
+    p.name AS location,
+    r.sample_seq,
+    r.observed_at,
+    r.received_at,
+    TIMESTAMPDIFF(SECOND, r.observed_at, r.received_at) AS observed_to_received_seconds,
+    r.clock_offset_seconds,
+    r.clock_out_of_tolerance
+FROM readings AS r
+JOIN sensor_nodes AS s ON s.id = r.sensor_node_id
+JOIN paddocks AS p ON p.id = r.paddock_id
+WHERE s.hardware_uid IS NOT NULL
+ORDER BY r.received_at DESC
+LIMIT 20;
+```
+
+Expected result:
+
+- `observed_at` and `received_at` remain UTC database values;
+- recent samples from both managed nodes are only seconds apart;
+- `clock_offset_seconds` is close to zero;
+- `clock_out_of_tolerance` is false;
+- no one-hour offset appears across the daylight-saving transition.
+
+Recorded live managed-node result on 28 September 2026:
+
+- FP-003 / Fred's Paddock: recent samples showed `observed_at` to `received_at` delays of about 1.9-2.0 seconds;
+- FP-001 / Bobs Paddock: recent samples showed delays of about 2.6 seconds;
+- `clock_out_of_tolerance` was `0` for all 20 inspected rows;
+- sample sequences were monotonically increasing;
+- both nodes were continuing to submit fresh telemetry;
+- no one-hour offset appeared after the NZ daylight-saving transition.
+
+Result: **PASS for the managed-node -> FarmPi -> MariaDB timestamp path.**
+
+Client acceptance must separately verify that UTC API timestamps are rendered in device-local time for the farmer.
