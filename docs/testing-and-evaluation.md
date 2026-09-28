@@ -230,3 +230,33 @@ For at least one historical time-series chart and one two-location comparison ch
 - simulated data remains identified elsewhere in the response/status rather than being visually mistaken for physical sensor acceptance.
 
 Screenshots are presentation evidence only. They do not replace deterministic graph-payload tests or physical-sensor acceptance.
+
+
+## Managed simulation shape acceptance
+
+The managed ESP32-S3 SIMULATED mode is test telemetry, but it should still produce plots that exercise the application realistically rather than manufacturing rapid oscillations that dominate screenshots.
+
+After flashing firmware `0.3.2-realistic-sim` to both managed boards, verify over sufficient time that:
+
+- soil moisture does not complete repeated high/low cycles within an hour; absent synthetic rain it should change slowly across a day;
+- a synthetic rain event produces a gradual moisture rise rather than an instantaneous full-event jump;
+- light is zero at night and follows one smooth daylight arc between date-dependent Hamilton sunrise and sunset;
+- air temperature shows one daily heating/cooling cycle and soil temperature changes more slowly;
+- relative humidity broadly opposes daytime heating rather than following the same waveform;
+- barometric pressure and wind do not repeat on a one-hour cycle;
+- pH and EC are near-stable over short periods;
+- the two managed nodes are similar but not identical because node-specific offsets are applied.
+
+These checks validate simulation usefulness only. They do not establish local weather accuracy or physical-sensor performance.
+
+## Measurement drill-down acceptance
+
+On the installed Android client:
+
+- Dashboard has no duplicated soil-moisture sparkline/full trend block;
+- tapping a graphable farm-summary measurement opens its farm-wide History graph;
+- opening a configured location such as Fred's paddock and tapping soil moisture, temperature, humidity, light or pressure opens that location's graph directly;
+- optional graphable measurements such as pH, EC, rainfall, wind speed, pasture height and leaf wetness can also be opened when present;
+- wind direction does not advertise a misleading ordinary trend graph;
+- 6 hours, 1 day and 7 days are selectable;
+- the opened History screen preserves the selected location/measurement and still uses deterministic graph data rather than the LLM.
