@@ -10,12 +10,12 @@ WELCOME_TEXT = (
 
 HELP_FACTS = (
     "FarmPi can answer questions about practical agricultural topics including dairy farming, cows, sheep, pasture, soils, irrigation, weather, effluent, animal health, farm systems, and related New Zealand agriculture.",
-    "Every standard FarmPi node reports soil moisture, soil temperature, air temperature, relative humidity, light, and barometric pressure.",
+    "A standard FarmPi node can support soil moisture, soil temperature, air temperature, relative humidity, light, and barometric pressure; FarmPi only presents channels that are enabled and actually reporting.",
     "Optional add-on sensors can also provide pH, EC, rainfall, wind, pasture height, and leaf wetness. FarmPi only presents those measurements where the monitored node actually reports them.",
     "FarmPi deterministically calculates supported farm averages, rankings, comparisons, rainfall totals, trends, and bounded historical analytics instead of asking the language model to invent or calculate those values.",
     "FarmPi can return supported historical and comparison graph data; the Android client renders verified values rather than asking the language model to create them.",
     "Curated New Zealand sources include DairyNZ, MPI, Earth Sciences New Zealand, and Irrigation New Zealand. FarmPi labels source provenance and must not claim live research unless retrieval actually occurred.",
-    "The current ESP32 readings are synthetic test telemetry and are marked as simulated in FarmPi; the simulator deliberately exercises optional capabilities as well as the six standard measurements.",
+    "Measurements configured as SIMULATED are clearly labelled as test telemetry. LIVE is only available where firmware advertises a physical driver, and FarmPi does not turn missing physical data into a value.",
     "For farm-specific decisions or diagnoses, FarmPi explains what is known, what other factors matter, and what information is missing rather than pretending the available evidence proves an answer.",
     "You do not need to learn a FarmPi command grammar: polite, indirect, colloquial, and ordinary wording can be interpreted semantically before controlled FarmPi operations are executed.",
 )
@@ -83,11 +83,11 @@ def follow_up_suggestions(
 
     if paddock_name:
         candidates = (
-            f"What is {paddock_name}'s soil moisture?",
-            f"What is {paddock_name}'s air temperature?",
-            f"What is {paddock_name}'s soil EC?",
+            f"What is the soil moisture in {paddock_name}?",
+            f"What is the air temperature in {paddock_name}?",
+            f"What is the soil EC in {paddock_name}?",
             f"What is the pasture height in {paddock_name}?",
-            f"How has {paddock_name} soil moisture changed over the last 24 hours?",
+            f"How has soil moisture in {paddock_name} changed over the last 24 hours?",
             "Why does soil moisture matter for pasture growth?",
             "What does soil EC tell us and what can affect it?",
         )
