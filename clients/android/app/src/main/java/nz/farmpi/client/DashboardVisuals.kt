@@ -85,7 +85,9 @@ internal fun MeasurementGrid(
             rowItems.forEach { measurement ->
                 MeasurementTile(
                     measurement = measurement,
-                    onClick = onMeasurementClick?.let { handler -> { handler(measurement) } },
+                    onClick = onMeasurementClick
+                        ?.takeIf { measurementHasHistory(measurement.key) }
+                        ?.let { handler -> { handler(measurement) } },
                     modifier = Modifier.weight(1f),
                 )
             }
