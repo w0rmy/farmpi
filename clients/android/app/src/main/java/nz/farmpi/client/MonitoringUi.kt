@@ -35,14 +35,23 @@ private fun InfoCard(title: String, detail: String, content: @Composable ColumnS
     }
 }
 
-private val HISTORY_MEASUREMENTS = listOf(
+internal val HISTORY_MEASUREMENTS = listOf(
     "Soil moisture" to "soil_moisture_pct",
     "Soil temperature" to "soil_temperature_c",
     "Air temperature" to "air_temperature_c",
     "Humidity" to "relative_humidity_pct",
+    "Soil pH" to "soil_ph",
+    "Soil EC" to "soil_ec_ms_cm",
     "Light" to "light_lux",
+    "Rainfall" to "rainfall_mm",
     "Pressure" to "barometric_pressure_hpa",
+    "Wind speed" to "wind_speed_kmh",
+    "Pasture height" to "pasture_height_cm",
+    "Leaf wetness" to "leaf_wetness_pct",
 )
+
+internal fun measurementHasHistory(key: String): Boolean =
+    HISTORY_MEASUREMENTS.any { it.second == key }
 
 private fun historyMeasurementName(measurement: OverviewMeasurement): String =
     HISTORY_MEASUREMENTS.firstOrNull { it.second == measurement.key }?.first
@@ -171,11 +180,6 @@ internal fun MonitoringArea(
                     if (locationA.isBlank()) "across the farm over the last $period"
                     else "for ${locationA.trim()} over the last $period"
             )
-        }
-    }
-    LaunchedEffect(overview, location) {
-        if (locationA.isBlank() && location.isNotBlank()) {
-            overview?.locations?.firstOrNull { it.name.equals(location, ignoreCase = true) }?.let { locationA = it.name }
         }
     }
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
