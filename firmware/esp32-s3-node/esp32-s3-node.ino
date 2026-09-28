@@ -27,6 +27,28 @@ static bool storageReady = false;
 static const uint32_t CONTACT_INTERVAL_MS = 15000UL;
 static const uint32_t TELEMETRY_INTERVAL_MS = 60000UL;
 
+// Representative Waikato/Hamilton synthetic profile. This is deliberately
+// realistic-looking test telemetry, not a weather forecast or agronomic model.
+static const char* FARM_TIMEZONE = "NZST-12NZDT,M9.5.0/2,M4.1.0/3";
+static const float NZ_SIMULATION_LATITUDE = -37.7870f;
+static const float NZ_SIMULATION_LONGITUDE = 175.2793f;
+static const float MONTHLY_LOW_C[12] = {13.2f, 13.4f, 11.5f, 8.8f, 6.6f, 4.6f, 4.3f, 5.3f, 7.4f, 9.0f, 10.6f, 12.0f};
+static const float MONTHLY_HIGH_C[12] = {24.3f, 24.5f, 22.4f, 19.2f, 16.4f, 14.1f, 13.9f, 15.0f, 16.7f, 18.6f, 20.8f, 22.8f};
+
+struct SimulationContext {
+  time_t now;
+  tm local;
+  int dayOfYear;
+  int daySerial;
+  float localHours;
+  float sunriseHours;
+  float sunsetHours;
+  float solarNoonHours;
+  float daylightFraction;
+  float cloudCover;
+  float nodeVariation;
+};
+
 static String hexBytes(const uint8_t* bytes, size_t count) {
   String out; out.reserve(count * 2);
   const char hex[] = "0123456789abcdef";
@@ -137,22 +159,253 @@ static bool persistAndApply(const String& text, const String& hash, const String
   return true;
 }
 
+static float clampFloat(float value, float minimum, float maximum) {
+  return min(max(value, minimum), maximum);
+}
+
+static uint32_t mix32(uint32_t value) {
+  value ^= value >> 16;
+  value *= 0x7feb352dU;
+  value ^= value >> 15;
+  value *= 0x846ca68bU;
+  value ^= value >> 16;
+  return value;
+}
+
+static float nodeVariation() {
+  uint32_t hash = 2166136261U;
+  for (size_t i = 0; i < hardwareUid.length(); ++i) {
+    hash ^= static_cast<uint8_t>(hardwareUid[i]);
+    hash *= 16777619U;
+  }
+  return (static_cast<int>(hash % 2001U) - 1000) / 1000.0f;
+}
+
+static SimulationContext simulationContext() {
+  SimulationContext context = {};
+  context.now = time(nullptr);
+  localtime_r(&context.now, &context.local);
+  context.dayOfYear = context.local.tm_yday + 1;
+  const int utcOffsetHours = context.local.tm_isdst > 0 ? 13 : 12;
+  context.daySerial = static_cast<int>((context.now + utcOffsetHours * 3600) / 86400);
+  context.localHours = context.local.tm_hour + context.local.tm_min / 60.0f + context.local.tm_sec / 3600.0f;
+  context.nodeVariation = nodeVariation();
+
+  const float gamma = 2.0f * M_PI / 365.0f *
+    (context.dayOfYear - 1 + (context.localHours - 12.0f) / 24.0f);
+  const float declination =
+    0.006918f - 0.399912f * cosf(gamma) + 0.070257f * sinf(gamma)
+    - 0.006758f * cosf(2.0f * gamma) + 0.000907f * sinf(2.0f * gamma)
+    - 0.002697f * cosf(3.0f * gamma) + 0.00148f * sinf(3.0f * gamma);
+  const float equationOfTime = 229.18f *
+    (0.000075f + 0.001868f * cosf(gamma) - 0.032077f * sinf(gamma)
+    - 0.014615f * cosf(2.0f * gamma) - 0.040849f * sinf(2.0f * gamma));
+  const float latitudeRadians = NZ_SIMULATION_LATITUDE * M_PI / 180.0f;
+  const float cosHourAngle = clampFloat(
+    (cosf(90.833f * M_PI / 180.0f) - sinf(latitudeRadians) * sinf(declination)) /
+      (cosf(latitudeRadians) * cosf(declination)),
+    -1.0f,
+    1.0f
+  );
+  const float daylightHours = 2.0f * acosf(cosHourAngle) * 180.0f / M_PI / 15.0f;
+  const float utcOffset = static_cast<float>(utcOffsetHours);
+  context.solarNoonHours = 12.0f + utcOffset - NZ_SIMULATION_LONGITUDE / 15.0f - equationOfTime / 60.0f;
+  context.sunriseHours = context.solarNoonHours - daylightHours / 2.0f;
+  context.sunsetHours = context.solarNoonHours + daylightHours / 2.0f;
+  context.daylightFraction = 0.0f;
+  if (context.localHours >= context.sunriseHours && context.localHours <= context.sunsetHours) {
+    context.daylightFraction = sinf(
+      M_PI * (context.localHours - context.sunriseHours) / daylightHours
+    );
+  }
+
+  const float synopticDay = context.daySerial + context.localHours / 24.0f;
+  context.cloudCover = clampFloat(
+    0.32f
+      + 0.20f * sinf(2.0f * M_PI * synopticDay / 3.8f + 0.7f)
+      + 0.10f * sinf(2.0f * M_PI * synopticDay / 8.5f + 2.1f),
+    0.05f,
+    0.85f
+  );
+  return context;
+}
+
+struct RainEvent {
+  bool active;
+  float intervalMm;
+  float recentSoilEffect;
+};
+
+static RainEvent rainEventFor(const SimulationContext& context) {
+  RainEvent event = {false, 0.0f, 0.0f};
+
+  for (int daysBack = 0; daysBack <= 3; ++daysBack) {
+    const int serial = context.daySerial - daysBack;
+    const uint32_t hash = mix32(static_cast<uint32_t>(serial));
+    const bool rainDay = (hash % 100U) < 32U;
+    if (!rainDay) continue;
+
+    const float startHour = 3.0f + ((hash >> 8) % 1300U) / 100.0f;
+    const float durationHours = 1.0f + ((hash >> 20) % 350U) / 100.0f;
+    const float hourlyRate = 0.8f + ((hash >> 12) % 420U) / 100.0f;
+    const float endHour = min(23.5f, startHour + durationHours);
+
+    if (daysBack == 0 && context.localHours >= startHour && context.localHours <= endHour) {
+      event.active = true;
+      event.intervalMm = hourlyRate / 60.0f;
+    }
+
+    if (daysBack == 0 && context.localHours >= startHour && context.localHours <= endHour) {
+      const float accumulatedMm = hourlyRate * (context.localHours - startHour);
+      event.recentSoilEffect += accumulatedMm * 0.28f;
+    } else {
+      const bool eventHasFinished = daysBack > 0 || context.localHours > endHour;
+      if (eventHasFinished) {
+        const float hoursSinceEnd = max(
+          0.0f,
+          daysBack * 24.0f + context.localHours - endHour
+        );
+        const float eventTotalMm = hourlyRate * durationHours;
+        event.recentSoilEffect += eventTotalMm * 0.28f * expf(-hoursSinceEnd / 42.0f);
+      }
+    }
+  }
+  return event;
+}
+
+static float airTemperatureFor(const SimulationContext& context) {
+  const int month = constrain(context.local.tm_mon, 0, 11);
+  const float low = MONTHLY_LOW_C[month];
+  const float high = MONTHLY_HIGH_C[month];
+  const float range = high - low;
+  const float minHour = context.sunriseHours + 0.5f;
+  const float maxHour = context.solarNoonHours + 3.0f;
+  float base;
+
+  if (context.localHours >= minHour && context.localHours <= maxHour) {
+    base = low + range *
+      sinf((context.localHours - minHour) / max(1.0f, maxHour - minHour) * M_PI / 2.0f);
+  } else {
+    const float afterMax = context.localHours > maxHour
+      ? context.localHours - maxHour
+      : context.localHours + 24.0f - maxHour;
+    base = low + range *
+      cosf(afterMax / max(1.0f, 24.0f - (maxHour - minHour)) * M_PI / 2.0f);
+  }
+
+  const float synopticDay = context.daySerial + context.localHours / 24.0f;
+  const float synopticOffset = 1.2f * sinf(2.0f * M_PI * synopticDay / 6.5f + 0.4f);
+  return clampFloat(
+    base + synopticOffset - context.cloudCover * 1.1f + context.nodeVariation * 0.45f,
+    -5.0f,
+    35.0f
+  );
+}
+
 static float simulatedValue(const String& key) {
-  const double phase = (double)(millis() % 3600000UL) / 3600000.0 * 2.0 * M_PI;
-  const double nodeOffset = hardwareUid.length() ? (hardwareUid[hardwareUid.length() - 1] % 7) * 0.35 : 0.0;
-  if (key == "soil_moisture_pct") return 27.0f + 5.0f * sin(phase + nodeOffset);
-  if (key == "soil_temperature_c") return 14.5f + 2.5f * sin(phase - 0.4 + nodeOffset);
-  if (key == "air_temperature_c") return 18.0f + 4.0f * sin(phase + nodeOffset);
-  if (key == "relative_humidity_pct") return 68.0f - 8.0f * sin(phase + nodeOffset);
-  if (key == "light_lux") return max(0.0f, 18000.0f + 15000.0f * (float)sin(phase));
-  if (key == "barometric_pressure_hpa") return 1014.0f + 2.0f * sin(phase / 3.0 + nodeOffset);
-  if (key == "leaf_wetness_pct") return 30.0f + 10.0f * sin(phase);
-  if (key == "pasture_height_cm") return 12.0f + 2.0f * sin(phase);
-  if (key == "rainfall_mm") return max(0.0f, 1.0f + (float)sin(phase));
-  if (key == "soil_ec_ms_cm") return 1.0f + 0.2f * sin(phase);
-  if (key == "soil_ph") return 6.2f + 0.2f * sin(phase);
-  if (key == "wind_direction_deg") return 180.0f + 90.0f * sin(phase);
-  if (key == "wind_speed_kmh") return 10.0f + 5.0f * sin(phase);
+  const SimulationContext context = simulationContext();
+  const RainEvent rain = rainEventFor(context);
+  const float day = context.daySerial + context.localHours / 24.0f;
+  const float air = airTemperatureFor(context);
+  const float node = context.nodeVariation;
+
+  if (key == "soil_moisture_pct") {
+    const float seasonal = 3.0f * cosf(2.0f * M_PI * (context.dayOfYear - 200.0f) / 365.0f);
+    const float slowVariation =
+      1.5f * sinf(2.0f * M_PI * day / 11.0f + node)
+      + 0.7f * sinf(2.0f * M_PI * day / 29.0f + 1.6f);
+    return clampFloat(
+      27.0f + seasonal + slowVariation + rain.recentSoilEffect
+        + node * 1.8f - context.daylightFraction * 0.35f,
+      12.0f,
+      55.0f
+    );
+  }
+
+  if (key == "soil_temperature_c") {
+    const int month = constrain(context.local.tm_mon, 0, 11);
+    const float mean = (MONTHLY_LOW_C[month] + MONTHLY_HIGH_C[month]) / 2.0f;
+    const float daily = 1.4f * cosf(
+      2.0f * M_PI * (context.localHours - 16.5f) / 24.0f
+    );
+    return clampFloat(mean - 1.0f + daily + node * 0.25f, 2.0f, 28.0f);
+  }
+
+  if (key == "air_temperature_c") return air;
+
+  if (key == "relative_humidity_pct") {
+    const float humidity =
+      88.0f - 30.0f * context.daylightFraction
+      + context.cloudCover * 7.0f
+      + (rain.active ? 8.0f : 0.0f)
+      - (air - 15.0f) * 0.35f
+      + node * 2.0f;
+    return clampFloat(humidity, 35.0f, 100.0f);
+  }
+
+  if (key == "light_lux") {
+    if (context.daylightFraction <= 0.0f) return 0.0f;
+    const float clearSkyLux = 90000.0f * powf(context.daylightFraction, 1.20f);
+    const float cloudAttenuation = 1.0f - context.cloudCover * 0.68f;
+    const float nodeShade = clampFloat(0.95f + node * 0.05f, 0.88f, 1.02f);
+    return clampFloat(clearSkyLux * cloudAttenuation * nodeShade, 0.0f, 90000.0f);
+  }
+
+  if (key == "barometric_pressure_hpa") {
+    return clampFloat(
+      1015.0f
+        + 5.2f * sinf(2.0f * M_PI * day / 6.2f + 0.9f)
+        + 1.6f * sinf(2.0f * M_PI * day / 13.0f),
+      985.0f,
+      1035.0f
+    );
+  }
+
+  if (key == "leaf_wetness_pct") {
+    if (rain.active) return 92.0f;
+    return clampFloat(78.0f - 72.0f * context.daylightFraction + context.cloudCover * 12.0f, 4.0f, 88.0f);
+  }
+
+  if (key == "pasture_height_cm") {
+    const float grazingCycleDay = fmodf(context.daySerial + (node + 1.0f) * 4.0f, 28.0f);
+    return clampFloat(8.5f + grazingCycleDay * 0.17f + node * 0.5f, 6.0f, 18.0f);
+  }
+
+  if (key == "rainfall_mm") return rain.intervalMm;
+
+  if (key == "soil_ec_ms_cm") {
+    return clampFloat(
+      0.75f + node * 0.06f + 0.025f * sinf(2.0f * M_PI * day / 21.0f),
+      0.3f,
+      1.3f
+    );
+  }
+
+  if (key == "soil_ph") {
+    return clampFloat(
+      6.15f + node * 0.12f + 0.025f * sinf(2.0f * M_PI * day / 35.0f),
+      5.5f,
+      6.8f
+    );
+  }
+
+  if (key == "wind_direction_deg") {
+    return fmodf(
+      225.0f + 38.0f * sinf(2.0f * M_PI * day / 5.2f + 0.8f) + 360.0f,
+      360.0f
+    );
+  }
+
+  if (key == "wind_speed_kmh") {
+    return clampFloat(
+      9.0f
+        + 5.0f * fabsf(sinf(2.0f * M_PI * day / 3.5f + 0.5f))
+        + context.cloudCover * 3.0f,
+      1.0f,
+      35.0f
+    );
+  }
+
   return 0.0f;
 }
 
@@ -294,6 +547,8 @@ static void sendTelemetry() {
 
 void setup() {
   Serial.begin(115200);
+  setenv("TZ", FARM_TIMEZONE, 1);
+  tzset();
   uint8_t mac[6]; if (esp_efuse_mac_get_default(mac) != ESP_OK) return;
   hardwareUid = hexBytes(mac, 6);
   WiFi.mode(WIFI_STA);

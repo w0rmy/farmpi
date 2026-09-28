@@ -1,6 +1,5 @@
 package nz.farmpi.client
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Air
@@ -13,8 +12,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -77,7 +74,7 @@ internal fun FarmOverviewHeader(
 @Composable
 internal fun MeasurementGrid(
     measurements: List<OverviewMeasurement>,
-    sparkline: List<ChartPoint> = emptyList(),
+    onMeasurementClick: ((OverviewMeasurement) -> Unit)? = null,
 ) {
     if (measurements.isEmpty()) {
         InfoMessageCard("No stored measurements", "FarmPi has no database readings to show yet.")
@@ -88,7 +85,9 @@ internal fun MeasurementGrid(
             rowItems.forEach { measurement ->
                 MeasurementTile(
                     measurement = measurement,
-                    sparkline = if (measurement.key == "soil_moisture_pct") sparkline else emptyList(),
+                    onClick = onMeasurementClick
+                        ?.takeIf { measurementHasHistory(measurement.key) }
+                        ?.let { handler -> { handler(measurement) } },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -101,14 +100,12 @@ internal fun MeasurementGrid(
 @Composable
 private fun MeasurementTile(
     measurement: OverviewMeasurement,
-    sparkline: List<ChartPoint>,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    val visual = measurementVisual(measurement.key)
-    Card(
-        modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
+    @Composable
+    fun TileContent() {
+        val visual = measurementVisual(measurement.key)
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Surface(
@@ -140,7 +137,6 @@ private fun MeasurementTile(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (sparkline.size >= 2) MiniSparkline(sparkline)
             measurement.sourceMode?.let {
                 StatusChip(it.lowercase().replaceFirstChar { c -> c.uppercase() })
             }
@@ -149,29 +145,28 @@ private fun MeasurementTile(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (onClick != null) {
+                Text(
+                    "View trend",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
     }
-}
 
-@Composable
-private fun MiniSparkline(points: List<ChartPoint>) {
-    val clean = points.filter { it.value.isFinite() }
-    if (clean.size < 2) return
-    val low = clean.minOf { it.value }
-    val high = clean.maxOf { it.value }
-    val span = (high - low).takeIf { it > 0.0 } ?: 1.0
-    val times = clean.mapNotNull { graphTime(it.label) }
-    val start = times.minOrNull()
-    val end = times.maxOrNull()
-    val lineColor = MaterialTheme.colorScheme.primary
-    Canvas(Modifier.fillMaxWidth().height(34.dp)) {
-        val path = Path()
-        clean.forEachIndexed { index, point ->
-            val x = size.width * graphPosition(point.label, index, clean.size, start, end)
-            val y = size.height - (((point.value - low) / span).toFloat() * size.height)
-            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-        }
-        drawPath(path, lineColor, style = Stroke(width = 3f))
+    if (onClick != null) {
+        Card(
+            onClick = onClick,
+            modifier = modifier,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        ) { TileContent() }
+    } else {
+        Card(
+            modifier,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        ) { TileContent() }
     }
 }
 
@@ -236,7 +231,10 @@ internal fun LocationOverviewCard(
 }
 
 @Composable
-internal fun LocationMeasurementSection(location: OverviewLocation) {
+internal fun LocationMeasurementSection(
+    location: OverviewLocation,
+    onMeasurementClick: (OverviewMeasurement) -> Unit,
+) {
     Text(location.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         StatusChip(if (location.hasReading) "Data available" else "Missing")
@@ -247,7 +245,7 @@ internal fun LocationMeasurementSection(location: OverviewLocation) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    MeasurementGrid(location.measurements)
+    MeasurementGrid(location.measurements, onMeasurementClick)
 }
 
 @Composable

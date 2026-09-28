@@ -588,3 +588,28 @@ A separate deployment inconsistency was also observed while restarting the small
 ### Evidence boundary
 
 The graph source changes improve interpretability and screenshot quality but still require an Android build and visual check on the target device. The corrected systemd label takes effect only after the updated unit is installed and systemd is reloaded, which `./update` performs. The service name shown by systemd is not evidence of the loaded model; `/v1/models` remains the runtime verification.
+
+
+## 28 September 2026 — measurement drill-down and realistic managed simulation
+
+### Observation
+
+Live Android review showed that the Dashboard mixed two different jobs. Soil moisture had both a tiny sparkline and a larger featured graph, while the other measurements were current-value cards with no equally obvious path to history. Location Detail exposed many values but did not make the individual measurements direct graph entry points.
+
+The soil-moisture graph also revealed a firmware problem rather than merely a chart problem. The managed ESP32-S3 `SIMULATED` driver generated every catalogue value from a sine wave based on `millis() % 3600000`, so the complete synthetic cycle repeated every hour. Soil moisture therefore swung roughly between its artificial high and low dozens of times per day, and light/temperature/humidity/pH/EC/wind/pasture were coupled to the same unrealistic period.
+
+### Decision
+
+- Keep Dashboard focused on current farm state and remove the embedded soil-moisture sparkline and duplicate featured graph from the Android presentation.
+- Make graphable current-value cards clickable and route them into History with the appropriate farm-wide or farmer-location scope already selected.
+- Apply the same drill-down interaction inside Location Detail.
+- Expand the History selector to every catalogue measurement that currently supports meaningful deterministic historical operations; keep wind direction current-only pending circular-statistics handling.
+- Add a 6-hour History window alongside 1 day and 7 days.
+- Replace the managed node's one-hour `millis()` sine generator with an absolute FarmPi-time synthetic profile using the project's representative Hamilton/Waikato timezone, seasonal temperature bounds and solar-position calculation.
+- Make soil moisture a slow multi-day signal with gradual deterministic rain wetting and decay; make light follow date-dependent daylight; give temperature/humidity realistic daily relationships; and move pressure/wind/pH/EC/pasture/leaf wetness onto slower or event-driven patterns.
+- Keep per-node offsets so Bob/Fred do not report identical synthetic values.
+- Bump managed firmware to `0.3.2-realistic-sim`.
+
+### Evidence boundary
+
+The new simulation is intentionally realistic-looking test data, not observed Hamilton weather or an agronomic model. It improves integration and visualisation evidence but does not satisfy T01 physical sensing. Existing historical rows retain the old one-hour pattern until they age out of the selected window or are explicitly removed; flashing new firmware does not rewrite prior database history.
