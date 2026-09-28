@@ -2,32 +2,21 @@ package nz.farmpi.client
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.Card
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import kotlin.math.max
 import kotlin.math.min
 
@@ -35,6 +24,10 @@ internal data class GraphPoint(val label: String, val value: Double)
 internal data class GraphSeries(val name: String, val points: List<GraphPoint>)
 
 private data class GraphMode(val key: String, val label: String)
+private data class GraphRange(val lower: Double, val upper: Double)
+
+private val axisTimeFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("dd MMM\nHH:mm").withZone(ZoneOffset.UTC)
 
 @Composable
 internal fun EnhancedChartCard(
@@ -60,7 +53,7 @@ internal fun EnhancedChartCard(
             GraphMode("dots", "Dots"),
         )
     }
-    val initialMode = if (isComparison) "bars" else "dots"
+    val initialMode = if (isComparison) "bars" else "line"
     var selectedMode by remember(title, period, baseType) { mutableStateOf(initialMode) }
     if (modes.none { it.key == selectedMode }) selectedMode = modes.first().key
 
@@ -68,8 +61,19 @@ internal fun EnhancedChartCard(
     val minimum = values.minOrNull() ?: 0.0
     val maximum = values.maxOrNull() ?: 0.0
     val latest = series.firstOrNull()?.points?.lastOrNull { it.value.isFinite() }?.value
+    val range = graphRange(selectedMode, series)
+    val xLabels = graphXAxisLabels(series)
+    val xAxisTitle = when {
+        isComparison -> "Location"
+        series.flatMap { it.points }.any { graphTime(it.label) != null } -> "Time (UTC)"
+        else -> "Observation"
+    }
+    val yAxisTitle = if (unit.isBlank()) title else "$title ($unit)"
 
-    Card(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+    Card(
+        Modifier.fillMaxWidth().padding(top = 12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
         Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(Modifier.weight(1f)) {
@@ -107,18 +111,84 @@ internal fun EnhancedChartCard(
                 StatLabel("High", maximum, unit)
             }
 
-            Spacer(Modifier.height(10.dp))
-            ChartCanvas(selectedMode, series)
-            Text(if (isComparison) "Summarised comparison · calculated by FarmPi" else "Observation points shown by default. Sampling cadence and completeness are not supplied; lines and areas connect observations and do not prove continuous data. Farm-average series are summarised data.", style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(12.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                color = FarmPiSurfaceMuted,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ) {
+                Column(Modifier.padding(horizontal = 12.dp, vertical = 14.dp)) {
+                    Text(
+                        "Y axis · $yAxisTitle",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = FarmPiText,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.width(64.dp).height(220.dp),
+                            verticalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            graphTicks(range).reversed().forEach { value ->
+                                Text(
+                                    formatAxisValue(value),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = FarmPiTextMuted,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        ChartCanvas(
+                            mode = selectedMode,
+                            series = series,
+                            range = range,
+                            modifier = Modifier.weight(1f).height(220.dp),
+                        )
+                    }
 
-            val firstLabel = series.firstOrNull()?.points?.firstOrNull()?.label?.let(::shortGraphLabel).orEmpty()
-            val lastLabel = series.firstOrNull()?.points?.lastOrNull()?.label?.let(::shortGraphLabel).orEmpty()
-            if (!isComparison && firstLabel.isNotBlank() && lastLabel.isNotBlank()) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(firstLabel, style = MaterialTheme.typography.labelSmall)
-                    Text(lastLabel, style = MaterialTheme.typography.labelSmall)
+                    if (xLabels.isNotEmpty()) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(start = 72.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            xLabels.forEachIndexed { index, label ->
+                                Text(
+                                    label,
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = FarmPiTextMuted,
+                                    textAlign = when (index) {
+                                        0 -> TextAlign.Start
+                                        xLabels.lastIndex -> TextAlign.End
+                                        else -> TextAlign.Center
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        "X axis · $xAxisTitle",
+                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp, start = 72.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        color = FarmPiText,
+                    )
                 }
             }
+
+            Spacer(Modifier.height(10.dp))
+            Text(
+                if (isComparison)
+                    "Summarised comparison · calculated by FarmPi."
+                else
+                    "Line view connects verified observations for readability. Sampling cadence and completeness are not implied; use Dots to inspect individual observations.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             if (series.size > 1) {
                 Spacer(Modifier.height(8.dp))
@@ -129,7 +199,7 @@ internal fun EnhancedChartCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (series.size > 8) {
-                    Text("+ ${series.size - 8} more", style = MaterialTheme.typography.bodySmall)
+                    Text("+ " + (series.size - 8) + " more", style = MaterialTheme.typography.bodySmall)
                 }
             } else if (isComparison) {
                 val labels = series.first().points.map { shortGraphLabel(it.label) }
@@ -138,7 +208,7 @@ internal fun EnhancedChartCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (labels.size > 8) Text("+ ${labels.size - 8} more paddocks", style = MaterialTheme.typography.bodySmall)
+                if (labels.size > 8) Text("+ " + (labels.size - 8) + " more locations", style = MaterialTheme.typography.bodySmall)
             }
 
             Text(
@@ -160,43 +230,44 @@ private fun StatLabel(label: String, value: Double, unit: String) {
 }
 
 @Composable
-private fun ChartCanvas(mode: String, series: List<GraphSeries>) {
-    val primary = MaterialTheme.colorScheme.primary
-    val secondary = MaterialTheme.colorScheme.secondary
-    val tertiary = MaterialTheme.colorScheme.tertiary
-    val grid = MaterialTheme.colorScheme.outlineVariant
-    val palette = listOf(primary, secondary, tertiary, MaterialTheme.colorScheme.error)
-    val allValues = series.flatMap { it.points }.map { it.value }.filter { it.isFinite() }
+private fun ChartCanvas(
+    mode: String,
+    series: List<GraphSeries>,
+    range: GraphRange,
+    modifier: Modifier = Modifier,
+) {
+    val grid = FarmPiOutline
+    val axis = FarmPiTextMuted
+    val palette = listOf(FarmPiGreen, FarmPiBlue, FarmPiAmber, FarmPiGrey)
     val times = series.flatMap { it.points }.mapNotNull { graphTime(it.label) }
     val start = times.minOrNull()
     val end = times.maxOrNull()
-    if (allValues.isEmpty()) return
 
-    val rawMin = allValues.minOrNull() ?: 0.0
-    val rawMax = allValues.maxOrNull() ?: 1.0
-    val spread = (rawMax - rawMin).takeIf { it > 0.0000001 } ?: max(kotlin.math.abs(rawMax), 1.0)
-    val lineLower = rawMin - spread * 0.08
-    val lineUpper = rawMax + spread * 0.08
-    val barLower = min(0.0, rawMin)
-    val barUpper = max(0.0, rawMax).let { if (it == barLower) barLower + 1.0 else it }
-
-    Canvas(Modifier.fillMaxWidth().height(220.dp)) {
-        val left = 8.dp.toPx()
-        val right = size.width - 8.dp.toPx()
-        val top = 8.dp.toPx()
-        val bottom = size.height - 8.dp.toPx()
+    Canvas(modifier) {
+        val left = 2.dp.toPx()
+        val right = size.width - 2.dp.toPx()
+        val top = 2.dp.toPx()
+        val bottom = size.height - 2.dp.toPx()
         val width = max(1f, right - left)
         val height = max(1f, bottom - top)
 
         repeat(5) { index ->
             val y = top + height * index / 4f
-            drawLine(grid.copy(alpha = 0.45f), Offset(left, y), Offset(right, y), strokeWidth = 1.dp.toPx())
+            drawLine(grid.copy(alpha = 0.85f), Offset(left, y), Offset(right, y), strokeWidth = 1.dp.toPx())
         }
+        repeat(5) { index ->
+            val x = left + width * index / 4f
+            drawLine(grid.copy(alpha = 0.45f), Offset(x, top), Offset(x, bottom), strokeWidth = 1.dp.toPx())
+        }
+        drawLine(axis, Offset(left, top), Offset(left, bottom), strokeWidth = 1.5.dp.toPx())
+        drawLine(axis, Offset(left, bottom), Offset(right, bottom), strokeWidth = 1.5.dp.toPx())
 
-        fun xFor(index: Int, item: GraphSeries): Float = left + width * graphPosition(item.points[index].label, index, item.points.size, start, end)
-        fun yFor(value: Double, lower: Double, upper: Double): Float {
-            val range = (upper - lower).takeIf { it > 0.0000001 } ?: 1.0
-            val normalised = ((value - lower) / range).toFloat().coerceIn(0f, 1f)
+        fun xFor(index: Int, item: GraphSeries): Float =
+            left + width * graphPosition(item.points[index].label, index, item.points.size, start, end)
+
+        fun yFor(value: Double): Float {
+            val span = (range.upper - range.lower).takeIf { it > 0.0000001 } ?: 1.0
+            val normalised = ((value - range.lower) / span).toFloat().coerceIn(0f, 1f)
             return bottom - height * normalised
         }
 
@@ -206,11 +277,11 @@ private fun ChartCanvas(mode: String, series: List<GraphSeries>) {
                 val count = flattened.size.coerceAtLeast(1)
                 val slot = width / count
                 val barWidth = (slot * 0.68f).coerceAtLeast(2.dp.toPx())
-                val zeroY = yFor(0.0, barLower, barUpper)
+                val zeroY = yFor(0.0.coerceIn(range.lower, range.upper))
                 flattened.forEachIndexed { index, point ->
                     if (!point.value.isFinite()) return@forEachIndexed
                     val centre = left + slot * (index + 0.5f)
-                    val valueY = yFor(point.value, barLower, barUpper)
+                    val valueY = yFor(point.value)
                     val rectTop = min(valueY, zeroY)
                     val rectHeight = max(2.dp.toPx(), kotlin.math.abs(zeroY - valueY))
                     drawRoundRect(
@@ -227,7 +298,7 @@ private fun ChartCanvas(mode: String, series: List<GraphSeries>) {
                     val colour = palette[seriesIndex % palette.size]
                     item.points.forEachIndexed { index, point ->
                         if (!point.value.isFinite()) return@forEachIndexed
-                        drawCircle(colour, radius = 4.dp.toPx(), center = Offset(xFor(index, item), yFor(point.value, lineLower, lineUpper)))
+                        drawCircle(colour, radius = 4.dp.toPx(), center = Offset(xFor(index, item), yFor(point.value)))
                     }
                 }
             }
@@ -239,30 +310,32 @@ private fun ChartCanvas(mode: String, series: List<GraphSeries>) {
                     val path = Path()
                     var connected = false
                     item.points.forEachIndexed { index, point ->
-                        if (!point.value.isFinite()) { connected = false; return@forEachIndexed }
+                        if (!point.value.isFinite()) {
+                            connected = false
+                            return@forEachIndexed
+                        }
                         val x = xFor(index, item)
-                        val y = yFor(point.value, lineLower, lineUpper)
+                        val y = yFor(point.value)
                         if (!connected) path.moveTo(x, y) else path.lineTo(x, y)
                         connected = true
                     }
                     if (mode == "area" && item.points.all { it.value.isFinite() }) {
                         val area = Path().apply {
-                            val firstY = yFor(item.points.first().value, lineLower, lineUpper)
                             moveTo(xFor(0, item), bottom)
-                            lineTo(xFor(0, item), firstY)
+                            lineTo(xFor(0, item), yFor(item.points.first().value))
                             item.points.forEachIndexed { index, point ->
-                                lineTo(xFor(index, item), yFor(point.value, lineLower, lineUpper))
+                                lineTo(xFor(index, item), yFor(point.value))
                             }
                             lineTo(xFor(item.points.lastIndex, item), bottom)
                             close()
                         }
-                        drawPath(area, colour.copy(alpha = 0.18f))
+                        drawPath(area, colour.copy(alpha = 0.14f))
                     }
                     drawPath(path, colour, style = Stroke(width = 3.dp.toPx()))
                     item.points.forEachIndexed { index, point ->
                         if (!point.value.isFinite()) return@forEachIndexed
                         if (item.points.size <= 24 || index == 0 || index == item.points.lastIndex) {
-                            drawCircle(colour, radius = 3.dp.toPx(), center = Offset(xFor(index, item), yFor(point.value, lineLower, lineUpper)))
+                            drawCircle(colour, radius = 3.dp.toPx(), center = Offset(xFor(index, item), yFor(point.value)))
                         }
                     }
                 }
@@ -271,11 +344,61 @@ private fun ChartCanvas(mode: String, series: List<GraphSeries>) {
     }
 }
 
+private fun graphRange(mode: String, series: List<GraphSeries>): GraphRange {
+    val values = series.flatMap { it.points }.map { it.value }.filter { it.isFinite() }
+    if (values.isEmpty()) return GraphRange(0.0, 1.0)
+
+    val rawMin = values.minOrNull() ?: 0.0
+    val rawMax = values.maxOrNull() ?: 1.0
+    val spread = (rawMax - rawMin).takeIf { it > 0.0000001 }
+        ?: max(kotlin.math.abs(rawMax), 1.0)
+
+    return if (mode == "bars") {
+        val baseLower = min(0.0, rawMin)
+        val baseUpper = max(0.0, rawMax)
+        val span = (baseUpper - baseLower).takeIf { it > 0.0000001 } ?: 1.0
+        GraphRange(
+            lower = if (rawMin < 0.0) baseLower - span * 0.05 else baseLower,
+            upper = baseUpper + span * 0.08,
+        )
+    } else {
+        GraphRange(
+            lower = rawMin - spread * 0.08,
+            upper = rawMax + spread * 0.08,
+        )
+    }
+}
+
+private fun graphTicks(range: GraphRange): List<Double> {
+    val span = (range.upper - range.lower).takeIf { it > 0.0000001 } ?: 1.0
+    return (0..4).map { index -> range.lower + span * index / 4.0 }
+}
+
+private fun graphXAxisLabels(series: List<GraphSeries>, maximum: Int = 3): List<String> {
+    val points = series.firstOrNull()?.points.orEmpty()
+    if (points.isEmpty()) return emptyList()
+    if (points.size <= maximum) return points.map { shortGraphLabel(it.label) }
+
+    return (0 until maximum)
+        .map { index -> ((points.lastIndex.toDouble() * index) / (maximum - 1)).toInt() }
+        .distinct()
+        .map { index -> shortGraphLabel(points[index].label) }
+}
+
 private fun shortGraphLabel(value: String): String {
     val trimmed = value.trim()
-    val t = trimmed.indexOf('T')
-    if (t >= 0 && trimmed.length >= t + 6) return trimmed.substring(t + 1, t + 6)
-    return trimmed.take(14)
+    val timestamp = graphTime(trimmed)
+    if (timestamp != null) return axisTimeFormatter.format(Instant.ofEpochMilli(timestamp))
+    return trimmed.take(18)
+}
+
+private fun formatAxisValue(value: Double): String {
+    val digits = when {
+        kotlin.math.abs(value) >= 1000 -> 0
+        kotlin.math.abs(value) >= 100 -> 1
+        else -> 2
+    }
+    return ("%." + digits + "f").format(value)
 }
 
 private fun formatGraphValue(value: Double, unit: String): String {
@@ -284,5 +407,5 @@ private fun formatGraphValue(value: Double, unit: String): String {
         kotlin.math.abs(value) >= 100 -> 1
         else -> 2
     }
-    return "%.${digits}f%s".format(value, if (unit.isBlank()) "" else " $unit")
+    return (("%." + digits + "f%s").format(value, if (unit.isBlank()) "" else " " + unit))
 }
