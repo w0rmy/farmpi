@@ -23,10 +23,32 @@ HELP_FACTS = (
 INITIAL_SUGGESTIONS = (
     "What can FarmPi show me?",
     "Show me the soil moisture over the last 24 hours.",
+    "Which monitored location is driest?",
+    "What measurements are available on my farm?",
     "What does DairyNZ say about irrigation scheduling?",
-    "What stats are available on Paddock B?",
-    "Why do dairy cows get milk fever?",
 )
+
+
+def guide_suggestions(location_names: tuple[str, ...] = ()) -> tuple[str, ...]:
+    """Build onboarding questions from the farmer's configured locations."""
+    names = tuple(name.strip() for name in location_names if name and name.strip())
+    if not names:
+        return INITIAL_SUGGESTIONS
+
+    first = names[0]
+    suggestions = [
+        f"What stats are available for {first}?",
+        f"Show me the soil moisture trend for {first} over the last 24 hours.",
+    ]
+    if len(names) > 1:
+        suggestions.append(f"Compare soil moisture between {first} and {names[1]}.")
+    else:
+        suggestions.append("Which monitored location is driest?")
+    suggestions.extend((
+        "What can FarmPi show me?",
+        "What does DairyNZ say about irrigation scheduling?",
+    ))
+    return tuple(dict.fromkeys(suggestions))
 
 
 def follow_up_suggestions(
@@ -47,16 +69,16 @@ def follow_up_suggestions(
 
     if intent == "farm_inventory_count":
         return (
-            "What stats are available on Paddock B?",
-            "Which paddock is driest?",
-            "Compare soil moisture across the paddocks.",
+            "Which monitored location is driest?",
+            "Compare soil moisture across the monitored locations.",
+            "Show me the soil moisture over the last 24 hours.",
         )
 
     if intent == "farm_inventory_list":
         return (
-            "What stats are available on Paddock 2?",
-            "Which paddock is driest?",
+            "Which monitored location is driest?",
             "Show me the soil moisture over the last 24 hours.",
+            "What measurements are currently available?",
         )
 
     if paddock_name:
