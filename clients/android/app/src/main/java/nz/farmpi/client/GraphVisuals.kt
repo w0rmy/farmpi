@@ -14,9 +14,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import java.time.Instant
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 import kotlin.math.max
 import kotlin.math.min
 
@@ -25,9 +22,6 @@ internal data class GraphSeries(val name: String, val points: List<GraphPoint>)
 
 private data class GraphMode(val key: String, val label: String)
 private data class GraphRange(val lower: Double, val upper: Double)
-
-private val axisTimeFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("dd MMM\nHH:mm").withZone(ZoneOffset.UTC)
 
 @Composable
 internal fun EnhancedChartCard(
@@ -65,7 +59,7 @@ internal fun EnhancedChartCard(
     val xLabels = graphXAxisLabels(series)
     val xAxisTitle = when {
         isComparison -> "Location"
-        series.flatMap { it.points }.any { graphTime(it.label) != null } -> "Time (UTC)"
+        series.flatMap { it.points }.any { graphTime(it.label) != null } -> "Local time"
         else -> "Observation"
     }
     val yAxisTitle = if (unit.isBlank()) title else "$title ($unit)"
@@ -387,8 +381,7 @@ private fun graphXAxisLabels(series: List<GraphSeries>, maximum: Int = 3): List<
 
 private fun shortGraphLabel(value: String): String {
     val trimmed = value.trim()
-    val timestamp = graphTime(trimmed)
-    if (timestamp != null) return axisTimeFormatter.format(Instant.ofEpochMilli(timestamp))
+    graphTimeLabel(trimmed)?.let { return it }
     return trimmed.take(18)
 }
 
