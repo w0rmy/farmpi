@@ -214,3 +214,19 @@ Record `timings.interpretation_ms`, `timings.llm_ms`, total response time, route
 - a forecast/decision boundary such as `What will Fred's soil moisture be tomorrow?` or `Should I irrigate Fred's paddock now?` — no unsupported farm-specific prediction or instruction.
 
 If the 0.6B model becomes unreliable on these linguistic cases, the result is evidence for choosing a larger model; do not move deterministic calculations back into the model to compensate.
+
+
+## Graph screenshot acceptance
+
+For at least one historical time-series chart and one two-location comparison chart, capture the installed Android client and verify:
+
+- the plot background matches the FarmPi light theme and does not inherit an unrelated Material/purple tint;
+- the chart title identifies the measurement;
+- the Y axis is labelled and includes numeric scale values;
+- the X axis is labelled as Time (UTC), Location, or Observation as appropriate;
+- representative X labels are visible and correspond to the actual returned labels;
+- Low / Latest / High values match the plotted dataset;
+- changing Line / Area / Bars / Dots does not change the underlying values;
+- simulated data remains identified elsewhere in the response/status rather than being visually mistaken for physical sensor acceptance.
+
+Screenshots are presentation evidence only. They do not replace deterministic graph-payload tests or physical-sensor acceptance.
