@@ -23,7 +23,7 @@ internal fun graphPosition(label: String, index: Int, count: Int, start: Long?, 
 
 
 private val graphAxisTimeFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("dd MMM\nHH:mm z", Locale.ENGLISH)
+    DateTimeFormatter.ofPattern("dd MMM\nHH:mm", Locale.ENGLISH)
 
 internal fun graphTimeLabel(
     label: String,
