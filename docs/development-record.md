@@ -721,3 +721,22 @@ After the local-time graph changes were merged and installed, real-device testin
 ### Evidence boundary
 
 The source change makes the timestamps structurally visible, but acceptance remains a phone rendering check. Light and Soil Moisture graphs must visibly show the three local-time values after rebuild/install before this presentation issue is considered closed.
+
+
+## 30 September 2026 — simplify graph timezone presentation
+
+### Observation
+
+Real-device testing finally showed the actual Start/Middle/End graph times, confirming that the phone-local conversion and tick layout worked. However, Android rendered the timezone token as `GMT+13:00` rather than the shorter `NZDT`, and the narrow tick columns wrapped it over multiple lines.
+
+### Decision
+
+- Keep UTC as the backend/database/API time basis.
+- Keep Android conversion through the phone system timezone.
+- Remove the repeated timezone token from each graph tick.
+- Show only local date and local clock time at Start/Middle/End.
+- Label the X axis **Local time** so the presentation context remains explicit.
+
+### Evidence boundary
+
+This resolves the formatting defect in source. Final acceptance still requires rebuilding/installing the Android client and confirming the three local timestamps are readable on the target phone.
