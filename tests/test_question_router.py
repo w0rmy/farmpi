@@ -155,9 +155,21 @@ class QuestionRouterTests(unittest.TestCase):
         self.assertEqual(route_question("Guide me").intent, "help")
 
     def test_named_paddock_with_trailing_now(self) -> None:
-        route = route_question("When should I water Fred's paddock now?")
+        cases = (
+            ("When should I water Fred's paddock now?", "Fred's paddock"),
+            ("When should I water Bob's paddock right now?", "Bob's paddock"),
+            ("When should I water Fred’s paddock now?", "Fred’s paddock"),
+        )
+        for question, expected_name in cases:
+            with self.subTest(question=question):
+                route = route_question(question)
+                self.assertEqual(route.intent, "irrigation-decision")
+                self.assertEqual(route.paddock_name, expected_name)
+
+    def test_generic_paddock_now_is_not_a_named_paddock(self) -> None:
+        route = route_question("When should I water the paddock now?")
         self.assertEqual(route.intent, "irrigation-decision")
-        self.assertEqual(route.paddock_name, "Fred's paddock")
+        self.assertIsNone(route.paddock_name)
 
     def test_decision_and_causal_questions_keep_safe_explicit_boundaries(self) -> None:
         self.assertEqual(route_question("Should I irrigate Paddock 2?").intent, "irrigation-decision")
