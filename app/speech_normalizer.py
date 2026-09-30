@@ -99,6 +99,22 @@ def _preserve_case(match: re.Match[str]) -> str:
 def _correct_known_confusions(text: str, paddock_names: Iterable[str]) -> tuple[str, bool]:
     result = text
     changed = False
+
+    # Browser speech transcripts commonly omit apostrophes from possessive
+    # farmer-defined names, e.g. "Freds Paddock" for "Fred's Paddock".
+    # Restore only variants derived from configured active paddock names.
+    for configured_name in paddock_names:
+        canonical = configured_name.replace("’", "'").replace("‘", "'")
+        spoken_variant = canonical.replace("'", "")
+        if spoken_variant.casefold() == canonical.casefold():
+            continue
+        pattern = re.compile(
+            r"(?<![a-z0-9])" + re.escape(spoken_variant) + r"(?![a-z0-9])",
+            re.IGNORECASE,
+        )
+        if pattern.search(result):
+            result = pattern.sub(configured_name, result)
+            changed = True
     if _PADDOCK_CONFUSION_RE.search(result) and _has_farm_context(result, paddock_names):
         result = _PADDOCK_CONFUSION_RE.sub(_preserve_case, result)
         changed = True

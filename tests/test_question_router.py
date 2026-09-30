@@ -166,6 +166,11 @@ class QuestionRouterTests(unittest.TestCase):
                 self.assertEqual(route.intent, "irrigation-decision")
                 self.assertEqual(route.paddock_name, expected_name)
 
+    def test_apostrophe_less_named_paddock_with_trailing_now(self) -> None:
+        route = route_question("When should I water Freds paddock now?")
+        self.assertEqual(route.intent, "irrigation-decision")
+        self.assertEqual(route.paddock_name, "Freds paddock")
+
     def test_generic_paddock_now_is_not_a_named_paddock(self) -> None:
         route = route_question("When should I water the paddock now?")
         self.assertEqual(route.intent, "irrigation-decision")

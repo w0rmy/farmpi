@@ -74,6 +74,14 @@ class SpeechNormalizerTests(unittest.TestCase):
         self.assertEqual(unrelated.normalized_transcript, "What states are available in Australia?")
         self.assertFalse(unrelated.correction_applied)
 
+    def test_spoken_possessive_name_without_apostrophe_uses_configured_name(self) -> None:
+        result = normalize_speech(
+            "Should I water Freds paddock now?",
+            paddock_names=("Bob's paddock", "Fred's paddock"),
+        )
+        self.assertEqual(result.normalized_transcript, "Should I water Fred's paddock now?")
+        self.assertTrue(result.correction_applied)
+
     def test_known_location_matching_accepts_smart_apostrophe(self) -> None:
         result = normalize_speech(
             "What states are available on Fred’s paddock?",

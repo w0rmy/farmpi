@@ -778,3 +778,24 @@ Manual Ask FarmPi testing exposed a deterministic routing defect with the questi
 ### Learning evidence
 
 This defect is an example of why semantic interpretation and deterministic authority need separate responsibilities. Natural-language flexibility can assist interpretation, but known farm identities and decision boundaries still require explicit application validation and regression testing.
+
+
+## 30 September 2026 — correct speech transcripts that omit possessive apostrophes
+
+### Observation
+
+After the first `paddock now` parser fix, real-device testing still produced the same failure for a spoken request. The remaining cause was the Android speech transcript: possessive farmer-defined names can arrive without punctuation, for example `Freds paddock` rather than `Fred's paddock`.
+
+The first parser fix correctly handled typed straight and smart apostrophes, but did not cover this normal speech-recognition form.
+
+### Decision
+
+- derive apostrophe-less speech variants only from the active configured paddock names;
+- restore the configured farmer-facing name before deterministic routing when that exact derived speech variant appears;
+- allow the deterministic parser to recognise the same apostrophe-less possessive form when supplied as text;
+- retain the canonical paddock resolver as the final identity authority;
+- add regression tests for both speech normalisation and routing.
+
+### Learning evidence
+
+This exposed an interface boundary between speech recognition and deterministic application parsing. The correction remains deterministic and data-backed: FarmPi uses its configured paddock identities to normalise a known speech variant rather than asking the language model to guess a farm identity.
