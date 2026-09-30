@@ -799,3 +799,21 @@ The first parser fix correctly handled typed straight and smart apostrophes, but
 ### Learning evidence
 
 This exposed an interface boundary between speech recognition and deterministic application parsing. The correction remains deterministic and data-backed: FarmPi uses its configured paddock identities to normalise a known speech variant rather than asking the language model to guess a farm identity.
+
+
+## 30 September 2026 — regression from apostrophe-less paddock-name support
+
+### Observation
+
+The first implementation of apostrophe-less possessive-name support was too permissive. It allowed the optional possessive marker to match ordinary grammar such as `is Paddock` in questions like `What is Paddock A's humidity?`. That corrupted the extracted paddock candidate to `is Paddock` and caused existing router tests to fail. A downstream farm-data test then entered alias resolution and attempted database access because the corrupted name no longer matched the supplied snapshot exactly.
+
+### Correction
+
+- require an explicit apostrophe for short possessive forms;
+- allow apostrophe-less speech forms only when the possessive token is long enough to be a plausible name ending in `s`;
+- continue excluding common pronouns such as `this`, `his` and `its`;
+- retain regression coverage for ordinary `What is Paddock X...` questions as well as `Freds paddock` speech input.
+
+### Learning evidence
+
+The failed test run was useful evidence of regression testing catching an over-broad natural-language rule before deployment. The correction narrows the deterministic parser instead of weakening identity validation.
