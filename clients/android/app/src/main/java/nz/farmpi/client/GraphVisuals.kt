@@ -60,7 +60,7 @@ internal fun EnhancedChartCard(
     val hasTimeAxis = series.flatMap { it.points }.any { graphTime(it.label) != null }
     val xAxisTitle = when {
         isComparison -> "Location"
-        hasTimeAxis -> "Time"
+        hasTimeAxis -> "Local time"
         else -> "Observation"
     }
     val yAxisTitle = if (unit.isBlank()) title else "$title ($unit)"
