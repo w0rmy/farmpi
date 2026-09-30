@@ -225,7 +225,7 @@ FarmPi continues to store and exchange operational timestamps in UTC. The Androi
 
 For timestamped graphs, the client parses the backend timestamp as an absolute instant and formats the X-axis tick labels using the phone's current system timezone (`ZoneId.systemDefault()`). This means NZST/NZDT and other daylight-saving transitions follow the device operating-system timezone rules automatically.
 
-The graph X-axis caption is simply **Time**. The actual tick labels show the converted local date, time and timezone abbreviation, for example `28 Sep / 18:35 NZDT`. Changing timezone presentation does not alter graph ordering, spacing, calculations, stored timestamps or API values; those continue to use the UTC instant.
+The graph X-axis caption is **Local time**. The actual tick labels show the converted local date and clock time, for example `28 Sep / 18:35`. The timezone is not repeated under every tick because the phone's current timezone already defines the presentation context. Changing timezone presentation does not alter graph ordering, spacing, calculations, stored timestamps or API values; those continue to use the UTC instant.
 
 
 ## Explicit graph time ticks — 28 September 2026
@@ -235,3 +235,10 @@ Real-device acceptance showed that changing the graph caption to local time was 
 Timestamped graphs now reserve a dedicated row beneath the plot for three representative local-time positions: **Start**, **Middle**, and **End**. Each position renders the local date plus a stronger clock/timezone value such as `18:35 NZDT`. The axis caption remains **Time**.
 
 This is presentation-only. The underlying timestamps, point ordering, spacing, calculations and API/database values remain UTC-based.
+
+
+## Local-time tick readability — 30 September 2026
+
+Real-device review showed that Android may format the short timezone token as `GMT+13:00` rather than `NZDT`. Repeating that value beneath Start/Middle/End caused wrapping and reduced readability.
+
+The graph now shows only the local date and clock time at each representative tick and labels the axis **Local time**. UTC remains the backend/database authority; this change is presentation-only.
