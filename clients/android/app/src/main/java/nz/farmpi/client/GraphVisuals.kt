@@ -60,7 +60,7 @@ internal fun EnhancedChartCard(
     val hasTimeAxis = series.flatMap { it.points }.any { graphTime(it.label) != null }
     val xAxisTitle = when {
         isComparison -> "Location"
-        hasTimeAxis -> "Time"
+        hasTimeAxis -> "Local time"
         else -> "Observation"
     }
     val yAxisTitle = if (unit.isBlank()) title else "$title ($unit)"
@@ -113,7 +113,7 @@ internal fun EnhancedChartCard(
                 color = FarmPiSurfaceMuted,
                 contentColor = MaterialTheme.colorScheme.onSurface,
             ) {
-                Column(Modifier.padding(horizontal = 12.dp, vertical = 14.dp)) {
+                Column(Modifier.padding(horizontal = 8.dp, vertical = 14.dp)) {
                     Text(
                         "Y axis · $yAxisTitle",
                         style = MaterialTheme.typography.labelMedium,
@@ -123,7 +123,7 @@ internal fun EnhancedChartCard(
                     Spacer(Modifier.height(8.dp))
                     Row(Modifier.fillMaxWidth()) {
                         Column(
-                            modifier = Modifier.width(64.dp).height(220.dp),
+                            modifier = Modifier.width(50.dp).height(220.dp),
                             verticalArrangement = Arrangement.SpaceBetween,
                         ) {
                             graphTicks(range).reversed().forEach { value ->
@@ -134,7 +134,7 @@ internal fun EnhancedChartCard(
                                 )
                             }
                         }
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(4.dp))
                         ChartCanvas(
                             mode = selectedMode,
                             series = series,
@@ -148,7 +148,7 @@ internal fun EnhancedChartCard(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 72.dp)
+                                .padding(start = 54.dp)
                                 .heightIn(min = if (hasTimeAxis) 54.dp else 28.dp),
                         ) {
                             xLabels.forEachIndexed { index, label ->
@@ -203,7 +203,7 @@ internal fun EnhancedChartCard(
                     }
                     Text(
                         "X axis · $xAxisTitle",
-                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp, start = 72.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp, start = 54.dp),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
