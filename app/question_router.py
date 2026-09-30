@@ -29,7 +29,10 @@ _PADDOCK_RE = re.compile(r"\b(paddock\s+[a-z0-9_-]+)\b", re.IGNORECASE)
 _FIELD_RE = re.compile(r"\b(field\s+(?:\d+|[a-p]))\b", re.IGNORECASE)
 _NUMBERED_PADDOCK_RE = re.compile(r"\b(?:(?:paddock|field)\s+)?number\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen)\b", re.IGNORECASE)
 _POSSESSIVE_RE = re.compile(r"\b([a-z][a-z0-9 '&-]{0,98}?)'s\s+(?:soil\s+)?(?:moisture|temperature|humidity|ph|ec|light|rainfall|pressure|wind|pasture|grass|leaf)", re.IGNORECASE)
-_NAMED_POSSESSIVE_PADDOCK_RE = re.compile(r"\b([a-z0-9_-]+(?:'|’)s\s+paddock)\b", re.IGNORECASE)
+_NAMED_POSSESSIVE_PADDOCK_RE = re.compile(
+    r"\b((?!(?:this|his|its)\s+paddock\b)[a-z0-9_-]+(?:'|’)?s\s+paddock)\b",
+    re.IGNORECASE,
+)
 _MEASUREMENT_LOCATION_RE = re.compile(r"\b(?:in|for|at)\s+([a-z][a-z0-9 '&-]{0,98}?)(?=\s+(?:over|during|in)\s+(?:the\s+)?(?:last|past)\b|[?!.]|$)", re.IGNORECASE)
 _WINDOW_RE = re.compile(
     r"\b(?:(?:over|during|in|for)\s+(?:the\s+)?(?:(?:last|past)\s+)?|(?:last|past)\s+)"
