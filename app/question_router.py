@@ -29,6 +29,7 @@ _PADDOCK_RE = re.compile(r"\b(paddock\s+[a-z0-9_-]+)\b", re.IGNORECASE)
 _FIELD_RE = re.compile(r"\b(field\s+(?:\d+|[a-p]))\b", re.IGNORECASE)
 _NUMBERED_PADDOCK_RE = re.compile(r"\b(?:(?:paddock|field)\s+)?number\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen)\b", re.IGNORECASE)
 _POSSESSIVE_RE = re.compile(r"\b([a-z][a-z0-9 '&-]{0,98}?)'s\s+(?:soil\s+)?(?:moisture|temperature|humidity|ph|ec|light|rainfall|pressure|wind|pasture|grass|leaf)", re.IGNORECASE)
+_NAMED_POSSESSIVE_PADDOCK_RE = re.compile(r"\b([a-z0-9_-]+(?:'|’)s\s+paddock)\b", re.IGNORECASE)
 _MEASUREMENT_LOCATION_RE = re.compile(r"\b(?:in|for|at)\s+([a-z][a-z0-9 '&-]{0,98}?)(?=\s+(?:over|during|in)\s+(?:the\s+)?(?:last|past)\b|[?!.]|$)", re.IGNORECASE)
 _WINDOW_RE = re.compile(
     r"\b(?:(?:over|during|in|for)\s+(?:the\s+)?(?:(?:last|past)\s+)?|(?:last|past)\s+)"
@@ -109,10 +110,13 @@ def _extract_paddock(question: str, *, allow_measurement_location: bool = False)
     numbered = _NUMBERED_PADDOCK_RE.search(question)
     if numbered and (("paddock" in question.casefold() or "field" in question.casefold()) or _FOLLOW_UP_RE.match(question) or measurement_for_text(question)):
         return _canonical_paddock_name(numbered.group(0))
+    named_possessive = _NAMED_POSSESSIVE_PADDOCK_RE.search(question)
+    if named_possessive:
+        return _canonical_paddock_name(named_possessive.group(1))
     direct = _PADDOCK_RE.search(question) or _FIELD_RE.search(question)
     if direct:
         direct_text = direct.group(1).casefold()
-        generic_suffixes = {"is", "are", "please", "graph", "chart", "data", "today", "over", "for", "profile"}
+        generic_suffixes = {"is", "are", "please", "graph", "chart", "data", "today", "now", "currently", "right", "over", "for", "profile"}
         if direct_text not in {"paddock is", "paddock are"} and direct_text.split(maxsplit=1)[-1] not in generic_suffixes:
             return _canonical_paddock_name(direct.group(1))
     possessive = _POSSESSIVE_RE.search(question)

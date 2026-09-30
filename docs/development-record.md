@@ -760,3 +760,21 @@ This increases plotting width without changing graph values, scaling, time posit
 ### Evidence boundary
 
 The layout change remains subject to real-device acceptance. Y-axis numbers must remain readable while the graph should visibly use more of the phone width.
+
+
+## 30 September 2026 — fix named-paddock parsing in decision questions
+
+### Observation
+
+Manual Ask FarmPi testing exposed a deterministic routing defect with the question `Should I irrigate Fred's paddock now?`. The generic `paddock <token>` matcher interpreted the trailing phrase `paddock now` as a conventional paddock identifier and passed `Paddock now` to the canonical paddock resolver. The resolver then correctly rejected that identity and listed the active paddocks.
+
+### Decision
+
+- recognise possessive farmer-facing names such as `Fred's paddock` and `Bob's paddock` before applying the generic `Paddock X` matcher;
+- treat temporal/conversational suffixes such as `now`, `currently` and `right` as non-identifiers in the generic matcher;
+- keep the irrigation question on the deterministic authority-boundary route rather than pushing a known parsing defect into the semantic model;
+- add regression coverage for trailing time wording and smart apostrophes.
+
+### Learning evidence
+
+This defect is an example of why semantic interpretation and deterministic authority need separate responsibilities. Natural-language flexibility can assist interpretation, but known farm identities and decision boundaries still require explicit application validation and regression testing.
