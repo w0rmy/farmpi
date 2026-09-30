@@ -740,3 +740,23 @@ Real-device testing finally showed the actual Start/Middle/End graph times, conf
 ### Evidence boundary
 
 This resolves the formatting defect in source. Final acceptance still requires rebuilding/installing the Android client and confirming the three local timestamps are readable on the target phone.
+
+
+## 30 September 2026 — widen phone graph plotting area
+
+### Observation
+
+Real-device graph review showed that the plotting rectangle was unnecessarily compressed toward the right side of the card. The Y-axis label gutter reserved 64 dp plus an 8 dp gap before the plot, in addition to the graph card's horizontal padding. On the target phone this consumed too much of the available width.
+
+### Decision
+
+- reduce the Y-axis numeric gutter from 64 dp to 50 dp;
+- reduce the gap between Y-axis labels and the plot from 8 dp to 4 dp;
+- reduce graph-surface horizontal padding from 12 dp to 8 dp;
+- move the Start/Middle/End tick row and X-axis caption left to the same 54 dp plot inset.
+
+This increases plotting width without changing graph values, scaling, time positioning or measurement calculations.
+
+### Evidence boundary
+
+The layout change remains subject to real-device acceptance. Y-axis numbers must remain readable while the graph should visibly use more of the phone width.
