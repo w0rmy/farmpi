@@ -154,6 +154,11 @@ class QuestionRouterTests(unittest.TestCase):
         self.assertEqual((route.intent, route.paddock_name, route.new_paddock_name), ("rename-request", "Paddock A", "North Flat"))
         self.assertEqual(route_question("Guide me").intent, "help")
 
+    def test_named_paddock_with_trailing_now(self) -> None:
+        route = route_question("When should I water Fred's paddock now?")
+        self.assertEqual(route.intent, "irrigation-decision")
+        self.assertEqual(route.paddock_name, "Fred's paddock")
+
     def test_decision_and_causal_questions_keep_safe_explicit_boundaries(self) -> None:
         self.assertEqual(route_question("Should I irrigate Paddock 2?").intent, "irrigation-decision")
         self.assertEqual(route_question("Should I irrigate Paddock 2?").paddock_name, "Paddock 2")
