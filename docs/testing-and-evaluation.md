@@ -270,8 +270,8 @@ Automated JVM coverage verifies that `2026-09-28T05:35:00Z` formats as `28 Sep 1
 
 On the installed Android client, verify a graph generated from a known recent UTC database row:
 
-- the X-axis caption reads **Time**;
-- timestamp tick labels show the actual local date/time and timezone abbreviation, for example `28 Sep 18:35 NZDT`;
+- the X-axis caption reads **Local time**;
+- timestamp tick labels show the actual local date/time, for example `28 Sep 18:35`;
 - the displayed time agrees with the phone clock/timezone;
 - changing the phone timezone and reopening/re-rendering the graph changes only the displayed labels, not the data values or point spacing;
 - no user-configurable FarmPi timezone setting is required.
@@ -367,8 +367,7 @@ Acceptance requires:
 
 - a visible **Start / Middle / End** row beneath the plot;
 - each position shows an actual local date and clock value, not only an axis caption;
-- the local timezone abbreviation is visible, e.g. `NZDT`;
-- the X-axis caption reads **Time**;
+- the X-axis caption reads **Local time**;
 - the displayed times agree with the phone timezone;
 - graph values and point spacing are unchanged.
 
