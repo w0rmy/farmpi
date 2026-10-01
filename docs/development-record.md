@@ -817,3 +817,24 @@ The first implementation of apostrophe-less possessive-name support was too perm
 ### Learning evidence
 
 The failed test run was useful evidence of regression testing catching an over-broad natural-language rule before deployment. The correction narrows the deterministic parser instead of weakening identity validation.
+
+
+## 1 October 2026 — distinguish unsupported measurements from unclear language
+
+### Observation
+
+Manual Ask FarmPi testing asked `What is the nitrogen level in Fred's paddock?`. FarmPi did not fabricate a nitrogen reading, but it returned a semantic-clarification response saying it was not confident it understood the request.
+
+The wording was clear. The actual issue was that nitrogen is not part of FarmPi's supported measurement catalogue. Treating that as ambiguous language gives the user the wrong explanation for the failure.
+
+### Decision
+
+- add a constrained semantic intent for an explicitly requested but unsupported farm measurement;
+- let the language model identify the requested concept, but keep the application catalogue authoritative about whether that measurement exists;
+- return a deterministic capability-boundary response rather than asking the user to rephrase;
+- expose the result as first-class trusted FarmPi capability information, not model knowledge;
+- retain the requested location only as context and never invent a value.
+
+### Learning evidence
+
+This test further clarified the separation between semantic interpretation and deterministic authority. The semantic layer can understand that the user means nitrogen; only the deterministic application layer can decide that nitrogen is unsupported and therefore no FarmPi value exists.
