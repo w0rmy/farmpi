@@ -89,6 +89,7 @@ _ALLOWED_INTENTS = {
     "irrigation-decision",
     "learning",
     "research",
+    "unsupported-measurement",
     "clarify",
 }
 
@@ -138,12 +139,13 @@ Interpret ordinary, polite, colloquial, regional, accented/transcribed, or incom
 Do not execute anything and do not answer the user's question.
 Return ONE JSON object only, with these keys:
 intent, confidence, paddock_name, new_paddock_name, measurement, operation, window_minutes, topic, reason.
-Allowed intent values: rename, current, average, highest, lowest, comparison, history, trend, summary, list-paddocks, count-paddocks, capability, irrigation-decision, learning, research, clarify.
-Allowed measurement values: {measurements}. Use null when no FarmPi measurement is requested.
+Allowed intent values: rename, current, average, highest, lowest, comparison, history, trend, summary, list-paddocks, count-paddocks, capability, irrigation-decision, learning, research, unsupported-measurement, clarify.
+Allowed measurement values: {measurements}. Use null when no supported FarmPi measurement maps to the request; if the user clearly asks for an unsupported farm measurement, use unsupported-measurement and put the requested concept in topic.
 Use field and paddock as conversational synonyms. For rename requests, separate conversational politeness from the requested name: a trailing 'please' is normally politeness, but preserve it if the user clearly says it is part of the new name.
 Use learning as the compatibility intent for general informational questions, including non-farming topics, agricultural concepts and explanations such as 'why'. It does not imply a course or lesson.
 Use research when the user explicitly asks what an external organisation/source says, asks for current external information, or asks FarmPi to look something up.
 Use irrigation-decision for a farm-specific question asking whether/when to irrigate; do not make the decision yourself.
+Use unsupported-measurement when the user clearly asks for a farm measurement or sensor value that is not in the allowed FarmPi measurement list. Put the requested concept in topic, keep measurement null, and preserve any stated paddock name.
 For a farm-data request, extract only entities that are actually expressed or strongly implied. Known active paddocks: {known}.
 Confidence is a number from 0 to 1. If meaning is genuinely ambiguous, use clarify rather than inventing details.
 Examples:
@@ -153,6 +155,7 @@ Examples:
 'Which field is looking driest?' -> lowest, measurement='soil_moisture_pct'.
 'Why do cows get milk fever?' -> learning, topic='milk fever in dairy cows'.
 'What does DairyNZ say about irrigation scheduling?' -> research, topic='DairyNZ irrigation scheduling'.
+'What is the nitrogen level in Fred\'s paddock?' -> unsupported-measurement, paddock_name='Fred\'s paddock', measurement=null, topic='nitrogen'.
 """
     return {
         "model": "FarmPi-reference",
@@ -262,6 +265,8 @@ def route_from_interpretation(value: SemanticInterpretation) -> QuestionRoute:
         return QuestionRoute("paddock_summary", paddock_name=value.paddock_name)
     if value.intent == "irrigation-decision":
         return QuestionRoute("irrigation-decision", paddock_name=value.paddock_name)
+    if value.intent == "unsupported-measurement":
+        return QuestionRoute("unsupported-measurement", paddock_name=value.paddock_name, education_key=value.topic)
 
     if value.intent in {"learning", "research"}:
         return QuestionRoute(

@@ -739,6 +739,25 @@ async def ask(request: AskRequest) -> AskResponse:
             provenance=[{"kind": "deterministic-action", "source": "FarmPi paddock administration", "status": "awaiting-confirmation"}],
         )
 
+    if route.intent == "unsupported-measurement":
+        topic = (route.education_key or "that measurement").strip()
+        capability = get_grounding_data("capability")
+        location_text = f" for {route.paddock_name}" if route.paddock_name else ""
+        answer = (
+            f"FarmPi does not have a supported {topic} measurement{location_text}, so it cannot report that value. "
+            + " ".join(capability.facts[:2])
+        )
+        return direct_action(
+            answer,
+            "unsupported-measurement",
+            source_category="authoritative",
+            source_tier="first-class-trusted",
+            provenance=[
+                {"kind": "deterministic-capability", "source": "FarmPi reviewed measurement catalogue"},
+                {"kind": "interpretation", "source": "FarmPi semantic user-intent layer", "topic": topic},
+            ],
+        )
+
     if route.intent == "semantic-clarification":
         return direct_action(
             "I’m not confident I understood that well enough to choose a FarmPi action. Could you say it another way or tell me what you want to view, understand, or change?",
