@@ -92,6 +92,23 @@ class SemanticInterpreterTests(unittest.TestCase):
         }))
         self.assertEqual(route_from_interpretation(interpretation).intent, "agriculture-research")
 
+    def test_unsupported_measurement_maps_to_capability_boundary(self) -> None:
+        interpretation = parse_semantic_interpretation(json.dumps({
+            "intent": "unsupported-measurement",
+            "confidence": 0.96,
+            "paddock_name": "Fred's paddock",
+            "new_paddock_name": None,
+            "measurement": None,
+            "operation": None,
+            "window_minutes": None,
+            "topic": "nitrogen",
+            "reason": "Nitrogen is not in the allowed FarmPi measurement list.",
+        }))
+        route = route_from_interpretation(interpretation)
+        self.assertEqual(route.intent, "unsupported-measurement")
+        self.assertEqual(route.paddock_name, "Fred's paddock")
+        self.assertEqual(route.education_key, "nitrogen")
+
     def test_low_confidence_action_requires_clarification(self) -> None:
         interpretation = parse_semantic_interpretation('{"intent":"rename","confidence":0.31,"paddock_name":"Paddock A","new_paddock_name":"North Flat"}')
         self.assertEqual(route_from_interpretation(interpretation).intent, "semantic-clarification")
@@ -159,6 +176,26 @@ class OpenLearningAskTests(unittest.TestCase):
         self.assertEqual(response.semantic_interpretation["topic"], "milk fever in dairy cows")
         self.assertTrue(any(item.get("kind") == "general-explanation" for item in response.provenance))
         self.assertEqual(client.calls, 2)
+
+    @patch("app.app.current_paddock_names", return_value=("Bob's paddock", "Fred's paddock"))
+    def test_unsupported_measurement_returns_deterministic_capability_answer(self, _names) -> None:
+        client = _SequenceClient([
+            '{"intent":"unsupported-measurement","confidence":0.98,"paddock_name":"Fred\\'s paddock","new_paddock_name":null,"measurement":null,"operation":null,"window_minutes":null,"topic":"nitrogen","reason":"unsupported measurement"}',
+        ])
+        old_client = getattr(app.state, "http_client", None)
+        app.state.http_client = client
+        try:
+            response = asyncio.run(ask(AskRequest(question="What is the nitrogen level in Fred's paddock?")))
+        finally:
+            if old_client is None:
+                delattr(app.state, "http_client")
+            else:
+                app.state.http_client = old_client
+        self.assertEqual(response.intent, "unsupported-measurement")
+        self.assertIn("does not have a supported nitrogen measurement", response.answer)
+        self.assertEqual(response.source_tier, "first-class-trusted")
+        self.assertTrue(any(item.get("kind") == "deterministic-capability" for item in response.provenance))
+        self.assertEqual(client.calls, 1)
 
     @patch("app.app.prepare_rename")
     @patch("app.app.current_paddock_names", return_value=("Paddock A",))
