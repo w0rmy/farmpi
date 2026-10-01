@@ -180,7 +180,17 @@ class OpenLearningAskTests(unittest.TestCase):
     @patch("app.app.current_paddock_names", return_value=("Bob's paddock", "Fred's paddock"))
     def test_unsupported_measurement_returns_deterministic_capability_answer(self, _names) -> None:
         client = _SequenceClient([
-            '{"intent":"unsupported-measurement","confidence":0.98,"paddock_name":"Fred\\'s paddock","new_paddock_name":null,"measurement":null,"operation":null,"window_minutes":null,"topic":"nitrogen","reason":"unsupported measurement"}',
+            json.dumps({
+                "intent": "unsupported-measurement",
+                "confidence": 0.98,
+                "paddock_name": "Fred's paddock",
+                "new_paddock_name": None,
+                "measurement": None,
+                "operation": None,
+                "window_minutes": None,
+                "topic": "nitrogen",
+                "reason": "unsupported measurement",
+            }),
         ])
         old_client = getattr(app.state, "http_client", None)
         app.state.http_client = client
