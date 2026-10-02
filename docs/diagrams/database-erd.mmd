@@ -16,15 +16,18 @@ erDiagram
     string node_uid
     string name
     string hardware_uid
+    string device_key_hash
     string registration_state
     string firmware_version
     string board_profile
     text capabilities_json
+    text live_capabilities_json
     text desired_config_json
     text applied_config_json
     string desired_fingerprint
     string applied_fingerprint
     string failed_fingerprint
+    string config_error
     datetime last_seen
     bigint location_epoch
   }
@@ -33,11 +36,15 @@ erDiagram
     bigint id
     int sensor_node_id
     int paddock_id
-    datetime observed_at
-    datetime received_at
-    bigint sample_seq
+    decimal soil_moisture_pct
     bool simulated
     text measurement_modes_json
+    datetime observed_at
+    datetime received_at
+    bool clock_valid
+    decimal clock_offset_seconds
+    bool clock_out_of_tolerance
+    bigint sample_seq
     smallint protocol_version
   }
 
