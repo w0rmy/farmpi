@@ -177,21 +177,8 @@ class OpenLearningAskTests(unittest.TestCase):
         self.assertTrue(any(item.get("kind") == "general-explanation" for item in response.provenance))
         self.assertEqual(client.calls, 2)
 
-    @patch("app.app.current_paddock_names", return_value=("Bob's paddock", "Fred's paddock"))
-    def test_unsupported_measurement_returns_deterministic_capability_answer(self, _names) -> None:
-        client = _SequenceClient([
-            json.dumps({
-                "intent": "unsupported-measurement",
-                "confidence": 0.98,
-                "paddock_name": "Fred's paddock",
-                "new_paddock_name": None,
-                "measurement": None,
-                "operation": None,
-                "window_minutes": None,
-                "topic": "nitrogen",
-                "reason": "unsupported measurement",
-            }),
-        ])
+    def test_unsupported_measurement_returns_deterministic_capability_answer(self) -> None:
+        client = _SequenceClient([])
         old_client = getattr(app.state, "http_client", None)
         app.state.http_client = client
         try:
@@ -205,7 +192,8 @@ class OpenLearningAskTests(unittest.TestCase):
         self.assertIn("does not have a supported nitrogen measurement", response.answer)
         self.assertEqual(response.source_tier, "first-class-trusted")
         self.assertTrue(any(item.get("kind") == "deterministic-capability" for item in response.provenance))
-        self.assertEqual(client.calls, 1)
+        self.assertIsNone(response.semantic_interpretation)
+        self.assertEqual(client.calls, 0)
 
     @patch("app.app.prepare_rename")
     @patch("app.app.current_paddock_names", return_value=("Paddock A",))
