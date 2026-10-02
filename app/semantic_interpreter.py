@@ -69,7 +69,6 @@ _AMBIGUOUS_FAST_ROUTES = {
     "interpretation-boundary",
     "measurement-fallback",
     "operational-decision",
-    "forecast-boundary",
     "causal-boundary",
 }
 
