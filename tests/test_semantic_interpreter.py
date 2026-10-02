@@ -90,6 +90,11 @@ class SemanticInterpreterTests(unittest.TestCase):
         self.assertEqual(route.intent, "agriculture-learning")
         self.assertEqual(route.education_key, "milk fever in dairy cows")
 
+    def test_spaced_dairy_nz_is_recognised_as_external_source(self) -> None:
+        question = "What does Dairy NZ say about irrigation scheduling?"
+        fast = route_question(question)
+        self.assertTrue(needs_semantic_interpretation(question, fast))
+
     def test_explicit_source_question_becomes_research_route(self) -> None:
         interpretation = parse_semantic_interpretation(json.dumps({
             "intent": "research",
@@ -137,6 +142,9 @@ class SemanticInterpreterTests(unittest.TestCase):
     def test_dairynz_irrigation_source_has_reviewed_claims(self) -> None:
         context, sources = format_source_context("What does DairyNZ say about irrigation scheduling?")
         self.assertTrue(any(source.organisation == "DairyNZ" for source in sources))
+        spaced_context, spaced_sources = format_source_context("What does Dairy NZ say about irrigation scheduling?")
+        self.assertTrue(any(source.organisation == "DairyNZ" for source in spaced_sources))
+        self.assertIn("DairyNZ", spaced_context)
         self.assertIn("refill point", context)
         self.assertIn("Do not say they were searched live", context)
         provenance = provenance_for_sources(sources)
