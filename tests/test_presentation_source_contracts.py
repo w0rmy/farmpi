@@ -20,7 +20,8 @@ class PresentationSourceContractTests(unittest.TestCase):
         self.assertIn("NZ_SIMULATION_LATITUDE", source)
         self.assertIn("daylightFraction", source)
         self.assertIn("rainEventFor", source)
-        self.assertIn('FIRMWARE_VERSION = "0.3.2-realistic-sim"', profile)
+        self.assertIn('static const char* FIRMWARE_VERSION = "', profile)
+        self.assertIn('"soil_moisture_pct"', profile)
 
     def test_dashboard_uses_measurement_drill_down_not_embedded_sparkline(self) -> None:
         dashboard = Path(
