@@ -1,5 +1,7 @@
 # Android UI retirement audit — 26 September 2026
 
+> **Historical transition record.** Retained as development evidence. It describes the state and decisions at the date in the title and is not a current-state authority. See [the documentation index](README.md) for current guides.
+
 Base: `333ed91` (current main at the start of this change).
 Branch: `refactor/android-monitoring-ui`.
 

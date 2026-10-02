@@ -1,6 +1,6 @@
 # ESP32-S3 registration and configuration block
 
-> **Status update - 26 September 2026:** The registration/configuration block described below has now been implemented and merged to `main`, and two ESP32-S3 boards have reached the live FarmPi discovery/registration path. Use [s3-node-bringup.md](s3-node-bringup.md) and the [development record](development-record.md) for current live status and remaining physical-sensor evidence. This file remains the implementation-plan/rationale record.
+> **Historical implementation-plan record.** The registration/configuration block described below was written before the current Android mode-administration workflow and before the first physical LIVE driver existed. It is retained as design/rationale evidence, not as a current-state authority. Use [s3-node-bringup.md](s3-node-bringup.md), [data-and-api.md](data-and-api.md), and the [development record](development-record.md) for current behaviour.
 
 Inspection baseline: `da6a109671ff9f5ce43dc3339ab256e0954d4e0d`, from `F:/FarmPi`, 26 September 2026. Work takes place in an isolated checkout; staged Android icon work in the original checkout is not part of this change.
 
@@ -27,6 +27,8 @@ Jeremy corrected the proposal to hard-code six physical values: each node must b
 
 Test two discoveries/registrations, all-disabled initial state, per-node isolation, hash stability/mismatch, latest-state application and stale acknowledgement handling, rejected configuration retaining working state, sparse telemetry, disabled/unsupported measurements, provenance, retry/time semantics and history location preservation. Hardware tests must separately cover two real S3s, reboots and unavailable FarmPi. T01 remains pending until all six FR01 physical measurements and FR02 identity/provenance are demonstrated. Exact probe electronics and final board pin assignments require the actual board and probe identification.
 
-## 27 September reconciliation update
+## 27 September reconciliation update — historical snapshot
 
-The implementation now retains PR #10’s schema-v2 configuration and per-measurement provenance while adding console-only mode control, all-13 simulation and separate LIVE-driver advertisement. Android does not change modes. Physical T01 acceptance remains unchanged. See the [transition record](database-transition-2026-09-27.md).
+At that checkpoint the implementation retained PR #10’s schema-v2 configuration and per-measurement provenance while adding console-only mode control, all-13 simulation and separate LIVE-driver advertisement. Android did not yet change modes.
+
+**Current status (2 October 2026):** Android Node Detail now administers OFF/SIMULATED/LIVE modes using the complete desired configuration and expected fingerprint; the console helper is an alternative administration path. `soil_moisture_pct` now has the first physical LIVE driver and has been accepted end to end on FP-001. T01 remains PARTIAL because only 1 of the 6 required physical measurements has been demonstrated. See the [current S3 bring-up guide](s3-node-bringup.md) and [transition record](database-transition-2026-09-27.md).

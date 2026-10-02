@@ -35,7 +35,7 @@ sensor / simulator --> transport --> authenticated ingest --> FastAPI --> MariaD
 - `app/farm_data.py`, `app/analytics.py`, `app/measurements.py`, and `app/paddock_resolver.py` own farm facts, calculations, measurement metadata/capabilities, graph inputs, and identity resolution.
 - `app/knowledge_sources.py` stores the source hierarchy, curated NZ source metadata, and reviewed claims. It is not a live search engine.
 - `app/llm_compat.py` normalises OpenAI-compatible chat requests and preserves one integration contract across supported model servers.
-- `app/education.py`, `app/learning.py`, and course-specific parts of `app/guidance.py` are legacy modules from the earlier learning-focused direction. They remain in the current revision where referenced, but the current client direction is to remove course/module/progress surfaces while retaining ordinary contextual explanation and application guidance.
+- `app/education.py`, `app/learning.py`, and course-specific parts of `app/guidance.py` are legacy backend modules from the earlier learning-focused direction. Android course/module/progress surfaces have been removed; the remaining backend contracts are compatibility/history only. Ordinary contextual explanation and application guidance remain current functionality.
 - `app/node_api.py` and `app/node_config.py` own managed physical-node discovery, administrator approval, desired/applied configuration fingerprints, latest-state synchronisation and node status.
 - `app/monitoring_api.py` exposes deterministic structured dashboard state for Android. It combines configured locations, latest stored measurements, provenance/age metadata, farm summary values and the existing verified chart payload without involving the LLM.
 - `app/ingest_api.py` and `app/sensor_ingest.py` validate, authenticate, timestamp, deduplicate, and store telemetry.
@@ -50,7 +50,7 @@ FarmPi now separates four concepts that must not be collapsed:
 3. **Per-node desired configuration** - one explicit OFF, SIMULATED, or LIVE mode for every measurement capability advertised by that registered node.
 4. **Runtime/reporting state** - whether the measurement in its current mode is actually producing observations. A recent simulated observation must not make a newly selected LIVE mode appear to be reporting.
 
-FR01 still requires the final T01 concept-demonstrator evidence to show six physical measurements: soil moisture, soil temperature, air temperature, relative humidity, ambient light and barometric pressure. That is an **acceptance requirement for the completed physical prototype**, not a requirement that every node or every telemetry payload contain all six values.
+FR01 still defines six physical measurements for complete T01 acceptance: soil moisture, soil temperature, air temperature, relative humidity, ambient light and barometric pressure. Current T01 status is **PARTIAL (1/6 physical measurements demonstrated)**: the XC4604 soil-moisture path is accepted end to end, while the other five physical channels remain undemonstrated. This is an acceptance requirement, not a requirement that every node or telemetry payload contain all six values.
 
 Managed telemetry is sparse. OFF produces no value. SIMULATED produces a bounded node-local test value. LIVE submits a value only when the physical driver succeeds. FarmPi does not fabricate zeroes or placeholders to make a row appear complete. Missing values remain absent/SQL `NULL`. Per-measurement source mode is stored with the observation so a development sample can distinguish simulated and live values.
 
@@ -142,7 +142,7 @@ clients/android/        native Kotlin/Jetpack Compose client and device-local pr
 config/                 Caddy, systemd, database schema and repeatable seed
 docs/                   current architecture, deployment, AI/data and evaluation docs
 firmware/esp32-sensor/  legacy opt-in 16-location synthetic test/demo firmware
-firmware/esp32-s3-node/ managed registration/configuration plus node-local simulation and later physical drivers
+firmware/esp32-s3-node/ managed registration/configuration, node-local simulation and advertised physical LIVE drivers
 scripts/                database and service installation helpers
 tests/                  deterministic behavioural and integration-contract tests
 update                  repeatable Pi update/validation entry point
@@ -152,4 +152,4 @@ See the maintained Mermaid sources in [diagrams](diagrams/README.md).
 
 ### Reconciled source-mode administration
 
-Android edits node names and location assignment and shows sensor modes read-only. The Pi console helper changes modes. Firmware advertises configurable capabilities separately from LIVE-driver capabilities; all 13 keys are simulatable, with no LIVE drivers in this revision. The merged per-measurement provenance and location-history model remains in place. See the [transition record](database-transition-2026-09-27.md).
+Android Node Detail edits friendly node name, location assignment and the complete OFF/SIMULATED/LIVE mode map using the current expected fingerprint. The Pi console helper remains an administrative alternative. Firmware advertises configurable capabilities separately from physical LIVE-driver capabilities: all 13 catalogue keys are simulatable, while `soil_moisture_pct` is currently the one advertised LIVE driver. Per-measurement provenance and location-history capture remain in place. See the [current S3 guide](s3-node-bringup.md) and the historical [transition record](database-transition-2026-09-27.md).

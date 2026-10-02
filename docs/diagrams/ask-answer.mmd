@@ -1,24 +1,32 @@
 sequenceDiagram
   participant U as User
-  participant C as Client
-  participant F as FarmPi
-  participant D as MariaDB
+  participant C as Android / client
+  participant F as FarmPi API
+  participant S as Semantic interpreter
+  participant D as Deterministic application + MariaDB
   participant Q as Qwen
-  U->>C: speak/type question
-  C->>F: question + alternatives + preferences + conversation_id
-  opt explicit course activity or course quick action
-    Note over C,F: include legacy course_module_id for this request only
+  participant P as Provenance / sources
+
+  U->>C: speak or type question
+  C->>F: question + speech alternatives + preferences + conversation id
+  F->>F: normalise speech/domain wording
+  F->>F: deterministic fast route
+
+  alt clear application intent or capability boundary
+    F->>D: validated approved operation
+  else language genuinely unclear
+    F->>S: constrained interpretation request
+    S-->>F: structured candidate intent
+    F->>F: validate measurement / location / operation / window
+    F->>D: approved deterministic operation
   end
-  F->>F: normalise; interpret user intent/context
-  opt farm fact or action requested
-    F->>D: approved query only
-    F->>F: resolver / analytics / evidence / graph data
+
+  D-->>F: exact fact / calculation / chart / unavailable state
+
+  opt explanation or broader information is useful
+    F->>P: select reviewed context + provenance labels
+    F->>Q: validated facts / source context / uncertainty
+    Q-->>F: explanation / paraphrase
   end
-  opt explanation or semantic recovery useful
-    F->>F: select source/general context and available capability metadata
-    F->>Q: validated facts/source context + provenance/uncertainty
-  end
-  opt literal request cannot be completed
-    F->>F: inspect related measurements/operations/graphs
-  end
-  F-->>C: answer, source label, chart/evidence, diagnostics, useful alternatives
+
+  F-->>C: answer + source/provenance + chart/evidence + diagnostics

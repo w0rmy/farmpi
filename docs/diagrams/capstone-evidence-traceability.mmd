@@ -1,0 +1,18 @@
+flowchart LR
+  R[Requirement] --> I[Implementation]
+  I --> T[Test]
+  T --> E[Retained evidence]
+  E --> C[Bounded claim]
+
+  R1[T01: physical soil moisture] --> I1[XC4604 on GPIO4<br/>managed LIVE driver]
+  I1 --> T1[Dry/wet response + IN SYNC + ingest]
+  T1 --> E1[Serial + MariaDB + Android<br/>sample 6860 = 64.69% LIVE]
+  E1 --> C1[Soil-moisture component PASS<br/>T01 overall PARTIAL 1/6]
+
+  R2[T05: grounded AI / data behaviour] --> I2[Deterministic authority + semantic layer<br/>LLM + provenance boundaries]
+  I2 --> T2[Ordinary / ambiguous / unsupported / forecast / source tests]
+  T2 --> E2[T05 acceptance record]
+  E2 --> C2[T05 STRONG PARTIAL<br/>remaining closure evidence explicit]
+
+  C -. never claim more than evidence supports .-> C1
+  C -. simulation is not physical evidence .-> C1

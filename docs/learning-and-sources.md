@@ -26,7 +26,7 @@ FarmPi uses two complementary routing layers:
 
 The returned interpretation is validated before it can become an application route. Confidence, measurement, paddock, operation, window, topic, and proposed names are checked by application code.
 
-A short-lived bounded conversation context allows follow-ups such as `What about Paddock 2?` without granting unrestricted memory or execution authority.
+A short-lived bounded conversation context allows follow-ups such as `What about Bob's?` after a farmer-named location question, without granting unrestricted memory or execution authority.
 
 The live answering prompt describes a farm-monitoring assistant. General informational questions are answered on their own topic, without assuming a lesson or agricultural context. The interpreter retains `learning` as a compatibility intent for these questions. Reviewed measurement explanations remain available, and course context is added only when the request explicitly supplies a valid legacy module ID.
 

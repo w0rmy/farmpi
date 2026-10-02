@@ -24,7 +24,7 @@ The current capstone direction evaluates the Android client as part of a functio
 - one fixed FarmPi light visual system with compact/standard/large text-size choices;
 - bounded conversation continuity supplied by the backend;
 - visible connection/dependency status and differentiated request/connection failures;
-- a Nodes administration screen for pending discovery, explicit registration, farmer-defined location assignment, stable node identity, desired/applied configuration state, editable per-sensor OFF/SIMULATED/LIVE modes and runtime reporting state. Android submits the complete supported mode map with the current expected fingerprint, so stale edits are rejected rather than overwriting a newer configuration.
+- a Nodes administration screen for pending discovery, explicit registration, farmer-defined location assignment, stable node identity, short immutable hardware tags, desired/applied configuration state, editable per-sensor OFF/SIMULATED/LIVE modes and runtime reporting state. Android submits the complete supported mode map with the current expected fingerprint, so stale edits are rejected rather than overwriting a newer configuration.
 
 ## Navigation after course retirement
 
@@ -219,26 +219,10 @@ For graphable measurements, the current-value card itself is the affordance: **V
 The graphable History catalogue includes soil moisture, soil temperature, air temperature, relative humidity, soil pH, soil EC, light, rainfall, barometric pressure, wind speed, pasture height and leaf wetness. Wind direction remains current-only because degrees wrap at 360 and require circular-statistics treatment rather than an ordinary linear historical average.
 
 
-## Graph timezone presentation — 28 September 2026
+## Current graph time presentation
 
-FarmPi continues to store and exchange operational timestamps in UTC. The Android client does not expose a separate FarmPi timezone setting.
+FarmPi stores and exchanges operational timestamps in UTC. Android does not expose a separate FarmPi timezone setting.
 
-For timestamped graphs, the client parses the backend timestamp as an absolute instant and formats the X-axis tick labels using the phone's current system timezone (`ZoneId.systemDefault()`). This means NZST/NZDT and other daylight-saving transitions follow the device operating-system timezone rules automatically.
+For timestamped graphs, the client parses backend timestamps as absolute instants and formats representative **Start / Middle / End** labels using the phone's current system timezone. Each representative label shows local date and clock time, while the X-axis caption is **Local time**. The client deliberately does not repeat a timezone token under every tick because values such as `GMT+13:00` caused wrapping on the real device.
 
-The graph X-axis caption is **Local time**. The actual tick labels show the converted local date and clock time, for example `28 Sep / 18:35`. The timezone is not repeated under every tick because the phone's current timezone already defines the presentation context. Changing timezone presentation does not alter graph ordering, spacing, calculations, stored timestamps or API values; those continue to use the UTC instant.
-
-
-## Explicit graph time ticks — 28 September 2026
-
-Real-device acceptance showed that changing the graph caption to local time was insufficient because the actual timestamp values were not visibly legible on the installed phone.
-
-Timestamped graphs now reserve a dedicated row beneath the plot for three representative local-time positions: **Start**, **Middle**, and **End**. Each position renders the local date plus a stronger clock/timezone value such as `18:35 NZDT`. The axis caption remains **Time**.
-
-This is presentation-only. The underlying timestamps, point ordering, spacing, calculations and API/database values remain UTC-based.
-
-
-## Local-time tick readability — 30 September 2026
-
-Real-device review showed that Android may format the short timezone token as `GMT+13:00` rather than `NZDT`. Repeating that value beneath Start/Middle/End caused wrapping and reduced readability.
-
-The graph now shows only the local date and clock time at each representative tick and labels the axis **Local time**. UTC remains the backend/database authority; this change is presentation-only.
+Changing the phone timezone changes only displayed labels. It does not alter stored UTC timestamps, point ordering, spacing, calculations or API values.

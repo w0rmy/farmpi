@@ -4,7 +4,7 @@ FarmPi is a local farm-monitoring application demonstrator built around a Raspbe
 
 The current capstone direction is **Advanced Application Development Concepts** plus **Artificial Intelligence and Data Science**. The project is therefore evaluated as an end-to-end application: requirements, architecture, integration, data handling, mobile usability, AI/data functionality, deployment, testing, debugging, and iterative refinement.
 
-Earlier work on **Developing Flexible IT Courses** remains part of the project history. Some course-oriented code and UI still exist in the current revision, but they are legacy surfaces from the superseded elective and are being removed from the current product direction. Contextual explanation, natural-language help, provenance, and measurement interpretation remain in scope as FarmPi/AI functionality.
+Earlier work on **Developing Flexible IT Courses** remains part of the project history. The Android course/module/progress surfaces have been removed; some legacy backend course contracts remain only for compatibility/history and are not current product requirements. Contextual explanation, natural-language help, provenance, and measurement interpretation remain in scope as FarmPi/AI functionality.
 
 FarmPi currently combines:
 
@@ -17,7 +17,7 @@ FarmPi currently combines:
 - semantic interpretation and bounded conversation context for natural-language requests;
 - curated source metadata and provenance rules for external/general information.
 
-Synthetic telemetry is test evidence, not an agronomic model, forecast, or production-farm recommendation. Managed nodes can now generate bounded simulated values at the sensor-driver boundary, so test values follow the same authenticated telemetry path as later LIVE values. The managed contract remains sparse: a node sends only measurements that actually produce a value. The managed S3 profile can simulate all 13 catalogue measurements and advertises no LIVE drivers yet; LIVE selection requires an advertised physical driver. Final T01 evidence still requires six real physical measurements; simulation never satisfies that acceptance requirement.
+Synthetic telemetry is test evidence, not an agronomic model, forecast, or production-farm recommendation. Managed nodes can generate bounded simulated values at the sensor-driver boundary, so test values follow the same authenticated telemetry path as LIVE values. The managed contract remains sparse: a node sends only measurements that actually produce a value. The managed S3 profile can simulate all 13 catalogue measurements and currently advertises one physical LIVE driver: `soil_moisture_pct` from the XC4604 analogue probe on GPIO4. End-to-end LIVE acceptance has been demonstrated on FP-001 / HW 33C0 from probe response through ESP32, authenticated ingest, MariaDB per-measurement provenance and Android display. T01 is therefore **PARTIAL (1 of 6 required physical measurements demonstrated)**; simulation never satisfies the remaining physical acceptance requirement.
 
 ## Start here
 
@@ -27,6 +27,7 @@ Synthetic telemetry is test evidence, not an agronomic model, forecast, or produ
 - [Raspberry Pi installation and operations](docs/raspberry-pi-deployment.md)
 - [Android client](docs/android-client.md)
 - [Managed ESP32-S3 node bring-up](docs/s3-node-bringup.md)
+- [Physical soil-moisture LIVE acceptance](docs/evidence/s3/soil-moisture-live-acceptance-2026-10-02.md)
 - [ESP32 simulator and telemetry](firmware/esp32-sensor/README.md)
 - [Data, analytics, and API contract](docs/data-and-api.md)
 - [AI, grounding, and sources](docs/learning-and-sources.md)
@@ -115,6 +116,6 @@ The language model never receives SQL access or authority to invent those facts.
 
 FarmPi is a prototype/concept demonstrator rather than a production farm-control product. LoRa/LoRaWAN, MQTT, OTA, cloud services, remote control, production security hardening, and agronomic certification are outside the current implementation unless a defined requirement makes them necessary.
 
-Current work should prioritise a coherent functional application: completing the physical sensing path, reshaping the Android client around monitoring/Ask/graphs/Nodes rather than the superseded course UI, reliable routing and recovery, data visualisation, AI/data integration, error handling, testing, deployment, and clear evidence of architectural decisions.
+Current work should prioritise a coherent functional application: monitoring/Ask/graphs/Nodes, reliable routing and recovery, data visualisation, AI/data integration, error handling, testing, deployment, and clear evidence of architectural decisions. One real soil-moisture path has been demonstrated; the other five FR01 physical measurements remain explicitly undemonstrated because the corresponding hardware is not currently available.
 
-Sensor modes are changed from the Pi console with `.venv/bin/python scripts/configure-node-modes FP-001 soil_moisture_pct=SIMULATED`. Android displays modes read-only. The optional legacy dataset requires `sudo bash scripts/load-demo-data`. See the [reconciliation and transition record](docs/database-transition-2026-09-27.md).
+Sensor modes are normally administered from Android Node Detail, which submits the complete OFF/SIMULATED/LIVE mode map with optimistic fingerprint checking. The Pi helper `.venv/bin/python scripts/configure-node-modes ...` remains an administrative alternative. LIVE is selectable only for a measurement advertised by that firmware as physically supported. The optional legacy dataset requires `sudo bash scripts/load-demo-data`. See the [reconciliation and transition record](docs/database-transition-2026-09-27.md) for the historical database transition.

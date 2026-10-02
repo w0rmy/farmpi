@@ -1,22 +1,28 @@
 flowchart TD
-  T[User question] --> N[Speech/domain normalisation]
-  N --> R{Farm fact, calculation, device state, action, or graph?}
-  R -->|yes| D[MariaDB + approved deterministic operation]
-  D --> F[Exact result or honest unavailable state]
-  R -->|no / explanation needed| H[Choose best relevant evidence]
-  H --> T1[1 FarmPi data, DairyNZ, relevant NZ government]
-  H --> T2[2 Trusted primary organisation/manufacturer]
-  H --> T3[3 Reputable general]
-  H --> T4[4 General/unverified web]
-  H --> T5[5 Model knowledge]
-  F --> P[Source tier, category, provenance, uncertainty]
-  T1 --> P
-  T2 --> P
-  T3 --> P
-  T4 --> P
-  T5 --> P
+  T[User question] --> N[Speech / domain normalisation]
+  N --> R{What authority does the request need?}
+
+  R -->|current farm fact / calculation / device state / action / graph| F[FarmPi deterministic authority]
+  F --> D[(Validated MariaDB data + application rules)]
+  D --> FR[Exact result or honest unavailable state]
+
+  R -->|general explanation / external guidance| E[External-information authority]
+  E --> E1[Reviewed DairyNZ / NZ government / other curated material]
+  E --> E2[Trusted primary / reputable general source]
+  E --> E3[Model knowledge when stronger evidence is unavailable]
+
+  FR --> P[Provenance + source category + uncertainty]
+  E1 --> P
+  E2 --> P
+  E3 --> P
+
   P --> C{Request satisfied?}
-  C -->|yes| U[Useful response + evidence/chart]
+  C -->|yes| U[Useful response + evidence / chart]
   C -->|no| A[Inspect related application capabilities]
-  A -->|alternative exists| U
-  A -->|none| Z[Concise limitation + available options]
+  A -->|nearby supported result| U
+  A -->|genuinely ambiguous| Q[Ask concise clarification]
+  A -->|no supported alternative| Z[Concise limitation + available options]
+
+  E1 -. cannot override a conflicting current FarmPi observation .-> FR
+  E2 -. cannot create a farm reading .-> FR
+  E3 -. cannot create a farm reading .-> FR
