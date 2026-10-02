@@ -25,6 +25,26 @@ This demonstrates the physical probe → ADC → managed firmware → authentica
 See [the retained acceptance record](evidence/s3/soil-moisture-live-acceptance-2026-10-02.md).
 
 
+## 2 October 2026 — documentation reconciliation after rapid prototype changes
+
+### Observation
+
+Current implementation had moved ahead of several current-state documents. The main inconsistencies were the first LIVE soil-moisture driver, Android sensor-mode administration, the completed course-UI retirement, and diagrams that still showed earlier course or console-only boundaries.
+
+### Reconciliation
+
+- update the root README, architecture, data/API, Android, testing and S3 guides to the deployed state;
+- classify dated implementation plans/refactor maps/database-transition records as historical rather than current authorities;
+- add a documentation index section for retained evidence;
+- refresh managed-node, architecture, grounding, simulator and ERD diagrams;
+- add physical-sensor provenance and Requirement → Implementation → Test → Evidence → Claim traceability diagrams;
+- preserve historical records rather than rewriting them to look as though the current architecture existed from the beginning.
+
+### Scope rule
+
+Documentation now states T01 as PARTIAL (1/6 physical measurements demonstrated) and records the remaining five physical channels as undemonstrated. Simulation, implementation and manual observation are not silently promoted into evidence claims they do not support.
+
+
 This record captures material design decisions and their outcome/evidence rationale. Current operating instructions live in the subject guides; historical performance measurements live under `docs/history`.
 
 ## 26 September 2026 - live Raspberry Pi backend validation
