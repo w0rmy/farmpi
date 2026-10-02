@@ -1,13 +1,37 @@
 flowchart TB
-  UI[Web / Android: voice, display, local preferences, course return/progress]
-  API[FastAPI: validation and response schema]
-  ROUTE[Intent/context: deterministic actions; open learning]
-  DATA[Verified analytics/evidence]
-  SOURCES[Five-tier evidence + reviewed course context]
-  PROV[Explicit provenance + uncertainty]
-  DB[(MariaDB)]
-  LLM[Configured model: concise teaching, no farm-fact authority]
-  UI --> API --> ROUTE --> DATA --> DB
-  ROUTE --> SOURCES
-  DATA --> PROV --> LLM --> API
-  SOURCES --> PROV
+  UI[Client layer<br/>Android / diagnostic browser<br/>voice, display, local preferences]
+  API[FastAPI boundary<br/>validation, auth, response schema]
+
+  subgraph L1[Layer 1 - deterministic application authority]
+    ROUTE[Fast routing / capability checks / confirmations]
+    DATA[Farm facts / analytics / graph values / identity / mutations]
+    DB[(MariaDB)]
+    ROUTE --> DATA --> DB
+  end
+
+  subgraph L2[Layer 2 - semantic interpretation]
+    SEM[Constrained language interpretation<br/>only when deterministic routing is insufficient]
+    VAL[Validate intent, measurement, location, operation, window]
+    SEM --> VAL
+  end
+
+  subgraph L3[Layer 3 - language model]
+    LLM[Qwen3 0.6B<br/>explanation, paraphrase, conversation, broader information]
+  end
+
+  subgraph L4[Layer 4 - source and provenance]
+    SRC[Reviewed source material / model-knowledge label]
+    PROV[Origin, evidence tier, uncertainty, simulation/LIVE provenance]
+    SRC --> PROV
+  end
+
+  UI --> API --> ROUTE
+  ROUTE -->|unclear language| SEM
+  VAL -->|validated intent only| ROUTE
+  DATA --> PROV
+  PROV --> LLM
+  LLM --> API
+  DATA --> API
+  API --> UI
+
+  LLM -. no SQL / no farm-fact authority .-> DATA
