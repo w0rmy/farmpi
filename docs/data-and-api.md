@@ -205,8 +205,8 @@ See [S3 node bring-up](s3-node-bringup.md) for registration, SHA-256 canonical c
 
 The current canonical configuration is schema version 2 and contains exactly `modes`, `node_uid`, and `schema_version`. `modes` contains one OFF/SIMULATED/LIVE value for every capability advertised by that firmware. FarmPi fills omitted administrator choices with OFF before fingerprinting, so the device always receives one complete latest state rather than a patch.
 
-The managed ESP32-S3 profile advertises all 13 catalogue keys as configurable/simulatable capabilities and an empty `live_capabilities` list. Configuration, acknowledgement and ingest reject LIVE for measurements outside that list. Older firmware omitting this field is treated as having no advertised LIVE drivers.
+The managed ESP32-S3 profile advertises all 13 catalogue keys as configurable/simulatable capabilities and currently advertises `soil_moisture_pct` in `live_capabilities`. The current physical driver reads the XC4604 analogue probe on GPIO4 and uses an explicitly uncalibrated proof-of-concept electrical scale. Configuration, acknowledgement and ingest reject LIVE for measurements outside the advertised list. Older firmware omitting this field is treated as having no advertised LIVE drivers.
 
-The logical ID uses `FP-xxx` and remains stable when the user changes the friendly node name or assigned location.
+The logical ID uses `FP-xxx` and remains stable when the user changes the friendly node name or assigned location. End-to-end physical acceptance of `soil_moisture_pct` on FP-001 / HW 33C0 is retained in [the XC4604 LIVE evidence record](evidence/s3/soil-moisture-live-acceptance-2026-10-02.md).
 
 Android omits `modes` on metadata-only updates, preserving the stored configuration exactly. The console helper submits all supported modes with the expected fingerprint. When a mode map is supplied, omitted keys become OFF. Demo data lives in `config/database/demo-seed.sql` and is loaded only by `scripts/load-demo-data`; the operational seed remains empty.
