@@ -60,7 +60,12 @@ _EDUCATION_RE = re.compile(r"\b(?:what\s+does|explain|meaning|unit|simulated\s+(
 _IRRIGATION_RE = re.compile(r"\b(?:irrigat(?:e|ion|ing)?|water(?:ing)?)\b", re.IGNORECASE)
 _DECISION_RE = re.compile(r"\b(?:should|when\s+should|need\s+to|recommend(?:ation|ed)?|advi[cs]e)\b", re.IGNORECASE)
 _CAUSAL_RE = re.compile(r"\b(?:why|reason(?:s)?|cause(?:d|s|ing)?)\b", re.IGNORECASE)
-_FORECAST_RE = re.compile(r"\b(?:weather|forecast)\b", re.IGNORECASE)
+_FORECAST_RE = re.compile(
+    r"\b(?:weather|forecast)\b"
+    r"|\bwill\s+(?:it\s+)?rain\b"
+    r"|(?=.*\b(?:rain|rainfall)\b)(?=.*\b(?:tomorrow|tonight|next\s+(?:day|week))\b)",
+    re.IGNORECASE,
+)
 _LEARNING_TOPIC_RE = re.compile(r"\b(?:field\s+capacity|refill\s+point|evapotranspiration|soil\s+water\s+holding\s+capacity)\b", re.IGNORECASE)
 _COMPARE_RE = re.compile(r"\bcompare\b|\bacross\s+all\s+(?:paddocks?|fields?)\b|\ball\s+(?:paddocks?|fields?)\b", re.IGNORECASE)
 _FARM_SCOPE_RE = re.compile(r"\b(?:across|over)\s+(?:all\s+)?(?:paddocks?|fields?)\b|\bacross\s+the\s+farm\b|\bfarm(?:-|\s+)wide\b", re.IGNORECASE)
