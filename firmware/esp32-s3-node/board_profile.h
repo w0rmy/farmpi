@@ -11,7 +11,7 @@
 // and tested on this board profile.
 
 static const char* BOARD_PROFILE = "esp32-s3-managed-v2";
-static const char* FIRMWARE_VERSION = "0.3.2-realistic-sim";
+static const char* FIRMWARE_VERSION = "0.3.3-xc4604-poc";
 
 // Alphabetical order is intentional: it matches the canonical configuration.
 static const char* CONFIGURABLE_MEASUREMENTS[] = {
@@ -31,6 +31,15 @@ static const char* CONFIGURABLE_MEASUREMENTS[] = {
 };
 static const size_t CONFIGURABLE_COUNT = sizeof(CONFIGURABLE_MEASUREMENTS) / sizeof(CONFIGURABLE_MEASUREMENTS[0]);
 
-// No physical acquisition driver is claimed by this revision.
-static const char* LIVE_MEASUREMENTS[1] = { nullptr };
-static const size_t LIVE_COUNT = 0;
+// Physical proof-of-concept driver currently fitted to the managed S3 profile.
+// XC4604 is an analogue resistive probe on ESP32-S3 ADC1 GPIO4.
+// The electrical scaling below is intentionally NOT an agronomic calibration.
+static const uint8_t SOIL_MOISTURE_ADC_PIN = 4;
+static const uint16_t SOIL_MOISTURE_POC_RAW_DRY = 0;
+static const uint16_t SOIL_MOISTURE_POC_RAW_WET = 1800;
+static const uint8_t SOIL_MOISTURE_ADC_SAMPLES = 16;
+
+static const char* LIVE_MEASUREMENTS[] = {
+  "soil_moisture_pct"
+};
+static const size_t LIVE_COUNT = sizeof(LIVE_MEASUREMENTS) / sizeof(LIVE_MEASUREMENTS[0]);
