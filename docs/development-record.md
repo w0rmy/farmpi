@@ -857,3 +857,21 @@ After adding an `unsupported-measurement` semantic intent, real-device retesting
 ### Learning evidence
 
 This test demonstrated that adding another semantic label is not always the right solution. A small language model can be useful for flexible interpretation, but clear capability boundaries are more reliable and testable when encoded deterministically. The architecture was therefore refined so model uncertainty does not become user-facing uncertainty where the application already knows the answer.
+
+
+## 2 October 2026 — align regression test with deterministic unsupported-measurement routing
+
+### Observation
+
+After moving clear unsupported-measurement requests into the deterministic fast path, the application correctly bypassed semantic interpretation. One existing API test still expected a single language-model call from the earlier design and therefore failed with `0 != 1`.
+
+### Correction
+
+- update the test fixture so no model response is supplied;
+- assert that the unsupported-measurement answer is deterministic;
+- assert that no semantic interpretation object is returned;
+- assert that the language model is called zero times.
+
+### Learning evidence
+
+This distinguishes an implementation regression from a stale test. The failed test did not show incorrect FarmPi behaviour; it showed that the acceptance expectation had not yet been updated to match the architectural change.
