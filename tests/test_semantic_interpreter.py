@@ -36,6 +36,12 @@ class SemanticInterpreterTests(unittest.TestCase):
         self.assertEqual(fast.intent, "forecast-boundary")
         self.assertFalse(needs_semantic_interpretation(question, fast))
 
+    def test_live_external_research_boundary_bypasses_semantic_interpretation(self) -> None:
+        question = "Can you search DairyNZ live right now for irrigation scheduling advice?"
+        fast = route_question(question)
+        self.assertEqual(fast.intent, "external-research-boundary")
+        self.assertFalse(needs_semantic_interpretation(question, fast))
+
     def test_rename_interpretation_maps_to_deterministic_rename_route(self) -> None:
         interpretation = parse_semantic_interpretation(json.dumps({
             "intent": "rename",
@@ -200,6 +206,25 @@ class OpenLearningAskTests(unittest.TestCase):
         self.assertIsNone(response.semantic_interpretation)
         self.assertEqual(response.timings.llm_ms, 0.0)
         self.assertEqual(client.calls, 0)
+
+    def test_live_external_research_boundary_returns_without_model_calls(self) -> None:
+        client = _SequenceClient([])
+        old_client = getattr(app.state, "http_client", None)
+        app.state.http_client = client
+        try:
+            response = asyncio.run(ask(AskRequest(question="Can you search DairyNZ live right now for irrigation scheduling advice?")))
+        finally:
+            if old_client is None:
+                delattr(app.state, "http_client")
+            else:
+                app.state.http_client = old_client
+        self.assertEqual(response.intent, "external-research-boundary")
+        self.assertIn("Live external web retrieval is not configured", response.answer)
+        self.assertIn("cannot claim to have searched DairyNZ", response.answer)
+        self.assertIsNone(response.semantic_interpretation)
+        self.assertEqual(response.timings.llm_ms, 0.0)
+        self.assertEqual(client.calls, 0)
+        self.assertTrue(any(item.get("kind") == "research-status" for item in response.provenance))
 
     def test_unsupported_measurement_returns_deterministic_capability_answer(self) -> None:
         client = _SequenceClient([])
