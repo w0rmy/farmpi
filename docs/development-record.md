@@ -838,3 +838,22 @@ The wording was clear. The actual issue was that nitrogen is not part of FarmPi'
 ### Learning evidence
 
 This test further clarified the separation between semantic interpretation and deterministic authority. The semantic layer can understand that the user means nitrogen; only the deterministic application layer can decide that nitrogen is unsupported and therefore no FarmPi value exists.
+
+
+## 2 October 2026 — move unsupported measurement detection into the deterministic router
+
+### Observation
+
+After adding an `unsupported-measurement` semantic intent, real-device retesting still returned semantic clarification for `What is the nitrogen level in Fred's paddock?`. The small local model did not reliably choose the new intent even though the user request was structurally clear.
+
+### Decision
+
+- detect explicit unsupported measurement requests such as `What is the <concept> level/reading/measurement/value...` in the deterministic fast router;
+- first check the reviewed measurement catalogue so supported aliases continue to use their normal data routes;
+- use the language model only when the wording itself is genuinely ambiguous;
+- retain the semantic unsupported-measurement intent as a secondary path for less regular phrasing;
+- keep the deterministic capability catalogue authoritative about whether a measurement exists.
+
+### Learning evidence
+
+This test demonstrated that adding another semantic label is not always the right solution. A small language model can be useful for flexible interpretation, but clear capability boundaries are more reliable and testable when encoded deterministically. The architecture was therefore refined so model uncertainty does not become user-facing uncertainty where the application already knows the answer.
