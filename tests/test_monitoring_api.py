@@ -117,8 +117,11 @@ class MonitoringOverviewTests(unittest.TestCase):
         self.assertEqual(payload["left_location"]["name"], "Bob's paddock")
         self.assertEqual(payload["right_location"]["name"], "Fred's paddock")
         self.assertEqual({item["paddock"] for item in payload["evidence"]}, {"Bob's paddock", "Fred's paddock"})
-        chart_names = {item["x"] for item in payload["chart"]["series"][0]["data"]}
-        self.assertEqual(chart_names, {"Bob's paddock", "Fred's paddock"})
+        chart_data = payload["chart"]["series"][0]["data"]
+        chart_values = {item["x"]: item["y"] for item in chart_data}
+        self.assertEqual(chart_values, {"Fred's paddock": 36.0, "Bob's paddock": 30.0})
+        self.assertIn("Highest average Soil moisture over", payload["answer"])
+        self.assertIn("Fred's paddock at 36.00%", payload["answer"])
         self.assertNotIn("Back Hill", response.text)
 
     @patch("app.monitoring_api.active_paddocks")
