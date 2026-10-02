@@ -1,5 +1,7 @@
 # Database transition and PR reconciliation — 27 September 2026
 
+> **Historical transition record.** Retained as development evidence. It describes the state and decisions at the date in the title and is not a current-state authority. See [the documentation index](README.md) for current guides.
+
 ## What happened
 
 [PR #10](https://github.com/w0rmy/farmpi/pull/10), branch `refactor/clean-managed-node-baseline`, was merged on 27 September at 03:52:32 UTC (16:52:32 NZDT). Its 33 commits end at `88043152c993ef455cbcb5d78a408672206c707b`. Main is merge commit `394c52d6ea68d43245aed0ab6d0f76ecf545806b`.
