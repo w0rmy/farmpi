@@ -198,6 +198,10 @@ class QuestionRouterTests(unittest.TestCase):
         self.assertEqual(route_question("Should I irrigate Paddock 2?").paddock_name, "Paddock 2")
         self.assertEqual(route_question("When should I water Paddock A?").intent, "irrigation-decision")
         self.assertEqual(route_question("What is tomorrow's weather forecast?").intent, "forecast-boundary")
+        self.assertEqual(route_question("Will it rain on Fred's paddock tomorrow?").intent, "forecast-boundary")
+        self.assertEqual(route_question("Will Fred's paddock get rainfall tomorrow?").intent, "forecast-boundary")
+        current_rain = route_question("What is the rainfall in Fred's paddock?")
+        self.assertEqual((current_rain.intent, current_rain.measurement), ("paddock-field", "rainfall_mm"))
         self.assertEqual(route_question("Why is the soil pH dropping in Paddock A?").intent, "causal-boundary")
         self.assertEqual(route_question("What caused Paddock A's humidity to change?").intent, "causal-boundary")
 
