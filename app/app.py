@@ -221,6 +221,8 @@ def _grounding_provenance(grounding: GroundingData, intent: str) -> list[dict[st
         entries.append({"kind": "deterministic-calculation", "source": "FarmPi application layer"})
     if grounding.source_category == "educational":
         entries.append({"kind": "curated-learning", "source": "FarmPi reviewed educational material"})
+    if intent == "external-research-boundary":
+        entries.append({"kind": "research-status", "source": "FarmPi application configuration", "status": "live-external-retrieval-not-configured"})
     return entries
 
 
@@ -849,7 +851,7 @@ async def ask(request: AskRequest) -> AskResponse:
     if route.intent in {
         "historical", "comparison", "summary", "capability", "farm_inventory_count", "farm_inventory_list",
         "paddock_summary", "paddock", "paddock-field", "irrigation-decision", "operational-decision",
-        "forecast-boundary", "causal-boundary", "interpretation-boundary", "farm-average", "ranking",
+        "forecast-boundary", "external-research-boundary", "causal-boundary", "interpretation-boundary", "farm-average", "ranking",
         "driest", "wettest", "average", "measurement-fallback",
     }:
         category: SourceCategory = grounding_data.source_category if grounding_data.source_category in {
