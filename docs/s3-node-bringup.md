@@ -1,6 +1,6 @@
 # Two ESP32-S3 node configuration bring-up
 
-This block prepares registration and configuration before real probe acquisition. It does not complete T01. FarmPi Needs and Requirements v1.3 still requires six physical measurements with location, source, observation time, measurement identity, units and physical/simulated distinction.
+This guide covers the managed ESP32-S3 registration, configuration, simulation and physical-acquisition path. FarmPi Needs and Requirements v1.3 requires six physical measurements for complete T01 acceptance. Current T01 state is **PARTIAL: 1 of 6 physical measurements has been demonstrated end to end**. Soil moisture is LIVE; soil temperature, air temperature, relative humidity, light and barometric pressure remain physically undemonstrated because corresponding hardware is not currently available.
 
 ## Live bring-up status - 26 September 2026
 
@@ -13,8 +13,28 @@ Two hardware faults/bring-up conditions were also isolated:
 - One newly flashed board reported `phy_init: store_cal_data_to_nvs_handle: store calibration data failed(0x1105)`. A deliberate full-flash erase followed by reflashing cleared the condition and the node then reached `Awaiting registration`. Normal subsequent firmware uploads should preserve NVS; full erase is a provisioning/recovery action, not the routine update path.
 - A second bring-up produced a repeating lwIP `sys_untimeout` assertion stating `Required to lock TCPIP core functionality!`. The apparent network-stack fault was traced to an unintended breadboard connection. Removing that connection stopped the reboot loop. The software/network stack was therefore not changed to mask a physical wiring fault.
 
-These registration results alone do not constitute physical sensing evidence. On 2 October 2026 an XC4604 analogue soil-moisture probe was then electrically exercised on ESP32-S3 GPIO4: dry air produced raw 0 / 0 mV, immersion in water produced readings centred near raw 1800 / 1.5 V, and finger contact produced readings around raw 300 / 0.27 V. These observations establish that the probe and ADC input respond physically. The managed LIVE telemetry path still requires deployment acceptance below, and T01 remains incomplete until all six FR01 physical measurements are demonstrated with required provenance.
+These registration results alone do not constitute physical sensing evidence. On 2 October 2026 an XC4604 analogue soil-moisture probe was electrically exercised on ESP32-S3 GPIO4: dry air produced raw 0 / 0 mV, immersion in water produced readings centred near raw 1800 / 1.5 V, and finger contact produced readings around raw 300 / 0.27 V. The managed LIVE telemetry path was then accepted end to end on FP-001 / HW 33C0 as recorded below and in the dedicated evidence record. This establishes one physical FR01 measurement, not all six.
 
+
+## Live soil-moisture acceptance - 2 October 2026
+
+The XC4604 channel has now been demonstrated through the complete deployed path on **FP-001 / hardware UID `7c4fadb633c0` (HW 33C0)**.
+
+Observed acceptance sequence:
+
+- firmware `0.3.3-xc4604-poc` booted with the GPIO4 XC4604 driver and reported the expected hardware UID;
+- Android Node Detail selected **Soil moisture → LIVE**, the desired configuration was applied, and the node returned to **IN SYNC**;
+- serial output showed repeated dry readings of `raw=0.0 prototype_scale=0.00%`;
+- after immersing the sensing section in water, serial output changed to `raw=1164.4 prototype_scale=64.69%` and telemetry was accepted at sample sequence 6860;
+- MariaDB stored sample 6860 as `soil_moisture_pct=64.69` with per-measurement `soil_mode=LIVE`;
+- subsequent stored LIVE values were 66.09 and 65.21 while the probe remained wet;
+- Android displayed the corresponding current/history change.
+
+The row-level `simulated=1` compatibility flag remained true because other measurements in the same sparse sample were still configured SIMULATED. The authoritative per-measurement provenance for soil moisture was `LIVE`.
+
+This is a **proof-of-concept physical acquisition result**, not a calibration result. The raw 0–1800 mapping is an uncalibrated electrical scale and must not be presented as volumetric water content or agronomic accuracy.
+
+Evidence: [XC4604 LIVE soil-moisture acceptance](evidence/s3/soil-moisture-live-acceptance-2026-10-02.md).
 
 ## Current transition design - 27 September 2026
 
@@ -74,11 +94,11 @@ Record source revision, toolchain versions, binary SHA-256, hardware UIDs, assig
 5. Change one node without changing the other. Verify desired/applied fingerprints and mode state remain independent.
 6. Move one node to a different farmer-defined location. Verify its `FP-xxx` and hardware UID stay unchanged, its location epoch increases, and historical readings remain attached to the original location.
 7. Reboot with FarmPi unreachable and verify the last-known-good configuration survives. Reconnect and verify normal sync recovery.
-8. For the XC4604 node, change `soil_moisture_pct` from SIMULATED to LIVE. Verify the node reports `soil_moisture_pct` in `live_capabilities`, desired/applied fingerprints return to IN SYNC, serial output shows `XC4604 GPIO4 raw=...` followed by accepted telemetry, and MariaDB/Android show the resulting measurement as LIVE/non-simulated provenance.
-9. Move the probe between clearly different electrical conditions (for example dry air and wet contact) and verify the stored/displayed LIVE reading changes correspondingly. This proves responsiveness, not calibration.
-10. Continue one physical measurement at a time until all six FR01 measurements have real evidence. LIVE configuration without an advertised driver must be rejected.
+8. **Completed 2 October 2026:** XC4604 `soil_moisture_pct` changed from SIMULATED to LIVE on FP-001; the node advertised the capability, returned to IN SYNC, produced serial LIVE readings, and MariaDB/Android recorded the measurement with `LIVE` per-measurement provenance.
+9. **Completed 2 October 2026:** dry and wet electrical conditions produced clearly different stored/displayed LIVE readings, proving responsiveness but not calibration.
+10. Remaining physical channels stay SIMULATED/OFF until real drivers and hardware are available. LIVE configuration without an advertised driver must continue to be rejected.
 
-T01 remains incomplete until all six FR01 measurements are demonstrated physically. The node-local simulator is development evidence, not physical acquisition evidence.
+T01 remains **PARTIAL (1/6 physical measurements demonstrated)**. The node-local simulator is development evidence, not physical acquisition evidence.
 
 ## References
 
