@@ -1,0 +1,14 @@
+flowchart LR
+  P[XC4604 physical probe] -->|analogue signal| A[ESP32-S3 GPIO4 / ADC1]
+  A -->|16-sample average| D[Managed LIVE driver]
+  D -->|soil_moisture_pct| C[Applied config says LIVE]
+  C -->|authenticated sparse telemetry| I[FarmPi ingest validation]
+  I -->|derive source mode from acknowledged config| V[Per-measurement provenance = LIVE]
+  V --> DB[(MariaDB readings<br/>measurement_modes_json)]
+  DB --> M[Monitoring / history API]
+  M --> U[Android current + history display]
+
+  SIM[Other channels may remain SIMULATED] --> I
+  SIM -. row-level compatibility flag may remain simulated=true .-> DB
+
+  NOTE[Uncalibrated proof-of-concept scale<br/>not volumetric water content] -. scope boundary .-> D
