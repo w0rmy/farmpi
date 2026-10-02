@@ -205,6 +205,10 @@ class QuestionRouterTests(unittest.TestCase):
         self.assertEqual(route_question("Why is the soil pH dropping in Paddock A?").intent, "causal-boundary")
         self.assertEqual(route_question("What caused Paddock A's humidity to change?").intent, "causal-boundary")
 
+    def test_live_external_research_request_uses_capability_boundary(self) -> None:
+        route = route_question("Can you search DairyNZ live right now for irrigation scheduling advice?")
+        self.assertEqual(route.intent, "external-research-boundary")
+
     def test_ordinary_learning_prompt_uses_conversational_path(self) -> None:
         self.assertEqual(route_question("Can you help me make sense of this farm data?").intent, "conversation")
         self.assertEqual(route_question("Explain refill point and field capacity.").education_key, "irrigation_decision")
