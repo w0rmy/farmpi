@@ -1,7 +1,13 @@
 flowchart LR
-  UTC[FarmPi UTC] --> NZ[Pacific/Auckland local date]
-  NZ --> SUN[latitude + monthly baseline + sunrise/sunset]
-  SUN --> WEATHER[coherent weather: cloud/rain/pressure/wind]
-  WEATHER --> P[16 stable paddock states]
-  P --> R[one 5-minute round]
-  R --> T[staggered telemetry every 18.75 seconds]
+  T[FarmPi-synchronised UTC] --> NZ[Pacific/Auckland local date + DST rule]
+  NZ --> SUN[Seasonal sunrise / sunset / solar elevation]
+  NZ --> SEASON[Seasonal daily temperature bounds]
+  SUN --> W[Deterministic weather-like profile]
+  SEASON --> W
+  W --> M[Slow soil moisture / temperature<br/>humidity / pressure / wind relationships]
+  W --> O[Light / rain / leaf wetness events]
+  M --> N[Node-specific stable offsets]
+  O --> N
+  N --> S[Measurements configured SIMULATED]
+  S --> I[Same authenticated managed-node ingest path]
+  I --> P[Stored with per-measurement SIMULATED provenance]
