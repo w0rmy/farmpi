@@ -102,6 +102,8 @@ def needs_semantic_interpretation(question: str, route: QuestionRoute) -> bool:
     last rule is deliberate: it prevents trailing politeness such as "please"
     from accidentally becoming part of a new paddock name.
     """
+    if route.intent == "external-research-boundary":
+        return False
     if _EXTERNAL_SOURCE_RE.search(question):
         return True
     if _MUTATION_HINT_RE.search(question):
