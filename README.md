@@ -4,7 +4,7 @@ FarmPi is a local farm-monitoring application demonstrator built around a Raspbe
 
 The current capstone direction is **Advanced Application Development Concepts** plus **Artificial Intelligence and Data Science**. The project is therefore evaluated as an end-to-end application: requirements, architecture, integration, data handling, mobile usability, AI/data functionality, deployment, testing, debugging, and iterative refinement.
 
-Earlier work on **Developing Flexible IT Courses** remains part of the project history. Some course-oriented code and UI still exist in the current revision, but they are legacy surfaces from the superseded elective and are being removed from the current product direction. Contextual explanation, natural-language help, provenance, and measurement interpretation remain in scope as FarmPi/AI functionality.
+Earlier work on **Developing Flexible IT Courses** remains part of the project history. The Android course/module/progress surfaces have been removed; some legacy backend course contracts remain only for compatibility/history and are not current product requirements. Contextual explanation, natural-language help, provenance, and measurement interpretation remain in scope as FarmPi/AI functionality.
 
 FarmPi currently combines:
 
