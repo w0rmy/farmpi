@@ -1,20 +1,26 @@
 flowchart LR
-  P[Managed ESP32-S3 physical nodes] -->|contact / config sync / sparse HTTPS telemetry| I[FarmPi node + ingest API]
-  S[16-node explicit simulator] -->|bearer-auth simulated telemetry| I
+  P[Managed ESP32-S3 nodes<br/>OFF / SIMULATED / advertised LIVE] -->|contact / config sync / sparse HTTPS telemetry| I[FarmPi node + ingest API]
+  S[Legacy opt-in simulator<br/>16 virtual locations] -->|bearer-auth simulated telemetry| I
   I --> D[(MariaDB)]
+
   W[Diagnostic browser] --> A[FastAPI application API]
-  N[Native Android: Ask, graphs, voice, settings, Nodes] -->|HTTPS farmpi.local| A
-  A --> R[Deterministic router + semantic interpretation]
-  R -->|farm fact/action| X[Approved resolver, analytics, confirmation]
-  R -->|explanation / broad information| K[Grounding + source/provenance selection]
+  N[Native Android<br/>Dashboard / Compare / Ask / History / Nodes] -->|HTTPS farmpi.local| A
+  N -->|administrator registration + desired sensor modes| A
+
+  A --> R[Deterministic fast router]
+  R -->|clear farm fact / action / boundary| X[Validated application operation]
+  R -->|language genuinely unclear| M[Semantic interpreter]
+  M -->|validated structured intent| X
+
   X <--> D
-  X --> PEV[Authoritative farm evidence]
-  K --> SEV[Reviewed / model evidence]
-  PEV --> C[Provenance-labelled context]
-  SEV --> C
-  C --> Q[Pi-local Qwen3 0.6B via llama.cpp]
+  X --> G[Verified analytics / charts / evidence]
+  X --> PEV[Authoritative FarmPi facts]
+
+  A --> K[Source / provenance layer]
+  PEV --> K
+  EXT[Reviewed external source material] --> K
+  K --> Q[Pi-local Qwen3 0.6B via llama.cpp<br/>explanation / paraphrase / conversation]
   Q --> A
-  X --> G[Verified charts + bounded evidence]
   G --> A
+
   A -->|answer / chart / evidence / status| N
-  N -->|administrator node approval + desired config| A
