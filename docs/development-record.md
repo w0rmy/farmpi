@@ -893,3 +893,30 @@ Manual Ask FarmPi testing asked `Will it rain on Fred's paddock tomorrow?`. Farm
 ### Learning evidence
 
 The failure was an intent-precedence issue rather than an LLM issue. A valid deterministic measurement match is still the wrong answer when the user is asking about the future. Temporal intent therefore has to be recognised before returning current telemetry.
+
+
+## 2 October 2026 — keep recognised forecast boundaries out of the LLM path
+
+### Observation
+
+After future-rain wording was added to the deterministic router, real-device testing of `Will it rain on Fred's paddock tomorrow?` still produced an LLM-generated farming response rather than the deterministic forecast boundary.
+
+Runtime logging showed two model passes:
+
+- semantic interpretation: 54,615.61 ms;
+- language-model response: 42,855.35 ms;
+- total request time: 97,478.89 ms;
+- final routed intent: `agriculture-learning`.
+
+The fast router had already identified `forecast-boundary`, but `needs_semantic_interpretation()` still classified that boundary as ambiguous. The semantic model was therefore allowed to replace a correct deterministic safety/capability boundary with a general learning route.
+
+### Decision
+
+- remove `forecast-boundary` from the semantic-interpreter ambiguity set;
+- once the deterministic router recognises a forecast request, return the reviewed forecast-boundary response directly;
+- require zero semantic-model and zero answer-model calls for this path;
+- retain ordinary semantic interpretation for genuinely ambiguous/open language.
+
+### Learning evidence
+
+This exposed an important authority-ordering defect: deterministic recognition alone is not enough if a later semantic layer is permitted to override the recognised boundary. A reviewed capability/safety boundary must terminate routing before generative interpretation. The change improves both correctness and latency.

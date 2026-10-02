@@ -30,6 +30,12 @@ class SemanticInterpreterTests(unittest.TestCase):
                 fast = route_question(question)
                 self.assertTrue(needs_semantic_interpretation(question, fast))
 
+    def test_forecast_boundary_bypasses_semantic_interpretation(self) -> None:
+        question = "Will it rain on Fred's paddock tomorrow?"
+        fast = route_question(question)
+        self.assertEqual(fast.intent, "forecast-boundary")
+        self.assertFalse(needs_semantic_interpretation(question, fast))
+
     def test_rename_interpretation_maps_to_deterministic_rename_route(self) -> None:
         interpretation = parse_semantic_interpretation(json.dumps({
             "intent": "rename",
@@ -176,6 +182,24 @@ class OpenLearningAskTests(unittest.TestCase):
         self.assertEqual(response.semantic_interpretation["topic"], "milk fever in dairy cows")
         self.assertTrue(any(item.get("kind") == "general-explanation" for item in response.provenance))
         self.assertEqual(client.calls, 2)
+
+    def test_future_rain_uses_deterministic_forecast_boundary_without_model_calls(self) -> None:
+        client = _SequenceClient([])
+        old_client = getattr(app.state, "http_client", None)
+        app.state.http_client = client
+        try:
+            response = asyncio.run(ask(AskRequest(question="Will it rain on Fred's paddock tomorrow?")))
+        finally:
+            if old_client is None:
+                delattr(app.state, "http_client")
+            else:
+                app.state.http_client = old_client
+        self.assertEqual(response.intent, "forecast-boundary")
+        self.assertIn("does not provide weather forecasts", response.answer)
+        self.assertIn("not a forecast", response.answer)
+        self.assertIsNone(response.semantic_interpretation)
+        self.assertEqual(response.timings.llm_ms, 0.0)
+        self.assertEqual(client.calls, 0)
 
     def test_unsupported_measurement_returns_deterministic_capability_answer(self) -> None:
         client = _SequenceClient([])
