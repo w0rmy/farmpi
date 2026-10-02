@@ -410,10 +410,34 @@ static float simulatedValue(const String& key) {
 }
 
 static bool readLiveMeasurement(const String& key, float& value) {
-  // Physical drivers are added one measurement at a time. Until a driver is
-  // fitted and advertised in LIVE_MEASUREMENTS, LIVE cannot be selected.
-  (void)key; (void)value;
-  return false;
+  if (key != "soil_moisture_pct") return false;
+
+  // XC4604 proof-of-concept acquisition. The observed electrical span is
+  // approximately raw 0 in dry air and raw 1800 immersed in water. Mapping
+  // that span to 0-100 proves the physical acquisition/telemetry path only;
+  // it is NOT a calibrated volumetric or agronomic soil-moisture percentage.
+  uint32_t total = 0;
+  for (uint8_t i = 0; i < SOIL_MOISTURE_ADC_SAMPLES; ++i) {
+    total += analogRead(SOIL_MOISTURE_ADC_PIN);
+    delay(4);
+  }
+  const float raw = total / (float)SOIL_MOISTURE_ADC_SAMPLES;
+  const float span = (float)SOIL_MOISTURE_POC_RAW_WET - (float)SOIL_MOISTURE_POC_RAW_DRY;
+  if (span <= 0.0f) return false;
+
+  value = clampFloat(
+    (raw - (float)SOIL_MOISTURE_POC_RAW_DRY) * 100.0f / span,
+    0.0f,
+    100.0f
+  );
+
+  Serial.printf(
+    "XC4604 GPIO%u raw=%.1f prototype_scale=%.2f%% (uncalibrated)\n",
+    SOIL_MOISTURE_ADC_PIN,
+    raw,
+    value
+  );
+  return true;
 }
 
 static bool syncClockFromFarmPi(JsonDocument& response) {
@@ -547,6 +571,17 @@ static void sendTelemetry() {
 
 void setup() {
   Serial.begin(115200);
+
+  pinMode(SOIL_MOISTURE_ADC_PIN, INPUT);
+  analogReadResolution(12);
+  analogSetPinAttenuation(SOIL_MOISTURE_ADC_PIN, ADC_11db);
+  Serial.printf(
+    "XC4604 proof-of-concept input: GPIO%u, raw dry=%u, raw wet=%u; scaling is uncalibrated.\n",
+    SOIL_MOISTURE_ADC_PIN,
+    SOIL_MOISTURE_POC_RAW_DRY,
+    SOIL_MOISTURE_POC_RAW_WET
+  );
+
   setenv("TZ", FARM_TIMEZONE, 1);
   tzset();
   uint8_t mac[6]; if (esp_efuse_mac_get_default(mac) != ESP_OK) return;
