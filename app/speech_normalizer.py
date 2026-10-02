@@ -59,6 +59,10 @@ _STATS_CONFUSION_RE = re.compile(
     r"\bwhat\s+states(?=\s+(?:are\s+available|do\s+we\s+have)\b)",
     re.IGNORECASE,
 )
+_SOURCE_NAME_NORMALISATIONS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\bdairy\s+nz\b", re.IGNORECASE), "DairyNZ"),
+    (re.compile(r"\birrigation\s+nz\b", re.IGNORECASE), "Irrigation NZ"),
+)
 
 
 def current_paddock_names() -> tuple[str, ...]:
@@ -99,6 +103,13 @@ def _preserve_case(match: re.Match[str]) -> str:
 def _correct_known_confusions(text: str, paddock_names: Iterable[str]) -> tuple[str, bool]:
     result = text
     changed = False
+
+    # Android/browser speech commonly inserts a space into spoken NZ
+    # organisation names. Canonicalise only reviewed FarmPi source names.
+    for pattern, replacement in _SOURCE_NAME_NORMALISATIONS:
+        if pattern.search(result):
+            result = pattern.sub(replacement, result)
+            changed = True
 
     # Browser speech transcripts commonly omit apostrophes from possessive
     # farmer-defined names, e.g. "Freds Paddock" for "Fred's Paddock".

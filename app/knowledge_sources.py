@@ -138,9 +138,17 @@ SOURCES: tuple[KnowledgeSource, ...] = (
 )
 
 
+def _normalise_source_text(text: str) -> str:
+    """Canonicalise reviewed organisation wording without implying retrieval."""
+    lowered = text.casefold()
+    lowered = re.sub(r"\bdairy\s+nz\b", "dairynz", lowered)
+    lowered = re.sub(r"\birrigation\s+nz\b", "irrigation nz", lowered)
+    return lowered
+
+
 def sources_for_question(question: str, limit: int = 4) -> tuple[KnowledgeSource, ...]:
     """Select relevant reviewed NZ sources by topic without claiming live retrieval."""
-    lowered = question.casefold()
+    lowered = _normalise_source_text(question)
     scored: list[tuple[int, KnowledgeSource]] = []
     for source in SOURCES:
         score = sum(

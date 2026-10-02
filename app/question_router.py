@@ -66,6 +66,11 @@ _FORECAST_RE = re.compile(
     r"|(?=.*\b(?:rain|rainfall)\b)(?=.*\b(?:tomorrow|tonight|next\s+(?:day|week))\b)",
     re.IGNORECASE,
 )
+_LIVE_EXTERNAL_RESEARCH_RE = re.compile(
+    r"(?=.*\b(?:search|look\s+up|research|check|find)\b)"
+    r"(?=.*\b(?:live|online|web|internet|latest|right\s+now)\b)",
+    re.IGNORECASE,
+)
 _LEARNING_TOPIC_RE = re.compile(r"\b(?:field\s+capacity|refill\s+point|evapotranspiration|soil\s+water\s+holding\s+capacity)\b", re.IGNORECASE)
 _COMPARE_RE = re.compile(r"\bcompare\b|\bacross\s+all\s+(?:paddocks?|fields?)\b|\ball\s+(?:paddocks?|fields?)\b", re.IGNORECASE)
 _FARM_SCOPE_RE = re.compile(r"\b(?:across|over)\s+(?:all\s+)?(?:paddocks?|fields?)\b|\bacross\s+the\s+farm\b|\bfarm(?:-|\s+)wide\b", re.IGNORECASE)
@@ -202,6 +207,8 @@ def route_question(question: str) -> QuestionRoute:
     presentation = "evidence" if _EVIDENCE_RE.search(question) else "graph" if _GRAPH_RE.search(question) else None
     explicit_paddock = _extract_paddock(question)
     unsupported_topic = _unsupported_measurement_topic(question, measurement)
+    if _LIVE_EXTERNAL_RESEARCH_RE.search(question):
+        return QuestionRoute("external-research-boundary")
     if unsupported_topic:
         return QuestionRoute(
             "unsupported-measurement",

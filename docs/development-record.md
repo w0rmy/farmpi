@@ -920,3 +920,24 @@ The fast router had already identified `forecast-boundary`, but `needs_semantic_
 ### Learning evidence
 
 This exposed an important authority-ordering defect: deterministic recognition alone is not enough if a later semantic layer is permitted to override the recognised boundary. A reviewed capability/safety boundary must terminate routing before generative interpretation. The change improves both correctness and latency.
+
+
+## 2 October 2026 — distinguish live external retrieval from irrigation advice
+
+### Observation
+
+T05 external-source acceptance asked `Can you search DairyNZ live right now for irrigation scheduling advice?`. FarmPi did not falsely claim a live search, but returned the irrigation-decision boundary instead. The response was safe but answered a different question.
+
+The wording combined an external-source request with `irrigation` and `advice`. The semantic layer was still allowed to reinterpret the request as an irrigation decision, even though whether FarmPi has live web retrieval configured is an application capability fact.
+
+### Decision
+
+- recognise explicit live/web research wording deterministically;
+- return an `external-research-boundary` before irrigation/decision routing can take over;
+- state that live external retrieval is not configured and that reviewed local source material may still be used;
+- prevent the semantic interpreter and answer model from overriding this capability boundary;
+- require zero model calls for this path.
+
+### Learning evidence
+
+This repeats the authority-ordering lesson from forecast handling in a different subsystem. The LLM may interpret source-oriented language where useful, but it should not decide whether the application has a live external-retrieval capability. Capability facts belong to the deterministic application layer.

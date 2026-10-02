@@ -89,6 +89,14 @@ class SpeechNormalizerTests(unittest.TestCase):
         )
         self.assertEqual(result.normalized_transcript, "What stats are available on Fred’s paddock?")
 
+    def test_spoken_dairy_nz_is_canonicalised(self) -> None:
+        result = normalize_speech("Can you search Dairy NZ live right now for irrigation scheduling advice?")
+        self.assertEqual(
+            result.normalized_transcript,
+            "Can you search DairyNZ live right now for irrigation scheduling advice?",
+        )
+        self.assertTrue(result.correction_applied)
+
     @patch("app.speech_normalizer.fetch_all")
     def test_current_paddock_names_reads_active_database_names(self, fetch_all) -> None:
         fetch_all.return_value = [{"name": "North Flat"}, {"name": "Back Hill"}]

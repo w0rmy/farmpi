@@ -36,6 +36,12 @@ class SemanticInterpreterTests(unittest.TestCase):
         self.assertEqual(fast.intent, "forecast-boundary")
         self.assertFalse(needs_semantic_interpretation(question, fast))
 
+    def test_live_external_research_boundary_bypasses_semantic_interpretation(self) -> None:
+        question = "Can you search DairyNZ live right now for irrigation scheduling advice?"
+        fast = route_question(question)
+        self.assertEqual(fast.intent, "external-research-boundary")
+        self.assertFalse(needs_semantic_interpretation(question, fast))
+
     def test_rename_interpretation_maps_to_deterministic_rename_route(self) -> None:
         interpretation = parse_semantic_interpretation(json.dumps({
             "intent": "rename",
@@ -84,6 +90,11 @@ class SemanticInterpreterTests(unittest.TestCase):
         self.assertEqual(route.intent, "agriculture-learning")
         self.assertEqual(route.education_key, "milk fever in dairy cows")
 
+    def test_spaced_dairy_nz_is_recognised_as_external_source(self) -> None:
+        question = "What does Dairy NZ say about irrigation scheduling?"
+        fast = route_question(question)
+        self.assertTrue(needs_semantic_interpretation(question, fast))
+
     def test_explicit_source_question_becomes_research_route(self) -> None:
         interpretation = parse_semantic_interpretation(json.dumps({
             "intent": "research",
@@ -131,6 +142,9 @@ class SemanticInterpreterTests(unittest.TestCase):
     def test_dairynz_irrigation_source_has_reviewed_claims(self) -> None:
         context, sources = format_source_context("What does DairyNZ say about irrigation scheduling?")
         self.assertTrue(any(source.organisation == "DairyNZ" for source in sources))
+        spaced_context, spaced_sources = format_source_context("What does Dairy NZ say about irrigation scheduling?")
+        self.assertTrue(any(source.organisation == "DairyNZ" for source in spaced_sources))
+        self.assertIn("DairyNZ", spaced_context)
         self.assertIn("refill point", context)
         self.assertIn("Do not say they were searched live", context)
         provenance = provenance_for_sources(sources)
@@ -200,6 +214,25 @@ class OpenLearningAskTests(unittest.TestCase):
         self.assertIsNone(response.semantic_interpretation)
         self.assertEqual(response.timings.llm_ms, 0.0)
         self.assertEqual(client.calls, 0)
+
+    def test_live_external_research_boundary_returns_without_model_calls(self) -> None:
+        client = _SequenceClient([])
+        old_client = getattr(app.state, "http_client", None)
+        app.state.http_client = client
+        try:
+            response = asyncio.run(ask(AskRequest(question="Can you search DairyNZ live right now for irrigation scheduling advice?")))
+        finally:
+            if old_client is None:
+                delattr(app.state, "http_client")
+            else:
+                app.state.http_client = old_client
+        self.assertEqual(response.intent, "external-research-boundary")
+        self.assertIn("Live external web retrieval is not configured", response.answer)
+        self.assertIn("cannot claim to have searched DairyNZ", response.answer)
+        self.assertIsNone(response.semantic_interpretation)
+        self.assertEqual(response.timings.llm_ms, 0.0)
+        self.assertEqual(client.calls, 0)
+        self.assertTrue(any(item.get("kind") == "research-status" for item in response.provenance))
 
     def test_unsupported_measurement_returns_deterministic_capability_answer(self) -> None:
         client = _SequenceClient([])

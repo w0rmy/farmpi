@@ -541,6 +541,12 @@ def get_grounding_data(intent: str, paddock_name: str | None = None, measurement
             "It can show verified rainfall and other recorded measurements, but those readings are not a forecast.",
             "Would you like to inspect recent rainfall instead?",
         ), source_category="educational")
+    if intent == "external-research-boundary":
+        return GroundingData(intent, (
+            "Live external web retrieval is not configured in this FarmPi prototype.",
+            "FarmPi can use reviewed source material already included in the application, but it cannot claim to have searched DairyNZ or another website live right now.",
+            "You can ask what FarmPi's reviewed DairyNZ material says about irrigation scheduling.",
+        ), source_category="authoritative")
     if intent == "causal-boundary":
         return GroundingData(intent, (
             "FarmPi cannot establish the cause of a condition from its current measurements alone.",

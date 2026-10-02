@@ -44,7 +44,7 @@ _MUTATION_HINT_RE = re.compile(
 # "refill point". This prevents the old deterministic filter order from hiding
 # what the user actually asked: "what does DairyNZ say?".
 _EXTERNAL_SOURCE_RE = re.compile(
-    r"\b(?:dairynz|mpi|ministry\s+for\s+primary\s+industries|"
+    r"\b(?:dairy\s*nz|mpi|ministry\s+for\s+primary\s+industries|"
     r"earth\s+sciences(?:\s+new\s+zealand|\s+nz)?|niwa|"
     r"irrigation(?:\s+new\s+zealand|nz)|look\s+up|research|find\s+out|"
     r"what\s+does\s+[^?!.]{1,80}\s+say)\b",
@@ -102,6 +102,8 @@ def needs_semantic_interpretation(question: str, route: QuestionRoute) -> bool:
     last rule is deliberate: it prevents trailing politeness such as "please"
     from accidentally becoming part of a new paddock name.
     """
+    if route.intent == "external-research-boundary":
+        return False
     if _EXTERNAL_SOURCE_RE.search(question):
         return True
     if _MUTATION_HINT_RE.search(question):
