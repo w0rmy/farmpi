@@ -1,5 +1,7 @@
 # FarmPi Android UX v0.1 — local refactor map
 
+> **Historical transition record.** Retained as development evidence. It describes the state and decisions at the date in the title and is not a current-state authority. See [the documentation index](README.md) for current guides.
+
 Audit: 27 September 2026. Local source in F:\FarmPi. Existing source changes: none; generated build outputs already dirty and must be preserved.
 
 | Target | Current implementation | Refactor |
