@@ -129,6 +129,11 @@ internal fun NodesArea(modifier: Modifier = Modifier) {
     }
 }
 
+private fun hardwareTag(node: JSONObject): String {
+    val uid = node.optString("hardware_uid").trim()
+    return if (uid.isBlank()) "HW unknown" else "HW " + uid.takeLast(4).uppercase()
+}
+
 @Composable
 private fun NodeListCard(node: JSONObject, open: () -> Unit) {
     val registered = node.getBoolean("registered")
@@ -146,7 +151,7 @@ private fun NodeListCard(node: JSONObject, open: () -> Unit) {
             )
             if (registered) {
                 Text(
-                    "${node.optString("name", "Node")} · ${node.getString("node_uid")}",
+                    "${node.optString("name", "Node")} · ${node.getString("node_uid")} · ${hardwareTag(node)}",
                     style = MaterialTheme.typography.bodySmall
                 )
             } else {
@@ -186,7 +191,7 @@ private fun NodeDetail(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             val locationName = if (node.isNull("paddock_name")) "Unassigned location" else node.getString("paddock_name")
             Text(if (registered) locationName else "Unregistered node", style = MaterialTheme.typography.titleLarge)
-            if (registered) Text("${node.getString("node_uid")} · ${node.optString("name", "Node")}", style = MaterialTheme.typography.bodyMedium)
+            if (registered) Text("${node.getString("node_uid")} · ${node.optString("name", "Node")} · ${hardwareTag(node)}", style = MaterialTheme.typography.bodyMedium)
             StatusChip(
                 if (registered) node.getString("sync_state").lowercase().replaceFirstChar { it.uppercase() }
                 else "Pending registration"
@@ -289,7 +294,7 @@ private fun NodeDetail(
                 Text(if (technical) "Hide technical details" else "Technical details")
             }
             if (technical) {
-                Text("Hardware UID: ${node.getString("hardware_uid")}")
+                Text("Hardware UID: ${node.getString("hardware_uid")} (${hardwareTag(node)})")
                 Text("Firmware: ${node.optString("firmware_version", "Unknown")}")
                 if (registered) {
                     Text("FarmPi ID: ${node.getString("node_uid")}")
