@@ -98,6 +98,18 @@ class QuestionRouterTests(unittest.TestCase):
                 self.assertEqual(route.paddock_name, "Paddock A")
                 self.assertEqual(route.measurement, measurement)
 
+    def test_clear_unsupported_measurement_uses_capability_boundary(self) -> None:
+        route = route_question("What is the nitrogen level in Fred's paddock?")
+        self.assertEqual(route.intent, "unsupported-measurement")
+        self.assertEqual(route.paddock_name, "Fred's paddock")
+        self.assertEqual(route.education_key, "nitrogen")
+
+    def test_supported_level_wording_stays_on_supported_measurement_route(self) -> None:
+        route = route_question("What is the light level in Paddock A?")
+        self.assertEqual(route.intent, "paddock-field")
+        self.assertEqual(route.paddock_name, "Paddock A")
+        self.assertEqual(route.measurement, "light_lux")
+
     def test_environment_measurement_fallback(self) -> None:
         route = route_question("What is the relative humidity?")
         self.assertEqual(route.intent, "measurement-fallback")
