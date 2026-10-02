@@ -236,7 +236,7 @@ Screenshots are presentation evidence only. They do not replace deterministic gr
 
 The managed ESP32-S3 SIMULATED mode is test telemetry, but it should still produce plots that exercise the application realistically rather than manufacturing rapid oscillations that dominate screenshots.
 
-After flashing firmware `0.3.2-realistic-sim` to both managed boards, verify over sufficient time that:
+With the current managed firmware and the relevant channels configured **SIMULATED**, verify over sufficient time that:
 
 - soil moisture does not complete repeated high/low cycles within an hour; absent synthetic rain it should change slowly across a day;
 - a synthetic rain event produces a gradual moisture rise rather than an instantaneous full-event jump;
@@ -248,6 +248,20 @@ After flashing firmware `0.3.2-realistic-sim` to both managed boards, verify ove
 - the two managed nodes are similar but not identical because node-specific offsets are applied.
 
 These checks validate simulation usefulness only. They do not establish local weather accuracy or physical-sensor performance.
+
+## Physical soil-moisture acceptance — 2 October 2026
+
+The first physical channel has now been accepted end to end on FP-001 / HW 33C0 using the XC4604 analogue probe on GPIO4. Retained evidence is in [XC4604 LIVE soil-moisture acceptance](evidence/s3/soil-moisture-live-acceptance-2026-10-02.md).
+
+Acceptance demonstrated:
+
+- Android selected `soil_moisture_pct = LIVE` and the node returned to IN SYNC;
+- dry and wet conditions produced materially different physical ADC-derived values;
+- serial and MariaDB agreed for sample sequence 6860 at 64.69%;
+- MariaDB stored per-measurement provenance as `LIVE`;
+- Android displayed the corresponding current/history change.
+
+This passes the soil-moisture component only. T01 remains **PARTIAL (1/6 physical measurements demonstrated)**, and the uncalibrated 0–100% proof-of-concept mapping is not agronomic accuracy evidence.
 
 ## Measurement drill-down acceptance
 
