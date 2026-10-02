@@ -1,23 +1,35 @@
 flowchart TD
   B[ESP32-S3 boots] --> U[Read immutable hardware UID + persisted device key]
-  U --> C[POST /api/nodes/contact]
+  U --> C[POST /api/nodes/contact<br/>firmware + configurable + LIVE capabilities]
   C --> R{Registered?}
+
   R -->|no| P[Pending node in FarmPi]
-  P --> A[Android Nodes admin approves + assigns identity/location]
-  A --> E[Initial desired config: all modes OFF]
+  P --> A[Android Nodes admin approves<br/>assigns logical ID / friendly name / location]
+  A --> E[Initial desired configuration<br/>all supported modes OFF]
+
   R -->|yes| H{Applied fingerprint matches desired?}
   E --> H
+
+  ADM[Android Node Detail<br/>edits OFF / SIMULATED / supported LIVE] --> DC[PUT complete desired config<br/>with expected fingerprint]
+  CLI[Pi configure-node-modes helper<br/>administrative alternative] --> DC
+  DC --> H
+
   H -->|yes| S[IN SYNC]
   H -->|no| F[POST /api/nodes/configuration]
-  F --> V[Validate schema, node identity, capabilities, canonical bytes + SHA-256]
+  F --> V[Validate schema, identity, capabilities,<br/>canonical bytes + SHA-256]
   V -->|valid| N[Write inactive NVS slot + read back]
-  N --> X[Switch active config and apply]
+  N --> X[Switch active config]
   X --> K[POST /api/nodes/ack]
   K --> S
-  V -->|invalid / persistence failure| L[Keep last known-good config]
+
+  V -->|invalid / persistence failure| L[Keep last-known-good config]
   L --> Q[Report failure for attempted fingerprint]
   Q --> D[UPDATE FAILED for current desired state]
-  S --> T[Generate SIMULATED or acquire advertised LIVE measurements]
-  T --> I[Authenticated sparse ingest with source/location/time/provenance]
-  CLI[Pi console configure-node-modes] --> H
-  S --> UI[Android displays modes read-only]
+
+  S --> M{Per-measurement mode}
+  M -->|SIMULATED| SIM[Generate bounded node-local test value]
+  M -->|LIVE + advertised driver| LIVE[Acquire physical value<br/>currently XC4604 soil moisture on GPIO4]
+  M -->|OFF| OFF[Send nothing]
+  SIM --> I[Authenticated sparse ingest]
+  LIVE --> I
+  I --> PROV[FarmPi derives per-measurement provenance<br/>from acknowledged configuration]
