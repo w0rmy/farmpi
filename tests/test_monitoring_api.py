@@ -120,7 +120,7 @@ class MonitoringOverviewTests(unittest.TestCase):
         chart_data = payload["chart"]["series"][0]["data"]
         chart_values = {item["x"]: item["y"] for item in chart_data}
         self.assertEqual(chart_values, {"Fred's paddock": 36.0, "Bob's paddock": 30.0})
-        self.assertIn("Highest average Soil moisture over", payload["answer"])
+        self.assertIn("Highest average soil moisture over", payload["answer"])
         self.assertIn("Fred's paddock at 36.00%", payload["answer"])
         self.assertNotIn("Back Hill", response.text)
 
