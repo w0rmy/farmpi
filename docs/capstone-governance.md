@@ -49,7 +49,7 @@ The language model is a component of the application, not the application itself
 
 The embedded course, Learn tab, course progress and other learning-oriented features were implemented while **Developing Flexible IT Courses** was the selected elective. They remain legitimate development history, but they are no longer current product requirements.
 
-The current Android direction is to reshape the existing client rather than rewrite it: preserve working application capabilities such as Ask, voice/TTS, graphs, provenance, settings, connection state and Nodes administration, while removing course/module/progress surfaces that exist only for the superseded elective. Contextual explanation and measurement interpretation remain in scope because they serve the FarmPi application and AI/data integration directly.
+The Android reshape has now removed course/module/progress surfaces while preserving working application capabilities such as Ask, voice/TTS, graphs, provenance, settings, connection state and Nodes administration. Contextual explanation and measurement interpretation remain in scope because they serve the FarmPi application and AI/data integration directly.
 
 Do not delete or rewrite the historical record merely because the live course UI is removed. Current documentation should clearly distinguish **historical learning-design evidence** from **current application-development requirements**.
 
