@@ -875,3 +875,21 @@ After moving clear unsupported-measurement requests into the deterministic fast 
 ### Learning evidence
 
 This distinguishes an implementation regression from a stale test. The failed test did not show incorrect FarmPi behaviour; it showed that the acceptance expectation had not yet been updated to match the architectural change.
+
+
+## 2 October 2026 — distinguish future rainfall questions from current rainfall telemetry
+
+### Observation
+
+Manual Ask FarmPi testing asked `Will it rain on Fred's paddock tomorrow?`. FarmPi safely avoided inventing a weather forecast, but returned the current rainfall reading instead. The deterministic forecast guard only recognised the literal words `weather` or `forecast`, so ordinary future-rain wording fell through to the rainfall measurement route.
+
+### Decision
+
+- recognise clear future rainfall wording such as `will it rain` and rain/rainfall combined with `tomorrow`, `tonight`, or a next-day/week cue;
+- route those requests to the existing deterministic `forecast-boundary`;
+- retain ordinary current rainfall questions on the normal telemetry route;
+- do not infer a forecast from current or historical FarmPi rainfall measurements.
+
+### Learning evidence
+
+The failure was an intent-precedence issue rather than an LLM issue. A valid deterministic measurement match is still the wrong answer when the user is asking about the future. Temporal intent therefore has to be recognised before returning current telemetry.
