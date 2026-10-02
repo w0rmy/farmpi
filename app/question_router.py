@@ -68,6 +68,12 @@ _TODAY_RE = re.compile(r"\b(?:today|this\s+morning)\b", re.IGNORECASE)
 _GRAPH_RE = re.compile(r"\b(?:graph|chart|plot|profile)\b", re.IGNORECASE)
 _EVIDENCE_RE = re.compile(r"\b(?:show\s+(?:the\s+)?(?:data|evidence)|why\??)\b", re.IGNORECASE)
 _INVENTORY_RE = re.compile(r"\bhow\s+many\s+(?:active\s+)?(?:paddocks?|fields?|sensor\s+nodes?)\b|\b(?:count|number)\s+of\s+(?:active\s+)?(?:paddocks?|fields?|sensor\s+nodes?)\b", re.IGNORECASE)
+_UNSUPPORTED_MEASUREMENT_RE = re.compile(
+    r"\b(?:what\s+is|what's|show\s+me|give\s+me)\s+(?:the\s+)?"
+    r"([a-z][a-z0-9 -]{1,48}?)\s+(?:level|reading|measurement|value)\b",
+    re.IGNORECASE,
+)
+
 _INVENTORY_LIST_RE = re.compile(
     # Field/fields are conversational aliases for paddock/paddocks; no new
     # database entity is introduced by this wording.
@@ -141,6 +147,26 @@ def _extract_paddock(question: str, *, allow_measurement_location: bool = False)
     return None
 
 
+def _unsupported_measurement_topic(question: str, measurement: str | None) -> str | None:
+    """Return an explicitly requested unsupported measurement concept, if clear.
+
+    This is a capability-boundary parser, not a synonym guesser. Supported
+    measurement wording has already been checked by measurement_for_text().
+    """
+    if measurement is not None:
+        return None
+    match = _UNSUPPORTED_MEASUREMENT_RE.search(question)
+    if not match:
+        return None
+    topic = " ".join(match.group(1).split()).strip(" -")
+    if not topic:
+        return None
+    # Avoid turning generic grammar into a fake measurement name.
+    if topic.casefold() in {"current", "latest", "sensor", "farm", "paddock", "field"}:
+        return None
+    return topic
+
+
 def _window_minutes(question: str) -> int | None:
     match = _WINDOW_RE.search(question)
     if not match:
@@ -170,6 +196,13 @@ def route_question(question: str) -> QuestionRoute:
     measurement = measurement_for_text(question)
     presentation = "evidence" if _EVIDENCE_RE.search(question) else "graph" if _GRAPH_RE.search(question) else None
     explicit_paddock = _extract_paddock(question)
+    unsupported_topic = _unsupported_measurement_topic(question, measurement)
+    if unsupported_topic:
+        return QuestionRoute(
+            "unsupported-measurement",
+            paddock_name=explicit_paddock,
+            education_key=unsupported_topic,
+        )
     if _IRRIGATION_RE.search(question):
         if _DECISION_RE.search(question):
             return QuestionRoute("irrigation-decision", paddock_name=explicit_paddock)
