@@ -1,5 +1,30 @@
 # FarmPi development record
 
+## 2 October 2026 — first physical LIVE sensor accepted end to end
+
+### Observation
+
+The managed-node architecture had already demonstrated discovery, registration, configuration synchronisation, node-local simulation, authenticated ingest and Android administration, but T01 still lacked a retained physical acquisition result.
+
+An XC4604 analogue soil-moisture probe was connected to ESP32-S3 GPIO4 on FP-001 / hardware UID `7c4fadb633c0` (HW 33C0). Direct electrical checks showed the probe/ADC path responded across dry air, finger contact and water immersion.
+
+### Decision and implementation
+
+- add `soil_moisture_pct` as the first advertised LIVE capability;
+- use GPIO4 / ADC1 and average 16 ADC samples;
+- use the observed raw 0–1800 electrical span only as an uncalibrated proof-of-concept 0–100% scale;
+- keep all other measurements SIMULATED/OFF until physical drivers and hardware exist;
+- retain per-measurement provenance so a mixed sample can contain LIVE soil moisture while the row-level compatibility flag remains simulated because other channels are synthetic.
+
+### Live acceptance
+
+Android changed Soil moisture to LIVE and the node returned to IN SYNC. Dry serial readings remained at 0.00%. Water immersion changed the managed firmware output to 64.69% at sample sequence 6860. MariaDB stored that same sample as 64.69 with `soil_mode=LIVE`; subsequent wet samples were 66.09 and 65.21. Android displayed the corresponding current/history change.
+
+This demonstrates the physical probe → ADC → managed firmware → authenticated ingest → MariaDB → Android path. It does not demonstrate calibration or the five other FR01 physical measurements. T01 is therefore PARTIAL (1/6 physical measurements).
+
+See [the retained acceptance record](evidence/s3/soil-moisture-live-acceptance-2026-10-02.md).
+
+
 This record captures material design decisions and their outcome/evidence rationale. Current operating instructions live in the subject guides; historical performance measurements live under `docs/history`.
 
 ## 26 September 2026 - live Raspberry Pi backend validation
