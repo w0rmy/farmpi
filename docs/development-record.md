@@ -1,5 +1,39 @@
 # FarmPi development record
 
+## 3 October 2026 — recalibrate XC4604 against the actual coco medium
+
+### Observation
+
+The first LIVE soil-moisture implementation was intentionally only a proof-of-concept electrical scale: raw 0 in dry air and raw 1800 in immersed water were mapped to 0–100%. That was sufficient to prove the physical acquisition chain, but it became misleading when the probe was used in the actual coco growing medium. Completely dry coco still displayed around 58–64% on the old scale.
+
+### Calibration evidence
+
+Freshly saturated coco produced raw readings of 1943.7, 1966.1 and 1955.1, giving a mean of approximately 1955.0.
+
+Completely dry coco produced raw readings of 1155.6, 1113.1, 1096.2, 1083.5, 972.1, 1066.4, 1056.0, 1050.9 and 1043.3. Because insertion/contact variation was visible, the median 1066.4 was chosen rather than a single extreme reading.
+
+The prototype calibration therefore uses:
+
+- `RAW_DRY = 1066`
+- `RAW_WET = 1955`
+- span = 889 ADC counts
+
+### Decision and implementation
+
+- change the soil-moisture display calculation to a relative scale based on those measured coco endpoints;
+- clamp values below/above the measured endpoints to 0–100%;
+- bump managed-node firmware from `0.3.3-xc4604-poc` to `0.3.4-xc4604-coco-cal`;
+- rename serial output from `prototype_scale ... (uncalibrated)` to `relative_moisture ... (coco-calibrated prototype)`;
+- preserve `LIVE` provenance and the existing managed-node/telemetry contract.
+
+This is a **relative coco-moisture prototype scale**, not volumetric water content, laboratory calibration or an agronomic irrigation threshold.
+
+### Evidence boundary
+
+The calibration improves the usefulness and defensibility of the already-demonstrated physical soil-moisture channel. It does not add another physical measurement type, so T01 remains **PARTIAL (1/6)**.
+
+See [XC4604 coco-relative soil-moisture calibration](evidence/s3/soil-moisture-coco-calibration-2026-10-03.md).
+
 ## 3 October 2026 — consolidate capstone acceptance and freeze the stakeholder-test baseline
 
 ### Observation
