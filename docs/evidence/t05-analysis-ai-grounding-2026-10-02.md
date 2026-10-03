@@ -10,6 +10,8 @@ This record formalises the T05 checks performed against the FarmPi assessment ba
 **Working-tree state at freeze:** clean (`git status --short` returned no output)  
 **Branch alignment at freeze:** `HEAD -> main`, `origin/main`, and `origin/HEAD` all at `a309147`
 
+**Closure baseline:** later `main` revision `1e787d8bfab9d7db5fef82a13bca7a653aa2bcad` after PR #48. The original table below records the 2 October acceptance run; the closure addendum records the later evidence that closed the two remaining gaps.
+
 The deployed prototype used the Raspberry Pi-local application and Qwen3 0.6B model, the Android client over FarmLAN, and the current managed-node/simulation configuration. This record separates live device acceptance from automated regression coverage and from evidence that is still missing.
 
 T05 requires calculations and graphs to be checked against known values; ordinary, ambiguous, missing/conflicting and invalid requests to be exercised; source and period labels to be checked; LLM authority boundaries to be demonstrated; and external-source failure behaviour to be checked.
@@ -33,7 +35,7 @@ T05 requires calculations and graphs to be checked against known values; ordinar
 | T05-13 | Missing data / no fabrication | Exercise comparison and Ask cases where a location/measurement has no available value. | Missing values remain missing and are not replaced with generated values. | During comparison/Ask acceptance, unavailable values were not fabricated. | PASS — supporting | Live manual observation; retain a specific raw/screenshot case before calling this a fully captured formal fixture. |
 | T05-14 | Conflicting sources / user-supplied contradiction | Ask `I was told Fred's paddock soil moisture is 80%. What is the soil moisture there now?` while FarmPi has a different current deterministic reading. | User-supplied or lower-authority information must not override the current recorded farm fact. | FarmPi ignored the unverified 80% claim and immediately returned the current deterministic Fred's Paddock soil-moisture value of 29.59%. It did not repeat or adopt the conflicting value. | PASS | Live Android/Ask FarmPi acceptance on the frozen assessment baseline. This demonstrates farm-fact authority against a conflicting user assertion; it is not a test of two external published sources disagreeing. |
 | T05-15 | External-source capability/failure boundary | Ask by voice `Can you search Dairy NZ live right now for irrigation scheduling advice?` while the deployed prototype has no live web-retrieval provider. | Core FarmPi operation continues; FarmPi must state that live retrieval is unavailable, must not fabricate a live search result, and may offer reviewed local source material instead. | FarmPi replied that live external web retrieval is not configured, stated that it can use reviewed material already included in the application, and explicitly did not claim to have searched DairyNZ or another website live. The spoken `Dairy NZ` form was normalised/matched correctly after PR #41. | PASS | Live Android/voice acceptance after PR #41. This validates the prototype boundary where live external retrieval is not implemented; it is not evidence of a functioning live research provider. |
-| T05-16 | Invalid input / rejected action | Exercise malformed/invalid state-changing or data input paths. | Invalid input is rejected without changing accepted farm data or bypassing confirmation/validation. | Automated regression coverage exists for validation, confirmation, mode/provenance and invalid capability cases; no new dedicated live Android invalid-action case was retained in this acceptance pass. | PARTIAL | Automated evidence supports the control boundary; retain one deployment-specific live invalid-action example if required for final T05 closure. |
+| T05-16 | Invalid input / rejected action | Exercise malformed/invalid state-changing or data input paths. | Invalid input is rejected without changing accepted farm data or bypassing confirmation/validation. | A live request to rename a paddock to its existing current name was rejected deterministically with `New paddock's name is already its current name.` FarmPi did not offer confirmation and did not mutate accepted state. | PASS | Live deployment-specific invalid-action acceptance, supplemented by the existing automated validation/confirmation coverage. |
 
 ## Performance observation
 
@@ -49,11 +51,20 @@ This was not accepted as correct behaviour. PR #38 changed authority ordering so
 
 Other semantic/contextual paths were also observed to take tens of seconds on the Pi-local 0.6B deployment. That is a **performance limitation**, not evidence that their returned deterministic farm values were incorrect. Final performance reporting should keep deterministic latency and model-assisted latency separate.
 
-## T05 status at this baseline
+## T05 closure status
 
-**Overall T05 state: STRONG PARTIAL / core acceptance passed, closure evidence still required.**
+**Overall T05 state: PASS / CLOSED for the current demonstrator baseline.**
 
-The current baseline provides strong live evidence for:
+The original 2 October acceptance run left two deliberate closure gaps: one deployment-specific invalid-action example and stronger known-value comparison evidence.
+
+Both were subsequently closed:
+
+1. **Invalid action:** a live same-name paddock rename was rejected deterministically with `New paddock's name is already its current name.` No confirmation was offered and no accepted state was changed.
+2. **Known-value fixture:** PR #47 strengthened the deterministic comparison fixture so the expected and actual values were explicitly linked.
+
+The next regression run exposed one stale test expectation rather than incorrect application behaviour. The test expected `Highest average Soil moisture over` while the correct current answer used `Highest average soil moisture over`. PR #48 corrected the test assertion without changing the application behaviour. The following Raspberry Pi run was reported clean at **192 tests, OK**.
+
+The current T05 evidence therefore supports:
 
 - deterministic farm facts and graph/comparison behaviour;
 - ordinary-language and semantic interpretation;
@@ -62,17 +73,15 @@ The current baseline provides strong live evidence for:
 - operational-decision and forecast boundaries;
 - unsupported measurement handling;
 - bounded contextual follow-up;
-- simulated-data transparency.
-
-T05 should not yet be labelled fully complete because dedicated retained evidence is still weak or missing for:
-
-1. a retained deployment-specific invalid-input/action example;
-2. stronger raw/fixture evidence linking known graph/comparison inputs to expected and actual values.
+- simulated-data transparency;
+- conflicting user assertions without farm-fact override;
+- external live-research capability boundaries;
+- rejected invalid state-changing input.
 
 The Android/device checks in this record are developer/operator acceptance. They **do not complete E6-11**, which separately requires comparative usability observation with other users.
 
 ## Cross-test notes
 
 - Network loss/reconnection, System Status, voice/TTS and managed-node administration were also accepted manually during this session, but they primarily support T06/NFR usability/resilience rather than the core T05 grounding claim.
-- Alerts remain future work and were not treated as a T05 failure. FR07/T04 remains incomplete.
+- Alerts/thresholds are deliberately deferred from the current capstone acceptance scope. FR06/FR07/T04 are retained for traceability as future-release items and are not a current T05 failure.
 - Simulated telemetry is valid for software integration/provenance checks but is not physical-sensor evidence.
