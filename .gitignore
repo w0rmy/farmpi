@@ -20,3 +20,19 @@ firmware/esp32-s3-node/config.h
 clients/android/.gradle/
 clients/android/build/
 clients/android/local.properties
+
+# Gradle files
+.gradle/
+build/
+
+# Kotlin / Native / Android outputs
+.kotlin/
+*.apk
+*.aar
+*.jar
+
+# Xcode / iOS build outputs (if you have an iosApp folder)
+**.xcuserdata/
+DerivedData/
+*.suo
+*.user

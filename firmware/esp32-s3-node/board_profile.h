@@ -37,11 +37,11 @@ static const size_t CONFIGURABLE_COUNT = sizeof(CONFIGURABLE_MEASUREMENTS) / siz
 // prototype testing on 3 October 2026. It is NOT volumetric water content or
 // an agronomic calibration.
 //
-// Dry endpoint: median of nine completely dry coco readings ~= 1066.4.
-// Wet endpoint: mean of three freshly saturated coco readings ~= 1955.0.
+// Dry endpoint: median of nine completely dry coco readings ~= 1000.0.
+// Wet endpoint: mean of nine freshly saturated coco readings ~= 2200.0.
 static const uint8_t SOIL_MOISTURE_ADC_PIN = 4;
-static const float SOIL_MOISTURE_RELATIVE_RAW_DRY = 1066.0f;
-static const float SOIL_MOISTURE_RELATIVE_RAW_WET = 1955.0f;
+static const float SOIL_MOISTURE_RELATIVE_RAW_DRY = 1000.0f;
+static const float SOIL_MOISTURE_RELATIVE_RAW_WET = 2200.0f;
 static const uint8_t SOIL_MOISTURE_ADC_SAMPLES = 16;
 
 static const char* LIVE_MEASUREMENTS[] = {

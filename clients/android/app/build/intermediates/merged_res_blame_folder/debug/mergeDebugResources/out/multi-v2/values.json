@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "nz.farmpi.client.app-mergeDebugResources-31:/values/values.xml",
+            "outputFile": "nz.farmpi.client.app-mergeDebugResources-33:/values/values.xml",
             "map": [
                 {
                     "source": "C:\\Users\\Jeremy Brooking\\.gradle\\caches\\9.3.1\\transforms\\ca17d587f7b6ddd3c6251155165f14e7\\workspace\\transformed\\ui-graphics\\res\\values\\values.xml",

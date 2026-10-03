@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "nz.farmpi.client.app-mergeDebugResources-31:/values-da/values-da.xml",
+            "outputFile": "nz.farmpi.client.app-mergeDebugResources-33:/values-da/values-da.xml",
             "map": [
                 {
                     "source": "C:\\Users\\Jeremy Brooking\\.gradle\\caches\\9.3.1\\transforms\\497acbc4b518e5a216286d77d219edc8\\workspace\\transformed\\material3\\res\\values-da\\values-da.xml",
