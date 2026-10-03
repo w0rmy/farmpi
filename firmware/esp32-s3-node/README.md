@@ -29,11 +29,11 @@ Each catalogue measurement has exactly one mode:
 
 The managed profile exposes all 13 catalogue keys for simulation and currently advertises one LIVE driver: `soil_moisture_pct` from a Jaycar/Duinotech XC4604 analogue probe connected to ESP32-S3 GPIO4 (ADC1).
 
-For proof-of-concept acquisition, the observed electrical span is mapped from approximately raw 0 in dry air to raw 1800 immersed in water and clamped to 0–100%. This is deliberately an **uncalibrated prototype scale**, not volumetric water content or an agronomic calibration. It is sufficient to demonstrate the real probe → ADC → managed telemetry path. T01 remains incomplete until all six required physical measurements have been demonstrated from real hardware.
+For the current prototype, the XC4604 relative scale is calibrated against the actual coco growing medium used for testing. Nine completely dry coco readings produced a median of approximately raw 1066.4, while three freshly saturated coco readings produced a mean of approximately raw 1955.0. Firmware therefore maps raw 1066 to 0% and raw 1955 to 100%, clamped to that range. This is a **relative coco-moisture prototype scale**, not volumetric water content or an agronomic calibration. It improves the usefulness of the displayed prototype percentage while preserving the real probe → ADC → managed telemetry path. T01 remains incomplete until all six required physical measurements have been demonstrated from real hardware.
 
 ### Synthetic profile
 
-Firmware version `0.3.3-xc4604-poc` retains the realistic simulation profile and adds the first physical LIVE acquisition path. The simulator itself still replaces the earlier one-hour sine-wave generator. The managed node now builds synthetic values from the FarmPi-synchronised clock using a representative Hamilton/Waikato profile:
+Firmware version `0.3.4-xc4604-coco-cal` retains the realistic simulation profile, the first physical LIVE acquisition path, and the coco-relative calibration. The simulator itself still replaces the earlier one-hour sine-wave generator. The managed node now builds synthetic values from the FarmPi-synchronised clock using a representative Hamilton/Waikato profile:
 
 - light follows calculated sunrise, sunset and solar elevation for the current day of year and the NZ daylight-saving rule;
 - air temperature follows a seasonal daily low/high profile with a normal day/night cycle;
