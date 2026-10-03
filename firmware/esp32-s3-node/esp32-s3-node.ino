@@ -577,10 +577,10 @@ void setup() {
   analogReadResolution(12);
   analogSetPinAttenuation(SOIL_MOISTURE_ADC_PIN, ADC_11db);
   Serial.printf(
-    "XC4604 proof-of-concept input: GPIO%u, raw dry=%u, raw wet=%u; scaling is uncalibrated.\n",
+    "XC4604 input: GPIO%u, coco-relative raw dry=%.0f, raw wet=%.0f; not volumetric water content.\n",
     SOIL_MOISTURE_ADC_PIN,
-    SOIL_MOISTURE_POC_RAW_DRY,
-    SOIL_MOISTURE_POC_RAW_WET
+    SOIL_MOISTURE_RELATIVE_RAW_DRY,
+    SOIL_MOISTURE_RELATIVE_RAW_WET
   );
 
   setenv("TZ", FARM_TIMEZONE, 1);
