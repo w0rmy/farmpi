@@ -1,5 +1,69 @@
 # FarmPi development record
 
+## 3 October 2026 — consolidate capstone acceptance and freeze the stakeholder-test baseline
+
+### Observation
+
+By early October the application itself was no longer the main capstone risk. T05 had been closed, the first LIVE physical sensor was accepted, offline/startup behaviour had been accepted, and the software baseline had reached a clean 192-test Raspberry Pi regression run. The remaining work was increasingly about evidence completion rather than feature expansion.
+
+Jeremy also confirmed that the previously completed T02 communication/freshness checks and T03 history/storage checks had passed. Those earlier acceptance activities were not reconstructed here from invented detail; this record captures the project-owner/operator closure state.
+
+For T07, Jeremy performed a stronger repeatability check by replacing the Raspberry Pi SD card and reinstalling FarmPi using the documented deployment approach. The reinstall succeeded, demonstrating that the working prototype is not dependent on one accumulated SD-card image.
+
+### Acceptance state
+
+- T01 — **PARTIAL (1/6)**: XC4604 soil moisture accepted; five required physical channels remain.
+- T02 — **PASS**: communication/freshness acceptance confirmed by the project owner/operator.
+- T03 — **PASS**: history/storage acceptance confirmed by the project owner/operator.
+- T04 — **DEFERRED**: FR06/FR07/T04 are future-release scope, not current capstone completion criteria.
+- T05 — **PASS / CLOSED**.
+- T06 — **PASS in developer/operator testing**.
+- T07 — **PASS** after successful reinstall onto a new Raspberry Pi SD card.
+
+The consolidated status is retained in [Capstone acceptance consolidation — 3 October 2026](evidence/capstone-acceptance-consolidation-2026-10-03.md).
+
+### T05 final closure
+
+The original 2 October T05 record deliberately remained STRONG PARTIAL because one live invalid-action case and stronger known-value comparison evidence were still weak.
+
+The live invalid-action gap was closed when a same-name paddock rename was rejected deterministically with `New paddock's name is already its current name.` No confirmation was offered and no accepted state was changed.
+
+PR #47 strengthened the known-value comparison fixture. The next regression run exposed a stale capitalization expectation in the test rather than an application defect. PR #48 corrected that assertion without changing the correct application output. The subsequent Raspberry Pi regression suite was reported clean at **192 tests, OK**.
+
+### Repository freeze decision
+
+Once this documentation-only reconciliation is merged, the resulting `main` is intended to become the stakeholder-test / capstone baseline. No further feature work is planned unless stakeholder testing exposes a material usability problem, remaining T01 physical integration requires a necessary correction, or a genuine evidence/requirements contradiction is found.
+
+This is a deliberate shift from development to evidence completion.
+
+## 3 October 2026 — redefine stakeholder usability around the real onboarding model
+
+### Initial assumption
+
+A generic usability-testing approach suggested withholding the instructional parts of the FarmPi presentation before the practical test so that the participant's unaided discoverability would not be primed.
+
+### Human challenge
+
+Jeremy rejected that assumption because it does not represent the intended FarmPi customer journey. FarmPi would be sold/installed with at least a short product explanation. The existing Stakeholder Presentation Pack is deliberately much shorter than the training likely to accompany a real installation and therefore provides a useful minimum-onboarding baseline.
+
+The presentation images also differ from the live application in places. This means a participant cannot simply memorise a click sequence; they have to understand the concept and transfer it to the current phone interface.
+
+### Revised evaluation design
+
+The complete Stakeholder Presentation Pack is shown before the practical phone test.
+
+The session then measures three distinct things:
+
+1. **onboarding sufficiency** — whether the short presentation is enough, or whether a real deployment would need additional training;
+2. **knowledge transfer** — whether the participant can transfer the presentation concepts into the live application;
+3. **post-onboarding usability** — whether the participant can complete realistic tasks without further coaching.
+
+Once the practical test starts, no additional coaching is given unless the participant becomes genuinely stuck. Any assistance is recorded as evidence.
+
+### Learning evidence
+
+This was a material methodology correction. The original AI recommendation was plausible for a generic UX test but would have tested the wrong operational scenario for FarmPi. The revised method is aligned with the actual product onboarding model and can produce evidence about both training burden and application usability.
+
 ## 2 October 2026 — first physical LIVE sensor accepted end to end
 
 ### Observation

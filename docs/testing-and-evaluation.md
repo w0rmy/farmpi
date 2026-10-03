@@ -4,6 +4,22 @@ FarmPi now needs evidence that the integrated application works as designed and 
 
 The evaluation focus is therefore functional, architectural, integration-based, and evidence-led. Earlier learner/course evaluation remains historical work rather than the current primary acceptance target.
 
+## Current capstone acceptance state — 3 October 2026
+
+The current consolidated acceptance state is retained in [Capstone acceptance consolidation — 3 October 2026](evidence/capstone-acceptance-consolidation-2026-10-03.md).
+
+| Check | State | Current evidence boundary |
+|---|---|---|
+| T01 — Physical sensing | **PARTIAL (1/6)** | XC4604 soil moisture is accepted end to end. Five required physical measurement channels remain undemonstrated. |
+| T02 — Communication and freshness | **PASS** | Prior communication/freshness acceptance is project-owner/operator confirmed. This documentation update records closure without inventing a new raw transcript. |
+| T03 — History and storage | **PASS** | Prior history/storage acceptance is project-owner/operator confirmed. This documentation update records closure without inventing additional raw evidence. |
+| T04 — Thresholds and alerts | **DEFERRED** | FR06/FR07/T04 are future-release items, not current capstone completion criteria. |
+| T05 — Analysis and AI grounding | **PASS / CLOSED** | Live authority-boundary acceptance, PR #47 known-value strengthening, PR #48 stale-test correction and the clean 192-test Pi regression result close the retained gaps. |
+| T06 — Offline use and startup | **PASS — developer/operator acceptance** | Local/offline operation and resilience have been accepted; this does not replace comparative stakeholder usability evidence. |
+| T07 — Maintainability and repeatability | **PASS** | FarmPi was successfully reinstalled onto a new Raspberry Pi SD card using the documented deployment approach. |
+
+After the documentation-only reconciliation is merged, the resulting `main` is intended to be frozen as the stakeholder-test/capstone baseline. A later change is justified only by stakeholder findings, remaining T01 physical integration, or a genuine evidence/requirements contradiction.
+
 ## Automated backend checks
 
 From the repository root, with the project virtual environment active:
@@ -150,6 +166,16 @@ Every material change should link implementation, verification, and capstone evi
 ## Usability evaluation
 
 A small consented user evaluation can provide evidence for the functional client. Do not treat this as a learning-effectiveness study.
+
+For the capstone stakeholder session, the FarmPi Stakeholder Presentation Pack is the **minimum standard onboarding** and is shown **before** the practical phone test. This reflects the intended real deployment model: a customer would receive at least a short product introduction during sale/installation rather than being handed an unexplained system.
+
+The practical evaluation therefore tests three separate questions:
+
+1. **Onboarding sufficiency** — is the short presentation enough to prepare the participant, or would deployment require more training such as a video, guided walkthrough, quick-start sheet, or hands-on instruction?
+2. **Knowledge transfer** — can the participant carry the concepts from the presentation into the live application even where the presentation images are not identical to the current phone interface?
+3. **Post-onboarding usability** — after the minimum orientation, can the participant complete realistic FarmPi tasks without further coaching?
+
+Once the practical test begins, do not provide additional coaching unless the participant becomes genuinely stuck. If assistance is required, provide it and record exactly what help was needed. This session does **not** claim to measure zero-context discoverability.
 
 Useful tasks include whether a user can:
 
