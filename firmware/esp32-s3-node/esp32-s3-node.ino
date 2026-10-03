@@ -412,27 +412,28 @@ static float simulatedValue(const String& key) {
 static bool readLiveMeasurement(const String& key, float& value) {
   if (key != "soil_moisture_pct") return false;
 
-  // XC4604 proof-of-concept acquisition. The observed electrical span is
-  // approximately raw 0 in dry air and raw 1800 immersed in water. Mapping
-  // that span to 0-100 proves the physical acquisition/telemetry path only;
-  // it is NOT a calibrated volumetric or agronomic soil-moisture percentage.
+  // XC4604 relative prototype scale calibrated against the actual coco
+  // growing medium used for FarmPi testing. Completely dry coco is the 0%
+  // endpoint and freshly saturated coco is the 100% endpoint. This improves
+  // the usefulness of the prototype reading but remains a relative scale,
+  // NOT volumetric water content or an agronomic calibration.
   uint32_t total = 0;
   for (uint8_t i = 0; i < SOIL_MOISTURE_ADC_SAMPLES; ++i) {
     total += analogRead(SOIL_MOISTURE_ADC_PIN);
     delay(4);
   }
   const float raw = total / (float)SOIL_MOISTURE_ADC_SAMPLES;
-  const float span = (float)SOIL_MOISTURE_POC_RAW_WET - (float)SOIL_MOISTURE_POC_RAW_DRY;
+  const float span = SOIL_MOISTURE_RELATIVE_RAW_WET - SOIL_MOISTURE_RELATIVE_RAW_DRY;
   if (span <= 0.0f) return false;
 
   value = clampFloat(
-    (raw - (float)SOIL_MOISTURE_POC_RAW_DRY) * 100.0f / span,
+    (raw - SOIL_MOISTURE_RELATIVE_RAW_DRY) * 100.0f / span,
     0.0f,
     100.0f
   );
 
   Serial.printf(
-    "XC4604 GPIO%u raw=%.1f prototype_scale=%.2f%% (uncalibrated)\n",
+    "XC4604 GPIO%u raw=%.1f relative_moisture=%.2f%% (coco-calibrated prototype)\n",
     SOIL_MOISTURE_ADC_PIN,
     raw,
     value

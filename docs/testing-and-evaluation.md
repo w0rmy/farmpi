@@ -287,7 +287,7 @@ Acceptance demonstrated:
 - MariaDB stored per-measurement provenance as `LIVE`;
 - Android displayed the corresponding current/history change.
 
-This passes the soil-moisture component only. T01 remains **PARTIAL (1/6 physical measurements demonstrated)**, and the uncalibrated 0–100% proof-of-concept mapping is not agronomic accuracy evidence.
+This passes the soil-moisture component only. T01 remains **PARTIAL (1/6 physical measurements demonstrated)**. The original 2 October acceptance used an uncalibrated electrical display scale; on 3 October the current firmware was recalibrated against the actual coco test medium using raw 1066 as the completely dry endpoint and raw 1955 as the freshly saturated endpoint. The resulting 0–100% value is a **relative coco-moisture prototype scale**, not volumetric water content or agronomic accuracy evidence. See [XC4604 coco-relative calibration](evidence/s3/soil-moisture-coco-calibration-2026-10-03.md).
 
 ## Measurement drill-down acceptance
 

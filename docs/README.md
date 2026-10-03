@@ -28,6 +28,7 @@ The legacy synthetic ESP32 generator remains documented beside its firmware in [
 | [Capstone acceptance consolidation — 3 October 2026](evidence/capstone-acceptance-consolidation-2026-10-03.md) | Current T01–T07 acceptance state, T05 closure, T02/T03/T07 operator-confirmed passes, stakeholder-test boundary, and repository freeze rule. |
 | [T05 analysis and AI grounding acceptance](evidence/t05-analysis-ai-grounding-2026-10-02.md) | Deterministic facts, semantic interpretation, LLM boundaries, source/provenance and final T05 closure evidence. |
 | [XC4604 LIVE soil-moisture acceptance](evidence/s3/soil-moisture-live-acceptance-2026-10-02.md) | Physical XC4604 response through FP-001, managed ingest, LIVE per-measurement provenance, MariaDB and Android. |
+| [XC4604 coco-relative calibration](evidence/s3/soil-moisture-coco-calibration-2026-10-03.md) | Medium-specific relative scale using completely dry and freshly saturated coco endpoints; explicitly not volumetric water content or agronomic calibration. |
 | [S3 live bring-up](evidence/s3/live-bringup-2026-09-26.md) | Two-board discovery/registration and bring-up fault isolation. |
 | [S3 Pi backend validation](evidence/s3/pi-backend-validation-2026-09-26.md) | Raspberry Pi backend test result on the deployed host. |
 | [Android UX v0.1 validation](evidence/android-ux-v01-validation.md) | Earlier Android refactor/build/device acceptance checkpoint. |

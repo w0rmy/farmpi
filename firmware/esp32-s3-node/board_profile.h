@@ -11,7 +11,7 @@
 // and tested on this board profile.
 
 static const char* BOARD_PROFILE = "esp32-s3-managed-v2";
-static const char* FIRMWARE_VERSION = "0.3.3-xc4604-poc";
+static const char* FIRMWARE_VERSION = "0.3.4-xc4604-coco-cal";
 
 // Alphabetical order is intentional: it matches the canonical configuration.
 static const char* CONFIGURABLE_MEASUREMENTS[] = {
@@ -31,12 +31,17 @@ static const char* CONFIGURABLE_MEASUREMENTS[] = {
 };
 static const size_t CONFIGURABLE_COUNT = sizeof(CONFIGURABLE_MEASUREMENTS) / sizeof(CONFIGURABLE_MEASUREMENTS[0]);
 
-// Physical proof-of-concept driver currently fitted to the managed S3 profile.
+// Physical prototype driver currently fitted to the managed S3 profile.
 // XC4604 is an analogue resistive probe on ESP32-S3 ADC1 GPIO4.
-// The electrical scaling below is intentionally NOT an agronomic calibration.
+// The relative scale below is calibrated to the coco growing medium used for
+// prototype testing on 3 October 2026. It is NOT volumetric water content or
+// an agronomic calibration.
+//
+// Dry endpoint: median of nine completely dry coco readings ~= 1066.4.
+// Wet endpoint: mean of three freshly saturated coco readings ~= 1955.0.
 static const uint8_t SOIL_MOISTURE_ADC_PIN = 4;
-static const uint16_t SOIL_MOISTURE_POC_RAW_DRY = 0;
-static const uint16_t SOIL_MOISTURE_POC_RAW_WET = 1800;
+static const float SOIL_MOISTURE_RELATIVE_RAW_DRY = 1066.0f;
+static const float SOIL_MOISTURE_RELATIVE_RAW_WET = 1955.0f;
 static const uint8_t SOIL_MOISTURE_ADC_SAMPLES = 16;
 
 static const char* LIVE_MEASUREMENTS[] = {
