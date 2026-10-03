@@ -32,7 +32,7 @@ Observed acceptance sequence:
 
 The row-level `simulated=1` compatibility flag remained true because other measurements in the same sparse sample were still configured SIMULATED. The authoritative per-measurement provenance for soil moisture was `LIVE`.
 
-This is a **proof-of-concept physical acquisition result**, not a calibration result. The raw 0–1800 mapping is an uncalibrated electrical scale and must not be presented as volumetric water content or agronomic accuracy.
+This is the retained **first physical acquisition acceptance** and should not be rewritten as though the later calibration already existed. The original raw 0–1800 mapping was deliberately uncalibrated. A later 3 October 2026 coco-relative calibration supersedes that display scale for current firmware while preserving the historical acceptance result.
 
 Evidence: [XC4604 LIVE soil-moisture acceptance](evidence/s3/soil-moisture-live-acceptance-2026-10-02.md).
 
@@ -46,7 +46,30 @@ Simulation has moved to the managed-node sensor boundary. Each catalogue measure
 
 Hardware UID, stable FarmPi node ID and farmer location are separate identities. The logical ID is `FP-xxx`. The farmer can assign names such as `Bob's`, `Back Hill` or `Down by the Trough`, and moving a node does not change its hardware or logical identity.
 
-The managed S3 profile advertises all 13 catalogue keys for simulation and now advertises one physical LIVE driver: `soil_moisture_pct` from an XC4604 on GPIO4. The first implementation uses a proof-of-concept electrical scale of raw 0 (dry air) to raw 1800 (immersed water), clamped to 0–100%. This scale is explicitly uncalibrated and must not be reported as volumetric water content or agronomic calibration. Modes remain managed through the same configuration contract. T01 still requires six real physical measurements.
+The managed S3 profile advertises all 13 catalogue keys for simulation and one physical LIVE driver: `soil_moisture_pct` from an XC4604 on GPIO4. The first LIVE acceptance used an uncalibrated raw 0 (dry air) to raw 1800 (immersed water) electrical scale purely to prove the acquisition path. On 3 October 2026, the prototype was recalibrated against the actual coco growing medium used for testing: completely dry coco produced a median raw value of approximately 1066.4, while freshly saturated coco produced a mean of approximately 1955.0. Firmware `0.3.4-xc4604-coco-cal` therefore maps raw 1066 to 0% and raw 1955 to 100% as a **relative coco-moisture prototype scale**. This is still not volumetric water content or agronomic calibration. Modes remain managed through the same configuration contract. T01 still requires six real physical measurements.
+
+## XC4604 coco-relative calibration — 3 October 2026
+
+The first physical acceptance proved the LIVE acquisition path but also exposed that the raw 0–1800 dry-air/water scale was not meaningful for the actual coco medium. Completely dry coco still displayed around 58–64% on that old scale.
+
+A medium-specific prototype calibration was therefore measured using the same XC4604 probe and coco mix:
+
+- freshly saturated coco readings: 1943.7, 1966.1, 1955.1 raw;
+- wet mean: approximately **1955.0**;
+- completely dry coco readings: 1155.6, 1113.1, 1096.2, 1083.5, 972.1, 1066.4, 1056.0, 1050.9, 1043.3 raw;
+- dry median: approximately **1066.4**.
+
+Current firmware uses:
+
+```text
+RAW_DRY = 1066
+RAW_WET = 1955
+relative_moisture_pct = clamp((raw - RAW_DRY) / (RAW_WET - RAW_DRY) * 100, 0, 100)
+```
+
+This percentage is a **relative moisture scale for the prototype coco medium**. It must not be described as volumetric water content, commercial sensor calibration, or an agronomic moisture threshold.
+
+The calibration change does not upgrade T01 beyond 1/6 physical measurements; it improves the usefulness and defensibility of the already-demonstrated LIVE soil-moisture channel.
 
 ## Software setup
 
