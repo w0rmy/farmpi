@@ -46,30 +46,34 @@ Simulation has moved to the managed-node sensor boundary. Each catalogue measure
 
 Hardware UID, stable FarmPi node ID and farmer location are separate identities. The logical ID is `FP-xxx`. The farmer can assign names such as `Bob's`, `Back Hill` or `Down by the Trough`, and moving a node does not change its hardware or logical identity.
 
-The managed S3 profile advertises all 13 catalogue keys for simulation and one physical LIVE driver: `soil_moisture_pct` from an XC4604 on GPIO4. The first LIVE acceptance used an uncalibrated raw 0 (dry air) to raw 1800 (immersed water) electrical scale purely to prove the acquisition path. On 3 October 2026, the prototype was recalibrated against the actual coco growing medium used for testing: completely dry coco produced a median raw value of approximately 1066.4, while freshly saturated coco produced a mean of approximately 1955.0. Firmware `0.3.4-xc4604-coco-cal` therefore maps raw 1066 to 0% and raw 1955 to 100% as a **relative coco-moisture prototype scale**. This is still not volumetric water content or agronomic calibration. Modes remain managed through the same configuration contract. T01 still requires six real physical measurements.
+The managed S3 profile advertises all 13 catalogue keys for simulation and one physical LIVE driver: `soil_moisture_pct` from an XC4604 on GPIO4. The first LIVE acceptance used an uncalibrated raw 0 (dry air) to raw 1800 (immersed water) electrical scale purely to prove the acquisition path. On 3 October 2026, testing in the actual coco medium first produced a provisional 1066 dry / 1955 wet relative calibration. Further saturated-coco testing showed that the earlier wet endpoint was too low, and the retained firmware scale was moved to engineering endpoints of raw 1000 = 0% and raw 2200 = 100%. The measured dry median remained approximately 1066.4; the retained 1000/2200 values must not be described as the directly measured median and mean. This remains a **relative coco-moisture prototype scale**, not volumetric water content or agronomic calibration. Modes remain managed through the same configuration contract. T01 still requires six real physical measurements.
 
 ## XC4604 coco-relative calibration — 3 October 2026
 
 The first physical acceptance proved the LIVE acquisition path but also exposed that the raw 0–1800 dry-air/water scale was not meaningful for the actual coco medium. Completely dry coco still displayed around 58–64% on that old scale.
 
-A medium-specific prototype calibration was therefore measured using the same XC4604 probe and coco mix:
+The first retained medium-specific observations were:
 
-- freshly saturated coco readings: 1943.7, 1966.1, 1955.1 raw;
-- wet mean: approximately **1955.0**;
 - completely dry coco readings: 1155.6, 1113.1, 1096.2, 1083.5, 972.1, 1066.4, 1056.0, 1050.9, 1043.3 raw;
-- dry median: approximately **1066.4**.
+- dry median: approximately **1066.4**;
+- first freshly saturated coco readings: 1943.7, 1966.1, 1955.1 raw;
+- mean of those first three wet readings: approximately **1955.0**.
 
-Current firmware uses:
+Those observations produced the first **provisional** coco-relative endpoints of 1066 dry / 1955 wet. Further saturated-coco testing then produced nine readings with a mean around 2120 and at least one reading around 2185, showing that 1955 was too low as the practical upper endpoint.
+
+The retained firmware scale therefore uses engineering endpoints:
 
 ```text
-RAW_DRY = 1066
-RAW_WET = 1955
+RAW_DRY = 1000
+RAW_WET = 2200
 relative_moisture_pct = clamp((raw - RAW_DRY) / (RAW_WET - RAW_DRY) * 100, 0, 100)
 ```
 
+The 1000 dry value is a rounded engineering endpoint; it is not the measured dry median. Likewise, 2200 is the retained practical wet endpoint after the later saturated-coco series, not the mean of the first three wet readings.
+
 This percentage is a **relative moisture scale for the prototype coco medium**. It must not be described as volumetric water content, commercial sensor calibration, or an agronomic moisture threshold.
 
-The calibration change does not upgrade T01 beyond 1/6 physical measurements; it improves the usefulness and defensibility of the already-demonstrated LIVE soil-moisture channel.
+The calibration change does not upgrade T01 beyond 1/6 physical measurements; it improves the usefulness and defensibility of the already-demonstrated LIVE soil-moisture channel. The detailed calibration history is retained in [XC4604 coco-relative calibration](evidence/s3/soil-moisture-coco-calibration-2026-10-03.md).
 
 ## Software setup
 
