@@ -12,11 +12,13 @@ Freshly saturated coco produced raw readings of 1943.7, 1966.1 and 1955.1, givin
 
 Completely dry coco produced raw readings of 1155.6, 1113.1, 1096.2, 1083.5, 972.1, 1066.4, 1056.0, 1050.9 and 1043.3. Because insertion/contact variation was visible, the median 1066.4 was chosen rather than a single extreme reading.
 
-The prototype calibration therefore uses:
+The first provisional coco-relative calibration therefore used:
 
 - `RAW_DRY = 1066`
 - `RAW_WET = 1955`
 - span = 889 ADC counts
+
+Further saturated-coco testing later showed that the 1955 wet endpoint was too low. The retained firmware scale now uses engineering endpoints of `RAW_DRY = 1000` and `RAW_WET = 2200`. The measured dry median remains approximately 1066.4; 1000 is a rounded engineering endpoint rather than the measured median. The later wet endpoint and the full calibration history are retained in the dedicated calibration evidence record.
 
 ### Decision and implementation
 
